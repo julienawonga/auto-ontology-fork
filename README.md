@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Auto Ontology
 
-Agents can retrieve documents and query databases, but reliability gates agentic analytics: a revenue metric answered faster is worth nothing if the number is wrong. Agents need a context layer that tells them where data lives, what it means, whether to use it, how to use it, where it came from, and what is similar. NVIDIA Auto Ontology is an open library that builds that layer from enterprise metadata, reconciles definitions across systems, and exposes it to any agent harness through MCP, CLI, and API. It complements the semantic models customers already own.
+Agents can retrieve documents and query databases, but reliability gates agentic analytics: a revenue metric answered faster is worth nothing if the number is wrong. Agents need a context layer that tells them where data lives, what it means, whether to use it, how to use it, where it came from, and what is similar. Auto Ontology is an open library that builds that layer from enterprise metadata, reconciles definitions across systems, and exposes it to any agent harness through MCP, CLI, and API. It complements the semantic models customers already own.
 
 It enables developers to:
 
@@ -34,7 +34,8 @@ To run a text-to-SQL benchmark such as BIRD, refer to the
 ## Key Features
 
 - **Natural-language querying** of structured data — questions are translated to
-  SQL and executed against connected databases, powered by NVIDIA NIM.
+  SQL and executed against connected databases, powered by the model endpoints you
+  configure (any OpenAI-compatible endpoint).
 - **Semantic catalog / ontology layer** over relational sources, stored in
   Postgres alongside the catalog it describes.
 - **Authentication & RBAC** —using [Better Auth](https://github.com/better-auth/better-auth).
@@ -52,19 +53,37 @@ To run a text-to-SQL benchmark such as BIRD, refer to the
 | Postgres + pgvector | Relational Database                                                    | App metadata, the catalog and ontology, vector store | 5432 |
 | HashiCorp Vault     | Optional                                                               | Secure storage of connection credentials   | —            |
 
-### NVIDIA NIM
+### Model providers
 
-Auto Ontology uses NVIDIA NIM endpoints for inference — either the hosted
-[NVIDIA API catalog](https://build.nvidia.com) (`integrate.api.nvidia.com`) or
-self-hosted NIMs. The defaults in `.env.example` are:
+Auto Ontology calls the model endpoints you configure for inference, embeddings
+and reranking. Any OpenAI-compatible endpoint works: a gateway such as a LiteLLM
+proxy, a hosted provider, or a local server (vLLM, Ollama). The
+endpoints and models are set with the `DEFAULT_MODELS_*`, `EMBED_*` and
+`RERANK_*` environment variables, and the API key with `DEFAULT_MODELS_API_KEY`.
+[`.env.example`](./.env.example) holds placeholders. For OpenAI models behind a
+gateway such as a LiteLLM proxy, which exposes them as `openai/<model>`, set:
 
-- **LLM:** `nvidia/nemotron-3.5-lightning-30b-a3b`
-- **Embeddings:** `nvidia/nemotron-3-embed-1b`
-- **Reranking:** `nvidia/llama-nemotron-rerank-vl-1b-v2`
+```dotenv
+DEFAULT_MODELS_API_KEY=<gateway key>
+DEFAULT_MODELS_ENDPOINT=http://localhost:4000/v1
+DEFAULT_MODELS_MODEL=openai/gpt-5
+EMBED_API_KEY=<gateway key>
+EMBED_ENDPOINT=http://localhost:4000/v1
+EMBED_MODEL=<an embedding model that outputs 2048 dimensions>
+```
 
-The endpoints and models are configured via the `DEFAULT_MODELS_ENDPOINT`, `DEFAULT_MODELS_MODEL`,
-`EMBED_ENDPOINT`, and `EMBED_MODEL` environment variables and require a
-`DEFAULT_MODELS_API_KEY`.
+The `openai/` prefix is what routes chat calls through the OpenAI client (see
+[Models](#models)), and the gateway must map it to the real model. Calling
+`api.openai.com` directly with a bare model name is not covered by this setup.
+
+The vector store is 2048 wide by default. For an embedding model with another
+width, set `EMBED_DIMENSIONS` to it (it is also sent to the model as
+`dimensions`) and re-ingest; a vector of the wrong width fails with an error
+that names this setting. Embedding requests also carry three NVIDIA-only body
+fields (`input_type`, `truncate`, `modality`); set `EMBED_NIM_FIELDS=false` if
+your endpoint rejects unknown fields.
+
+Reranking is optional (see [Models](#models)).
 
 #### Model triplets
 
@@ -89,8 +108,8 @@ back to the legacy `NVIDIA_API_KEY` for backward compatibility.
 
 This runs Auto-Ontology with Docker Compose against Wide World Importers,
 Microsoft's sample sales database. You need Docker with Compose v2,
-[uv](https://docs.astral.sh/uv/), and an NVIDIA API key (`nvapi-...`) from
-[build.nvidia.com](https://build.nvidia.com).
+[uv](https://docs.astral.sh/uv/), and an API key for a model endpoint (see
+[Model providers](#model-providers)).
 
 1. Clone the repository and create `.env`:
 
@@ -102,7 +121,11 @@ Microsoft's sample sales database. You need Docker with Compose v2,
    Then set these values in `.env`:
 
    ```dotenv
-   DEFAULT_MODELS_API_KEY=nvapi-...
+   DEFAULT_MODELS_API_KEY=<your model API key>
+   DEFAULT_MODELS_ENDPOINT=<your OpenAI-compatible endpoint>
+   DEFAULT_MODELS_MODEL=<your chat model, e.g. openai/...>
+   EMBED_ENDPOINT=<your embeddings endpoint>
+   EMBED_MODEL=<your embedding model>
    AUTH_SECRET=<a long random string, e.g. from openssl rand -base64 32>
    APP_URL=http://localhost:3000
    POSTGRES_PASSWORD=<a new password>
@@ -113,8 +136,8 @@ Microsoft's sample sales database. You need Docker with Compose v2,
 
    Compose publishes Postgres, pgAdmin, and the web app on the host, so replace
    each default password before you start it. `.env.example` also sets an API
-   key per model role: replace each `nvapi-your-api-key-here` with your key, or
-   delete those lines so they fall back to `DEFAULT_MODELS_API_KEY`.
+   key for the embedding and rerank roles: replace each `your-api-key-here` with
+   your key, or delete those lines so they fall back to `DEFAULT_MODELS_API_KEY`.
 
 2. Start Postgres and load the sample database. The seed script lives in
    auto-ontology-eval; pass it the Postgres password you set:
@@ -404,23 +427,22 @@ credential storage.
 
 ### Models
 
-Auto-Ontology uses four model roles. With an `nvapi-` key, each defaults to an
-NVIDIA NIM on [build.nvidia.com](https://build.nvidia.com):
+Auto-Ontology uses four model roles. You choose the model for each one:
 
-| Role            | Default model                           | What it does                                                                                                                   |
-| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `REASONING`     | `nvidia/nemotron-3.5-lightning-30b-a3b` | Builds the ontology (terms, relationships, SQL attributes), writes each answer's SQL and explanation, and grades answerability |
-| `NON_REASONING` | `nvidia/nemotron-3.5-lightning-30b-a3b` | Runs the agent's faster steps: question intent, entity extraction, candidate selection, and SQL checks and repair              |
-| `EMBED`         | `nvidia/nemotron-3.5-embed-1b`          | Indexes tables, columns, terms, and SQL attributes in pgvector, and matches each question to them                              |
-| `RERANK`        | `nvidia/nemotron-3.5-rerank-8b`         | Ranks candidate tables when compilation builds bridge-table SQL attributes                                                     |
+| Role            | What it does                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `REASONING`     | Builds the ontology (terms, relationships, SQL attributes), writes each answer's SQL and explanation, and grades answerability |
+| `NON_REASONING` | Runs the agent's faster steps: question intent, entity extraction, candidate selection, and SQL checks and repair              |
+| `EMBED`         | Indexes tables, columns, terms, and SQL attributes in pgvector, and matches each question to them                              |
+| `RERANK`        | Optional. Ranks candidate tables when compilation builds bridge-table SQL attributes; on failure the first candidate is used   |
 
-To use self-hosted NIM or any OpenAI-compatible endpoint, set
-`<ROLE>_ENDPOINT`, `<ROLE>_API_KEY`, and `<ROLE>_MODEL`. Any field you leave
-unset falls back to `DEFAULT_MODELS_<FIELD>`, so the simplest setup fills in
-`DEFAULT_MODELS_*` and overrides only what differs. Use models
-that support structured output, and keep the embedding model the same for
-ingestion and queries. [`.env.example`](./.env.example) documents every
-variable.
+Set `<ROLE>_ENDPOINT`, `<ROLE>_API_KEY`, and `<ROLE>_MODEL` for each role. Any
+field you leave unset falls back to `DEFAULT_MODELS_<FIELD>`, so the simplest
+setup fills in `DEFAULT_MODELS_*` and overrides only what differs. Chat models
+are reached through the OpenAI client when the model name starts with
+`openai/`, `azure/` or `aws/`, and through the NVIDIA client (NIM protocol)
+otherwise. Use models that support structured output, and keep the embedding
+model the same for ingestion and queries. [`.env.example`](./.env.example) documents every variable.
 
 ### Predictions
 
@@ -489,9 +511,8 @@ materials at your own risk.
 
 External materials Auto-Ontology interacts with at run time:
 
-- Model endpoints you configure, by default the NVIDIA API catalog
-  (`integrate.api.nvidia.com`, `ai.api.nvidia.com`), under each provider's and
-  model's terms.
+- Model endpoints you configure (for example OpenAI, another hosted
+  provider, or a server you run), under each provider's and model's terms.
 - The KumoRFM service, only when `KUMO_RFM_API_KEY` is set, under Kumo's terms.
 - Your source databases, under your agreements for those systems.
 

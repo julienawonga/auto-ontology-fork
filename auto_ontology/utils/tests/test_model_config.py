@@ -68,3 +68,46 @@ def test_an_explicit_setting_wins_over_the_default(
     clean_env.setenv("REASONING_MODEL", "nvidia/some-other-model")
 
     assert model_config.resolve("REASONING", "MODEL") == "nvidia/some-other-model"
+
+
+def test_the_vector_width_defaults_to_2048(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("EMBED_DIMENSIONS", raising=False)
+
+    assert model_config.embed_dimensions() == 2048
+    assert model_config.embed_dimensions_requested() is None
+
+
+def test_the_vector_width_can_be_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EMBED_DIMENSIONS", " 1536 ")
+
+    assert model_config.embed_dimensions() == 1536
+    assert model_config.embed_dimensions_requested() == 1536
+
+
+@pytest.mark.parametrize("value", ["abc", "0", "-5", "10.5"])
+def test_a_bad_vector_width_is_refused(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("EMBED_DIMENSIONS", value)
+
+    with pytest.raises(ValueError, match="EMBED_DIMENSIONS"):
+        model_config.embed_dimensions()
+
+
+@pytest.mark.parametrize(
+    ("value", "enabled"),
+    [
+        ("", True),
+        ("true", True),
+        ("1", True),
+        ("false", False),
+        ("OFF", False),
+        ("0", False),
+    ],
+)
+def test_the_nvidia_fields_switch(
+    monkeypatch: pytest.MonkeyPatch, value: str, enabled: bool
+) -> None:
+    monkeypatch.setenv("EMBED_NIM_FIELDS", value)
+
+    assert model_config.embed_nim_fields_enabled() is enabled
