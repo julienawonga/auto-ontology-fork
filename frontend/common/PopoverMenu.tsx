@@ -26,6 +26,11 @@ type PopoverMenuProps = {
 	 * otherwise shrinks to the widest item.
 	 */
 	header?: ReactNode;
+	/**
+	 * Block below the items, for controls that change a setting in place (the
+	 * menu stays open) rather than act and close.
+	 */
+	footer?: ReactNode;
 	className?: string;
 };
 
@@ -33,7 +38,13 @@ type PopoverMenuProps = {
  * List of actions anchored under the right edge of its trigger. See `Popover`
  * for the positioning and dismissal it is built on.
  */
-export const PopoverMenu = ({ items, trigger, header, className = '' }: PopoverMenuProps) => (
+export const PopoverMenu = ({
+	items,
+	trigger,
+	header,
+	footer,
+	className = '',
+}: PopoverMenuProps) => (
 	<Popover
 		trigger={trigger}
 		className={className}
@@ -61,6 +72,11 @@ export const PopoverMenu = ({ items, trigger, header, className = '' }: PopoverM
 						{item.label}
 					</SelectButton>
 				))}
+				{footer != null && (
+					<div className="mt-1 border-t border-zinc-100 pt-1 dark:border-zinc-800">
+						{footer}
+					</div>
+				)}
 			</>
 		)}
 	</Popover>

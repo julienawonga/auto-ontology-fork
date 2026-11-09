@@ -20,6 +20,7 @@ import type {
 
 import { ExplorationLayer } from '@/enums/exploration';
 import type { ExplorationGraph } from '@/types/exploration';
+import { isDarkThemeActive, observeDarkTheme } from '@/lib/theme';
 import { NODE_TYPE_ACCENT_COLOR } from './nodeTypeColors';
 import type { NodeType } from './nodeTypeColors';
 
@@ -143,9 +144,6 @@ const CANVAS_BACKGROUND_DARK = '#09090b';
 // used in dark mode above).
 const HOVER_LABEL_BACKGROUND_LIGHT = '#ffffff';
 const HOVER_LABEL_BACKGROUND_DARK = '#18181b';
-
-const prefersDarkMode = () =>
-	typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 const EDGE_BRAND_COLOR = '#76b900';
 
@@ -661,7 +659,7 @@ export const GraphCanvas = ({
 	useEffect(() => {
 		if (containerRef.current == null) return undefined;
 
-		let isDark = prefersDarkMode();
+		let isDark = isDarkThemeActive();
 		let edgeColors = getEdgeColors(isDark);
 		const containerRect = containerRef.current.getBoundingClientRect();
 		const containerAspectRatio =
@@ -1640,12 +1638,12 @@ export const GraphCanvas = ({
 			}
 		}, 1200);
 
-		// The OS color scheme can change without remounting this component
-		// (e.g. the system switching themes at sunset); react to it live
-		// instead of leaving stale light/dark colors until the next navigation.
-		const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-		const handleColorSchemeChange = (event: MediaQueryListEvent) => {
-			isDark = event.matches;
+		// The theme can change without remounting this component (the user
+		// menu's theme switch, or the OS switching at sunset while on System);
+		// react to it live instead of leaving stale light/dark colors until the
+		// next navigation.
+		const handleColorSchemeChange = (dark: boolean) => {
+			isDark = dark;
 			edgeColors = getEdgeColors(isDark);
 			const nextNodeTypeColor = isDark ? NODE_TYPE_COLOR_DARK : NODE_TYPE_COLOR_LIGHT;
 			graphology.forEachNode((node, attributes) => {
@@ -1656,7 +1654,7 @@ export const GraphCanvas = ({
 			});
 			renderer.refresh();
 		};
-		colorSchemeQuery.addEventListener('change', handleColorSchemeChange);
+		const stopObservingTheme = observeDarkTheme(handleColorSchemeChange);
 
 		const resizeObserver = new ResizeObserver((entries) => {
 			// ResizeObserver fires immediately on observe() and again during
@@ -1684,7 +1682,7 @@ export const GraphCanvas = ({
 		return () => {
 			window.clearTimeout(centerTimeout);
 			if (bboxAnimationFrame != null) cancelAnimationFrame(bboxAnimationFrame);
-			colorSchemeQuery.removeEventListener('change', handleColorSchemeChange);
+			stopObservingTheme();
 			window.removeEventListener('blur', handleWindowBlur);
 			resizeObserver.disconnect();
 			onControllerChange(null);

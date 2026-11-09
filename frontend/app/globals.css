@@ -7,6 +7,14 @@
 /* Load Tailwind. @nvidia/foundations-react-core ships no standalone base.css. */
 @import 'tailwindcss';
 
+/*
+ * `dark:` keys off a `dark` class on <html> instead of the OS media query, so
+ * the user menu's System / Light / Dark choice can override the OS. The class
+ * is set before paint by the inline script in app/layout.tsx (see lib/theme.ts),
+ * which still follows the OS while the choice is System.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
 	--color-foreground: #09090b;
 
@@ -46,10 +54,8 @@
 	}
 }
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--color-foreground: #fafafa;
-	}
+:root.dark {
+	--color-foreground: #fafafa;
 }
 
 /* Spinner layout tweaks (@nvidia/foundations-react-core Spinner). */
@@ -174,18 +180,16 @@
 	white-space: nowrap;
 }
 
-@media (prefers-color-scheme: dark) {
-	.nv-pagination-root {
-		color: #a1a1aa; /* zinc-400 */
-	}
-	.nv-pagination-arrow-button,
-	.nv-pagination-page-list .nv-tabs-trigger {
-		color: #d4d4d8; /* zinc-300 */
-	}
-	.nv-pagination-arrow-button:hover:not(:disabled),
-	.nv-pagination-page-list .nv-tabs-trigger:hover {
-		background-color: #27272a; /* zinc-800 */
-	}
+.dark .nv-pagination-root {
+	color: #a1a1aa; /* zinc-400 */
+}
+.dark .nv-pagination-arrow-button,
+.dark .nv-pagination-page-list .nv-tabs-trigger {
+	color: #d4d4d8; /* zinc-300 */
+}
+.dark .nv-pagination-arrow-button:hover:not(:disabled),
+.dark .nv-pagination-page-list .nv-tabs-trigger:hover {
+	background-color: #27272a; /* zinc-800 */
 }
 
 /*
@@ -228,15 +232,13 @@ body {
 	--result-chart-tooltip-fg: #fafafa;
 }
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--result-chart-fg: #fafafa;
-		--result-chart-muted: #a1a1aa;
-		--result-chart-border: #3f3f46;
-		--result-chart-surface: #18181b;
-		--result-chart-tooltip-bg: #fafafa;
-		--result-chart-tooltip-fg: #18181b;
-	}
+:root.dark {
+	--result-chart-fg: #fafafa;
+	--result-chart-muted: #a1a1aa;
+	--result-chart-border: #3f3f46;
+	--result-chart-surface: #18181b;
+	--result-chart-tooltip-bg: #fafafa;
+	--result-chart-tooltip-fg: #18181b;
 }
 
 .result-chart {

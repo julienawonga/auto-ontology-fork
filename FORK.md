@@ -15,6 +15,7 @@ behaves like upstream.
 |---|---|---|
 | [Any OpenAI-compatible model provider](#any-openai-compatible-model-provider) | `neutral-llm-typing` | Done, verified end to end |
 | [Exclude views from ingestion](#exclude-views-from-ingestion) | `exclude-views-filter` | Done, verified end to end |
+| [Light/dark theme switcher](#lightdark-theme-switcher) | `theme-switcher` | Done, not yet tested in the UI |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -81,6 +82,30 @@ Code: `auto_ontology/catalog/table_filter.py`, `frontend/enums/connection.ts`,
 Limitation: when `CONNECTION_STRINGS` is set in `.env`, the connection created
 at startup cannot carry this option. To use it, create the connection from the
 UI instead.
+
+## Light/dark theme switcher
+
+Upstream only follows the operating system's light/dark setting, with no way
+to override it in the app.
+
+What changed:
+
+- **Theme choice in the user menu**: a System / Light / Dark control at the
+  bottom of the avatar menu. The default is System.
+- **Stored per browser** (`localStorage`), not per account: no database or API
+  change. If storage is blocked, the app falls back to System.
+- **No flash on load**: a small inline script in the root layout sets the
+  theme before the first paint.
+- **Live updates**: while on System, the app follows OS changes as they happen,
+  and a change made in another tab carries over.
+- Tailwind's `dark:` variant now keys off a `dark` class on `<html>` instead of
+  the OS media query. The few hand-written dark CSS rules and the exploration
+  graph's canvas colors follow the same class.
+
+Code: `frontend/lib/theme.ts`, `frontend/common/ThemeSwitcher.tsx`,
+`frontend/enums/theme.ts`, `frontend/app/layout.tsx`,
+`frontend/app/globals.css`, `frontend/common/UserMenu.tsx`,
+`frontend/components/explorationPage/graph/GraphCanvas.tsx`.
 
 ## Planned: foreign keys on partitioned tables
 
