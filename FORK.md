@@ -19,6 +19,7 @@ behaves like upstream.
 | [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | `chat-assistant-ui` | Done, verified in the UI |
 | [Glass design on the Chat page](#glass-design-on-the-chat-page) | `chat-glass` | Done, verified in the UI |
 | [Light/dark theme switcher](#lightdark-theme-switcher) | `theme-switcher` | Done, not yet tested in the UI |
+| [Pinnable navigation](#pinnable-navigation) | `ui-refresh` | Done, not yet tested in the UI |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -186,6 +187,21 @@ Code: `frontend/lib/theme.ts`, `frontend/common/ThemeSwitcher.tsx`,
 `frontend/enums/theme.ts`, `frontend/app/layout.tsx`,
 `frontend/app/globals.css`, `frontend/common/UserMenu.tsx`,
 `frontend/components/explorationPage/graph/GraphCanvas.tsx`.
+
+## Pinnable navigation
+
+Upstream's left navigation is an icon rail that opens over the page on hover
+and closes as soon as the pointer leaves, so the labels cannot stay visible.
+
+What changed:
+
+- A **Keep open** button at the bottom of the rail pins it open. Pinned, it
+  takes its own width and the page sits beside it instead of under it;
+  **Unpin** returns to the hover behaviour.
+- Stored per browser (`localStorage`), like the theme, and shared between tabs.
+  If storage is blocked, the rail keeps the hover behaviour.
+
+Code: `frontend/common/NavRail.tsx`, `frontend/lib/navRail.ts`.
 
 ## Planned: foreign keys on partitioned tables
 

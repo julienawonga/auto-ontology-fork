@@ -4,10 +4,16 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon, IconName } from '@/common/icons';
+import {
+	readNavPinned,
+	readNavPinnedOnServer,
+	setNavPinned,
+	subscribeToNavPinned,
+} from '@/lib/navRail';
 
 type NavItem = {
 	icon: IconName;
@@ -29,20 +35,37 @@ const navItems: NavItem[] = [
 	{ icon: IconName.Settings, href: '/settings', label: 'Settings', adminOnly: true },
 ];
 
+/**
+ * The left navigation. Unpinned, it is an icon rail that opens over the page
+ * on hover; pinned, it stays open and takes its own width, so the page sits
+ * beside it instead of under it. The pin is a per-browser preference.
+ */
 export const NavRail = ({ isAdmin = false }: { isAdmin?: boolean }) => {
 	const pathname = usePathname();
-	const [isExpanded, setIsExpanded] = useState(false);
+	const [isHovered, setIsHovered] = useState(false);
+	const isPinned = useSyncExternalStore(
+		subscribeToNavPinned,
+		readNavPinned,
+		readNavPinnedOnServer,
+	);
+	const isExpanded = isPinned || isHovered;
 	const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
 	return (
-		<nav className="relative h-full w-12 shrink-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+		<nav
+			className={`relative h-full shrink-0 border-r border-zinc-200 bg-white transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950 ${
+				isPinned ? 'w-56' : 'w-12'
+			}`}
+		>
 			<div
-				onMouseEnter={() => setIsExpanded(true)}
-				onMouseLeave={() => setIsExpanded(false)}
+				onMouseEnter={() => setIsHovered(true)}
+				onMouseLeave={() => setIsHovered(false)}
 				className={`absolute inset-y-0 left-0 flex flex-col overflow-hidden bg-white py-3 transition-[width] duration-200 ease-out dark:bg-zinc-950 ${
-					isExpanded
-						? 'z-30 w-56 border-r border-zinc-200 shadow-lg dark:border-zinc-800'
-						: 'w-full'
+					isPinned
+						? 'w-full'
+						: isExpanded
+							? 'z-30 w-56 border-r border-zinc-200 shadow-lg dark:border-zinc-800'
+							: 'w-full'
 				}`}
 			>
 				<div
@@ -73,6 +96,29 @@ export const NavRail = ({ isAdmin = false }: { isAdmin?: boolean }) => {
 							</Link>
 						);
 					})}
+				</div>
+
+				<div className={`pt-2 ${isExpanded ? 'px-1.5' : 'flex justify-center'}`}>
+					<button
+						type="button"
+						onClick={() => setNavPinned(!isPinned)}
+						aria-pressed={isPinned}
+						aria-label={isPinned ? 'Unpin navigation' : 'Keep navigation open'}
+						title={isExpanded ? undefined : 'Keep navigation open'}
+						className={`flex h-9 shrink-0 items-center gap-3 rounded-lg text-secondary transition-colors hover:bg-zinc-100 hover:text-heading focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:outline-none dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 ${
+							isExpanded ? 'w-full px-2' : 'w-9 justify-center'
+						}`}
+					>
+						<Icon
+							name={IconName.ChevronRight}
+							className={`h-4 w-4 shrink-0 transition-transform ${isPinned ? 'rotate-180' : ''}`}
+						/>
+						{isExpanded && (
+							<span className="truncate text-sm whitespace-nowrap">
+								{isPinned ? 'Unpin' : 'Keep open'}
+							</span>
+						)}
+					</button>
 				</div>
 			</div>
 		</nav>
