@@ -15,6 +15,7 @@ behaves like upstream.
 |---|---|---|
 | [Any OpenAI-compatible model provider](#any-openai-compatible-model-provider) | `neutral-llm-typing` | Done, verified end to end |
 | [Exclude views from ingestion](#exclude-views-from-ingestion) | `exclude-views-filter` | Done, verified end to end |
+| [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | `collapsible-sql` | Done, verified in the UI |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -81,6 +82,30 @@ Code: `auto_ontology/catalog/table_filter.py`, `frontend/enums/connection.ts`,
 Limitation: when `CONNECTION_STRINGS` is set in `.env`, the connection created
 at startup cannot carry this option. To use it, create the connection from the
 UI instead.
+
+## Collapsible reasoning and SQL in chat
+
+A chat answer shows its explanation and the SQL it ran in full, which pushes
+the result itself down the page. Business users mostly want the number;
+checking how it was computed should stay one click away.
+
+What changed:
+
+- An answer that carries SQL folds its explanation and SQL behind
+  "Show reasoning and SQL". The results and charts always stay visible, and
+  replies without SQL (including errors) are never folded.
+- New admin setting **Expand Reasoning and SQL** in *Settings > Agent
+  Settings*, stored as `chat_details_expanded` in the `configurations` table.
+  Off (the default, also when the row is missing): answers start collapsed.
+  On: they start expanded. Each answer can still be toggled by hand.
+- Route `/api/configurations/chat-details`: anyone who can chat may read it,
+  and changing it requires the same permission as "Visualize SQL Results".
+
+Code: `frontend/components/chatPage/MessageBubble.tsx`,
+`frontend/components/chatPage/MessageList.tsx`,
+`frontend/app/settings/agent-settings/page.tsx`,
+`frontend/app/api/configurations/chat-details/`,
+`frontend/lib/queries/chatDisplay.ts`.
 
 ## Planned: foreign keys on partitioned tables
 

@@ -4,10 +4,11 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { ChatMessage } from '@/types/chat';
 import { CopyButton } from '@/common/Button';
 import { formatDate } from '@/common/date';
+import { Icon, IconName } from '@/common/icons';
 import { parseSqlResponse, type ParsedTable } from '@/lib/parseSqlResponse';
 import { SqlBlock } from '@/common/SqlBlock';
 import { DynamicTable } from './DynamicTable';
@@ -61,14 +62,26 @@ const QueryResultsSection = ({
 
 type MessageBubbleProps = {
 	message: ChatMessage;
+	/**
+	 * Whether an answer's explanation and SQL start expanded (Settings > Agent
+	 * Settings). The user can still toggle each answer.
+	 */
+	detailsExpandedByDefault?: boolean;
 };
 
 /** True when the assistant message embeds a ResultChart fence (illumex Message 2). */
 const hasEmbeddedChart = (content: string): boolean =>
 	/(^|\n)```(?:chart|chart-carousel)\b/.test(content);
 
-export const MessageBubble = ({ message }: MessageBubbleProps) => {
+export const MessageBubble = ({
+	message,
+	detailsExpandedByDefault = false,
+}: MessageBubbleProps) => {
 	const isUser = message.role === 'user';
+	// `null` until the user clicks, so the bubble follows the setting — which
+	// may load after the bubble mounts — rather than freezing its first value.
+	const [detailsOpen, setDetailsOpen] = useState<boolean | null>(null);
+	const detailsId = useId();
 	const parsedTable = useMemo(() => parseSqlResponse(message.sqlResponse), [message.sqlResponse]);
 
 	const singleCellResult = useMemo<SingleCellResult | null>(() => {
@@ -86,6 +99,12 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
 	const showQueryResults = !isUser && !showCharts && Boolean(message.sqlResponse);
 	const showText = Boolean(message.content.trim());
 
+	// The explanation and SQL of an answer fold behind one toggle. Only a bubble
+	// that carries SQL folds: plain replies and errors stay readable as they are,
+	// and the results (Message 2) are a separate bubble that always shows.
+	const collapsible = showSql;
+	const detailsExpanded = !collapsible || (detailsOpen ?? detailsExpandedByDefault);
+
 	// Stretch assistant bubbles that carry SQL / charts / tables to the same
 	// width so Message 2 matches Message 1's SQL block.
 	const wideAssistant = !isUser && (showSql || showCharts || showQueryResults);
@@ -99,29 +118,49 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
 						: 'bg-zinc-100 text-heading dark:bg-zinc-800 dark:text-zinc-100'
 				}`}
 			>
-				{showText && (
-					<FormattedContent
-						content={message.content}
-						className="text-sm leading-relaxed"
-					/>
+				{collapsible && (
+					<button
+						type="button"
+						aria-expanded={detailsExpanded}
+						aria-controls={detailsId}
+						onClick={() => setDetailsOpen(!detailsExpanded)}
+						className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-secondary transition-colors hover:text-heading dark:text-zinc-400 dark:hover:text-zinc-100"
+					>
+						<Icon
+							name={IconName.ChevronRight}
+							className={`h-3 w-3 transition-transform ${detailsExpanded ? 'rotate-90' : ''}`}
+						/>
+						{detailsExpanded ? 'Hide reasoning and SQL' : 'Show reasoning and SQL'}
+					</button>
 				)}
 
-				{showSql && (
-					<SqlBlock
-						sql={message.sql!}
-						label={
-							message.sql!.trim().toUpperCase().startsWith('PREDICT') ? 'PQL' : 'SQL'
-						}
-						className={showText ? 'mt-3' : undefined}
-					/>
-				)}
+				<div id={detailsId} hidden={!detailsExpanded} className={collapsible ? 'mt-3' : ''}>
+					{showText && (
+						<FormattedContent
+							content={message.content}
+							className="text-sm leading-relaxed"
+						/>
+					)}
+
+					{showSql && (
+						<SqlBlock
+							sql={message.sql!}
+							label={
+								message.sql!.trim().toUpperCase().startsWith('PREDICT')
+									? 'PQL'
+									: 'SQL'
+							}
+							className={showText ? 'mt-3' : undefined}
+						/>
+					)}
+				</div>
 
 				{showQueryResults && (
 					<QueryResultsSection
 						sqlResponse={message.sqlResponse}
 						parsedTable={parsedTable}
 						singleCell={singleCellResult}
-						className={showText || showSql ? 'mt-3' : undefined}
+						className={(showText || showSql) && detailsExpanded ? 'mt-3' : undefined}
 					/>
 				)}
 

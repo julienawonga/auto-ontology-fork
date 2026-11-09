@@ -1228,6 +1228,106 @@
         "x-auto-ontology-proxied": true
       }
     },
+    "/api/configurations/chat-details": {
+      "get": {
+        "tags": ["configurations"],
+        "summary": "Report whether chat answers show their explanation and SQL expanded.",
+        "description": "Report whether chat answers show their explanation and SQL expanded.\n\nReadable by anyone who can chat, since every chat page needs it to render\nanswers; the flag is display-only and reveals nothing about the data.",
+        "operationId": "get_api_configurations_chat_details",
+        "responses": {
+          "200": {
+            "description": "Whether chat answers show their explanation and SQL expanded. Off when unset, so a fresh instance reports `false` and answers start collapsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["enabled"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          }
+        },
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/configurations/chat-details/route.ts",
+        "x-auto-ontology-permissions": {
+          "chat": ["use"]
+        },
+        "x-auto-ontology-proxied": false
+      },
+      "put": {
+        "tags": ["configurations"],
+        "description": "Turn the instance-wide \"Expand Reasoning and SQL\" setting on or off\n(admin-only). It sits on Settings > Agent Settings next to \"Visualize SQL\nResults\", so it is guarded by the same permission. Open chat pages pick the\nnew value up the next time they load it.",
+        "operationId": "put_api_configurations_chat_details",
+        "requestBody": {
+          "required": true,
+          "description": "Anything other than `true` turns the flag off.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["enabled"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored flag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["enabled"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          }
+        },
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/configurations/chat-details/route.ts",
+        "x-auto-ontology-permissions": {
+          "visualization": ["manage"]
+        },
+        "x-auto-ontology-proxied": false
+      }
+    },
     "/api/configurations/distinct-value-probing": {
       "get": {
         "tags": ["configurations"],

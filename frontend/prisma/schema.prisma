@@ -62,7 +62,10 @@ model Prompt {
 //   visualization_enabled        — "true"/"false", Settings > Agent Settings
 //                                  (auto-generate visualizations for SQL results;
 //                                   a missing row means enabled)
-//   pii_detection_enabled        — "true"/"false", Settings > PII Settings
+//   chat_details_expanded        — "true"/"false", Settings > Agent Settings
+//                                  (show answers' explanation and SQL expanded
+//                                   in chat; a missing row means collapsed)
+//   pii_detection_enabled       — "true"/"false", Settings > PII Settings
 //                                  (classify catalog columns as PII during ingest;
 //                                   a missing row means disabled)
 model Configuration {

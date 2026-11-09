@@ -5,7 +5,9 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { ChatMessage, GraphStep } from '@/types/chat';
+import { chatDisplayQueries } from '@/lib/queries/chatDisplay';
 import { EmptyState } from '@/common/EmptyState';
 import { Icon, IconName } from '@/common/icons';
 import { SkeletonBlock } from '@/common/Skeleton';
@@ -30,6 +32,10 @@ export const MessageList = ({
 	messageListLoading = false,
 }: MessageListProps) => {
 	const bottomRef = useRef<HTMLDivElement>(null);
+	// Collapsed while loading or if the read fails: the setting's default.
+	const { data: detailsExpandedByDefault = false } = useQuery(
+		chatDisplayQueries.detailsExpanded(),
+	);
 
 	// Re-pin to the bottom whenever the rendered content grows. `steps` is
 	// tracked by identity rather than length because a step event that only
@@ -73,7 +79,11 @@ export const MessageList = ({
 		<div className="flex-1 overflow-y-auto">
 			<div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
 				{messages.map((msg) => (
-					<MessageBubble key={msg.id} message={msg} />
+					<MessageBubble
+						key={msg.id}
+						message={msg}
+						detailsExpandedByDefault={detailsExpandedByDefault}
+					/>
 				))}
 				{isLoading && <ThinkingMessage steps={steps} liveSql={liveSql} />}
 				<div ref={bottomRef} />
