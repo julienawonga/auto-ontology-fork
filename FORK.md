@@ -16,6 +16,7 @@ behaves like upstream.
 | [Any OpenAI-compatible model provider](#any-openai-compatible-model-provider) | `neutral-llm-typing` | Done, verified end to end |
 | [Exclude views from ingestion](#exclude-views-from-ingestion) | `exclude-views-filter` | Done, verified end to end |
 | [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | `collapsible-sql` | Done, verified in the UI |
+| [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | `chat-assistant-ui` | Done, not yet tested in the UI |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -106,6 +107,35 @@ Code: `frontend/components/chatPage/MessageBubble.tsx`,
 `frontend/app/settings/agent-settings/page.tsx`,
 `frontend/app/api/configurations/chat-details/`,
 `frontend/lib/queries/chatDisplay.ts`.
+
+## Chat-app style thread (assistant-ui)
+
+The chat input was a separate full-width bar, and answers sat in grey
+bubbles. The thread now follows the familiar chat-app layout, and its input
+behaviour comes from a maintained library instead of code kept in this repo.
+
+What changed:
+
+- The thread is built on the unstyled primitives of
+  [assistant-ui](https://github.com/assistant-ui/assistant-ui)
+  (`@assistant-ui/react`, pinned to 0.15.31), styled with the app's own
+  Tailwind classes. No shadcn/ui setup is added.
+- From the library: the auto-growing composer (Enter to send, Shift+Enter for a
+  new line), a **Copy** button under each answer, clickable **suggestions**,
+  the Stop button while an answer runs, and stick-to-bottom scrolling with a
+  "scroll to latest" button.
+- Suggestions are the names of the saved SQL analyses (Analysis page), so they
+  follow that page instead of a hand-kept list.
+- Questions sit in a bubble on the right; answers read as plain text across
+  the column. The SQL block, result tables, charts, live progress steps and the
+  collapsible reasoning are unchanged.
+- The stream to the backend is untouched: `useChat` still owns the messages,
+  and assistant-ui reads them through its external-store runtime.
+
+Code: `frontend/components/chatPage/ChatThread.tsx`,
+`frontend/lib/queries/chatSuggestions.ts`,
+`frontend/components/chatPage/MessageBubble.tsx`. It replaces
+`ChatInput.tsx` and `MessageList.tsx`.
 
 ## Planned: foreign keys on partitioned tables
 

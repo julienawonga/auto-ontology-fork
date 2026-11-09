@@ -105,18 +105,16 @@ export const MessageBubble = ({
 	const collapsible = showSql;
 	const detailsExpanded = !collapsible || (detailsOpen ?? detailsExpandedByDefault);
 
-	// Stretch assistant bubbles that carry SQL / charts / tables to the same
-	// width so Message 2 matches Message 1's SQL block.
-	const wideAssistant = !isUser && (showSql || showCharts || showQueryResults);
-
+	// Chat-app layout: the question sits in a bubble on the right, the answer
+	// reads as plain text across the whole column.
 	return (
 		<div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
 			<div
-				className={`max-w-[80%] rounded-2xl px-4 py-3 ${wideAssistant ? 'w-full' : ''} ${
+				className={
 					isUser
-						? 'bg-[#76b900] text-white'
-						: 'bg-zinc-100 text-heading dark:bg-zinc-800 dark:text-zinc-100'
-				}`}
+						? 'max-w-[80%] rounded-3xl bg-zinc-100 px-4 py-2.5 text-heading dark:bg-zinc-800 dark:text-zinc-100'
+						: 'w-full text-heading dark:text-zinc-100'
+				}
 			>
 				{collapsible && (
 					<button

@@ -17,8 +17,7 @@ import {
 } from '@/api/conversations';
 import { semanticCompilationApi } from '@/api/settings';
 import { ChatSidebar } from './ChatSidebar';
-import { MessageList } from './MessageList';
-import { ChatInput } from './ChatInput';
+import { ChatThread } from './ChatThread';
 import { SemanticNotReady } from './SemanticNotReady';
 
 export const ChatView = () => {
@@ -233,21 +232,15 @@ export const ChatView = () => {
 				) : !semanticReady ? (
 					<SemanticNotReady />
 				) : (
-					<>
-						<MessageList
-							messages={messages}
-							isLoading={isLoading}
-							steps={steps}
-							liveSql={liveSql}
-							messageListLoading={messageListLoading}
-						/>
-
-						<ChatInput
-							onSend={handleSend}
-							onStop={stopGeneration}
-							isLoading={isLoading}
-						/>
-					</>
+					<ChatThread
+						messages={messages}
+						isLoading={isLoading}
+						steps={steps}
+						liveSql={liveSql}
+						messageListLoading={messageListLoading}
+						onSend={handleSend}
+						onStop={stopGeneration}
+					/>
 				)}
 			</main>
 		</div>

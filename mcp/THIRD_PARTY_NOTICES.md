@@ -124,6 +124,7 @@ accompanies each upstream project at the URLs above.
 
 | Component | Version | License | Project URL |
 | --- | --- | --- | --- |
+| @assistant-ui/react | 0.15.31 | MIT | https://github.com/assistant-ui/assistant-ui |
 | @better-auth/api-key | 1.7.4 | MIT | https://github.com/better-auth/better-auth |
 | @better-auth/core | 1.7.4 | MIT | https://github.com/better-auth/better-auth |
 | @better-auth/mcp | 1.7.4 | MIT | https://github.com/better-auth/better-auth |
