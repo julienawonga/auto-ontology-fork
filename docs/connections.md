@@ -25,6 +25,14 @@ Each connection can be scoped with a schema allowlist plus
 `table_allow_regex` / `table_deny_regex`, applied at catalog extraction. Deny
 wins, and names are unqualified and case-sensitive.
 
+`exclude_views: true` skips every view and materialized view, by type rather
+than by name. Use it when views only re-present tables that are already
+catalogued: each would otherwise become a second, near-identical Term. It
+combines with the regexes, and changing it re-ingests like they do. A connector
+that does not report relation types falls back to the views it lists; a view it
+neither types nor lists is kept. To keep some views, leave it off and name the
+ones to drop in `table_deny_regex` instead.
+
 Where the credentials live depends on whether Vault is configured:
 
 - **Without Vault.** The full connection object, password included, is
