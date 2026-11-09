@@ -32,7 +32,7 @@ import { RuleAuthor } from './RuleAuthor';
 const SEARCH_DEBOUNCE_MS = 1000;
 
 /** The radio the export form draws, which these are the only others of. */
-const RADIO_CLASSNAME = 'mt-0.5 h-4 w-4 border-zinc-300 text-[#76b900] focus:ring-[#76b900]/30';
+const RADIO_CLASSNAME = 'mt-0.5 h-4 w-4 border-zinc-300 text-primary focus:ring-primary/30';
 
 // What a delete does about the labels the rule applied. Two answers, both
 // defensible, which is why it is asked rather than decided here: the labels are
@@ -395,7 +395,7 @@ export default function RulesSettingsPage() {
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 						placeholder="Type Rule Name"
-						className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500"
+						className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500"
 					/>
 					{/* The tags and the search are on the information card, and are not
 					    editable — worth saying inside the dialog that changes the one

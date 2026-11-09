@@ -171,7 +171,7 @@ export const TagInput = forwardRef<TagInputHandle, TagInputProps>(function TagIn
 				'flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-md border bg-white px-2 py-1.5 text-sm transition-colors dark:bg-zinc-900',
 				disabled
 					? 'cursor-not-allowed border-zinc-200 bg-zinc-50 opacity-70 dark:border-zinc-700 dark:bg-zinc-900/60'
-					: 'border-zinc-300 focus-within:border-[#76b900] focus-within:ring-2 focus-within:ring-[#76b900]/30 dark:border-zinc-600',
+					: 'border-zinc-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 dark:border-zinc-600',
 			].join(' ')}
 			onClick={() => inputRef.current?.focus()}
 			role="group"
@@ -182,7 +182,7 @@ export const TagInput = forwardRef<TagInputHandle, TagInputProps>(function TagIn
 					// Tags must allow duplicates conceptually, but we dedup. Use `tag-idx`
 					// as a stable-ish key while still tolerating repeated text content.
 					key={`${tag}-${idx}`}
-					className="inline-flex max-w-[min(24rem,100%)] items-center gap-1 rounded-md border border-[#76b900]/40 bg-[#76b900]/10 px-2 py-0.5 text-xs font-medium text-[#3f6b00] dark:border-[#76b900]/40 dark:bg-[#76b900]/15 dark:text-[#cdeb86]"
+					className="inline-flex max-w-[min(24rem,100%)] items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-strong dark:border-primary/40 dark:bg-primary/15 dark:text-primary-subtle"
 				>
 					<Text text={tag} />
 					{!disabled && (
@@ -193,7 +193,7 @@ export const TagInput = forwardRef<TagInputHandle, TagInputProps>(function TagIn
 								removeAt(idx);
 							}}
 							aria-label={`Remove ${tag}`}
-							className="-mr-1 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-[#3f6b00] transition-colors hover:bg-[#76b900]/25 hover:text-[#2c4d00] dark:text-[#cdeb86] dark:hover:bg-[#76b900]/30"
+							className="-mr-1 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-primary-strong transition-colors hover:bg-primary/25 hover:text-[#2c4d00] dark:text-primary-subtle dark:hover:bg-primary/30"
 						>
 							<svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
 								<path

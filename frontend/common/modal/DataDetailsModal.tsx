@@ -138,7 +138,7 @@ export const DataDetailsModal = ({ target, type, onClose }: DataDetailsModalProp
 						href={catalogPathFromFocusId(
 							`${target.databaseId}|${target.schemaId}|${target.id}|${row.id}`,
 						)}
-						className="flex h-6 w-6 items-center justify-center rounded text-secondary transition-colors hover:bg-zinc-100 hover:text-[#76b900] dark:hover:bg-zinc-700"
+						className="flex h-6 w-6 items-center justify-center rounded text-secondary transition-colors hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
 						aria-label={`Open ${row.column_name} in Data`}
 						title={`Open ${row.column_name} in Data`}
 					>
@@ -164,7 +164,7 @@ export const DataDetailsModal = ({ target, type, onClose }: DataDetailsModalProp
 			cell: (row) => (
 				<NextLink
 					href={`/terms?focus=${encodeURIComponent(row.id)}`}
-					className="flex h-6 w-6 items-center justify-center rounded text-secondary transition-colors hover:bg-zinc-100 hover:text-[#76b900] dark:hover:bg-zinc-700"
+					className="flex h-6 w-6 items-center justify-center rounded text-secondary transition-colors hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
 					aria-label={`Open ${row.name} term`}
 					title={`Open ${row.name} term`}
 				>

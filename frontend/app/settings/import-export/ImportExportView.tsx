@@ -61,9 +61,9 @@ const downloadBlob = (blob: Blob, filename: string) => {
 const createdCountEntries = (counts: ImportEntityCounts): [string, number][] =>
 	Object.entries(counts).filter(([, value]) => value > 0);
 
-const checkboxClassName = 'h-4 w-4 rounded border-zinc-300 text-[#76b900] focus:ring-[#76b900]/30';
+const checkboxClassName = 'h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary/30';
 
-const radioClassName = 'mt-0.5 h-4 w-4 border-zinc-300 text-[#76b900] focus:ring-[#76b900]/30';
+const radioClassName = 'mt-0.5 h-4 w-4 border-zinc-300 text-primary focus:ring-primary/30';
 
 const isYamlFile = (file: File): boolean => /\.ya?ml$/i.test(file.name);
 
@@ -403,7 +403,7 @@ export const ImportExportView = () => {
 				</div>
 
 				{importSummary ? (
-					<div className="mt-3 rounded-lg border border-[#76b900]/30 bg-[#76b900]/5 p-3 text-xs text-body dark:text-zinc-300">
+					<div className="mt-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-body dark:text-zinc-300">
 						<p className="font-medium text-heading dark:text-zinc-100">
 							Import Summary
 						</p>

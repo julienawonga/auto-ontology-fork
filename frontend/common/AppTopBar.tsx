@@ -15,7 +15,7 @@ export const AppTopBar = ({ version }: { version?: string }) => {
 
 	return (
 		<header className="flex h-[52px] shrink-0 items-center border-b border-zinc-200 bg-white px-4 pr-[40px] dark:border-zinc-800 dark:bg-zinc-950">
-			<Icon name={IconName.NvidiaLogo} className="mr-3 h-5 w-5 shrink-0" />
+			<Icon name={IconName.AppLogo} className="mr-3 h-5 w-5 shrink-0 text-primary" />
 			<Breadcrumbs items={items} />
 			<div className="ml-auto flex items-center gap-3">
 				{rightSlot ? <div className="flex items-center gap-2">{rightSlot}</div> : null}

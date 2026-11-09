@@ -126,7 +126,7 @@ export const MessageBubble = ({
 						aria-expanded={detailsExpanded}
 						aria-controls={detailsId}
 						onClick={() => setDetailsOpen(!detailsExpanded)}
-						className={`flex cursor-pointer items-center gap-1.5 rounded text-xs font-medium text-secondary transition-colors hover:text-glass-primary dark:text-zinc-400 dark:hover:text-glass-primary-soft ${glassFocus}`}
+						className={`flex cursor-pointer items-center gap-1.5 rounded text-xs font-medium text-secondary transition-colors hover:text-primary dark:text-zinc-400 dark:hover:text-primary-soft ${glassFocus}`}
 					>
 						<Icon
 							name={IconName.ChevronRight}

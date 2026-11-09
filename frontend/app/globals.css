@@ -31,14 +31,26 @@
 	--animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
 
 	/*
-	 * Glass palette, trialled on the Chat page only (bg-glass-primary, …).
-	 * Text on translucent surfaces keeps the heading/body tones above, which
-	 * stay above 4.5:1 on the light frosted surface.
+	 * Accent colour, used everywhere the upstream green was (bg-primary,
+	 * text-primary, …). Roles follow how the green shades were used:
+	 *   primary         fills, borders, icons, links
+	 *   primary-hover   hover state of a fill or link
+	 *   primary-strong  text on light surfaces that needs more contrast
+	 *   primary-soft    text and icons on dark surfaces (`dark:text-…`)
+	 *   primary-subtle  lightest tint, for text on dark tinted fills
+	 * The first three get lighter values in dark mode (`.dark` block below).
 	 */
-	--color-glass-primary: #1856ff;
-	--color-glass-primary-hover: #0f45e0;
-	/* Primary for text and icons on dark surfaces, where #1856ff is too dim. */
-	--color-glass-primary-soft: #6f95ff;
+	--color-primary: #1856ff;
+	--color-primary-hover: #0f45e0;
+	--color-primary-strong: #0f3fc9;
+	--color-primary-soft: #8aa9ff;
+	--color-primary-subtle: #c7d6ff;
+
+	/*
+	 * Glass design palette. Text on translucent surfaces keeps the
+	 * heading/body tones above, which stay above 4.5:1 on the light frosted
+	 * surface.
+	 */
 	--color-glass-secondary: #3a344e;
 	--color-glass-success: #07ca6b;
 	--color-glass-warning: #e89558;
@@ -47,6 +59,17 @@
 	/* Page ground the glass floats over, light and dark. */
 	--color-glass-canvas: #f4f6fb;
 	--color-glass-canvas-dark: #07080c;
+}
+
+/*
+ * Accent values on dark surfaces: #1856ff on near-black text falls under
+ * 4.5:1, so fills and text move to lighter blues. White on #3d6dff stays
+ * above 4.3:1 for filled buttons.
+ */
+.dark {
+	--color-primary: #3d6dff;
+	--color-primary-hover: #5a83ff;
+	--color-primary-strong: #8aa9ff;
 }
 
 /* Faces loaded by app/chat/layout.tsx; only defined inside the Chat page. */
@@ -196,8 +219,8 @@
 }
 
 .nv-pagination-page-list .nv-tabs-trigger[data-state='active'] {
-	background-color: rgba(118, 185, 0, 0.15);
-	color: #76b900; /* NVIDIA green */
+	background-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+	color: var(--color-primary);
 }
 
 .nv-pagination-item-range-text {
@@ -246,7 +269,7 @@ body {
 
 /* ── ResultChart (agent-authored ```chart fences) ─────────────────────── */
 :root {
-	--color-brand: #76b900;
+	--color-brand: var(--color-primary);
 	--result-chart-neutral: #8c8c95;
 	--result-chart-fg: var(--color-heading);
 	--result-chart-muted: var(--color-secondary);

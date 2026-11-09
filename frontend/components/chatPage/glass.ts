@@ -18,8 +18,8 @@ export const glassHover = 'hover:bg-white/70 dark:hover:bg-white/[0.08]';
 
 /** Keyboard focus ring, visible on both themes. */
 export const glassFocus =
-	'outline-none focus-visible:ring-2 focus-visible:ring-glass-primary focus-visible:ring-offset-2 focus-visible:ring-offset-transparent dark:focus-visible:ring-glass-primary-soft';
+	'outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-transparent dark:focus-visible:ring-primary-soft';
 
 /** The one filled action: send. */
 export const glassPrimaryButton =
-	'bg-glass-primary text-white transition-colors hover:bg-glass-primary-hover disabled:bg-zinc-300/70 disabled:text-white/80 dark:disabled:bg-white/10 dark:disabled:text-zinc-500';
+	'bg-primary text-white transition-colors hover:bg-primary-hover disabled:bg-zinc-300/70 disabled:text-white/80 dark:disabled:bg-white/10 dark:disabled:text-zinc-500';

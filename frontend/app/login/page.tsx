@@ -16,7 +16,7 @@ import { resumeAuthorizeFromApp } from '@/auth/oauth-loopback';
 import { SkeletonVariant } from '@/enums/skeleton';
 
 const inputClass =
-	'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300';
+	'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300';
 
 const LoginLoading = () => (
 	<div
@@ -221,7 +221,7 @@ const LoginPage = () => (
 	<div className="flex h-full w-full items-center justify-center bg-white p-6 dark:bg-zinc-950">
 		<div className="flex flex-col items-center gap-6">
 			<div className="flex items-center gap-2">
-				<Icon name={IconName.NvidiaLogo} className="h-6 w-6" />
+				<Icon name={IconName.AppLogo} className="h-6 w-6 text-primary" />
 				<span className="text-lg font-semibold text-heading dark:text-zinc-100">
 					Auto Ontology
 				</span>

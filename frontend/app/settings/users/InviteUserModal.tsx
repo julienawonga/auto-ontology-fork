@@ -11,7 +11,7 @@ import { Size, ButtonTheme } from '@/enums/button';
 import { Role } from '@/enums/auth';
 
 const inputClass =
-	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-heading outline-none focus:border-[#76b900] focus:ring-1 focus:ring-[#76b900] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
+	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-heading outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
 
 export type InviteUserInput = {
 	email: string;

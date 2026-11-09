@@ -10,7 +10,7 @@ const InviteInvalid = () => (
 	<div className="flex h-full w-full items-center justify-center bg-white p-6 dark:bg-zinc-950">
 		<div className="flex max-w-sm flex-col items-center gap-4 text-center">
 			<div className="flex items-center gap-2">
-				<Icon name={IconName.NvidiaLogo} className="h-6 w-6" />
+				<Icon name={IconName.AppLogo} className="h-6 w-6 text-primary" />
 				<span className="text-lg font-semibold text-heading dark:text-zinc-100">
 					Auto Ontology
 				</span>

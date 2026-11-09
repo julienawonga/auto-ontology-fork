@@ -145,7 +145,9 @@ const CANVAS_BACKGROUND_DARK = '#09090b';
 const HOVER_LABEL_BACKGROUND_LIGHT = '#ffffff';
 const HOVER_LABEL_BACKGROUND_DARK = '#18181b';
 
-const EDGE_BRAND_COLOR = '#76b900';
+// The canvas needs a literal colour, so this repeats `--color-primary` from
+// globals.css.
+const EDGE_BRAND_COLOR = '#1856ff';
 
 const hexToRgb = (hex: string) => {
 	const value = hex.replace('#', '');

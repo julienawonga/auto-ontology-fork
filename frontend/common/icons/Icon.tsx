@@ -14,7 +14,8 @@ import CheckSvg from './svg/check.svg';
 import CopySvg from './svg/copy.svg';
 import ChatBubbleSvg from './svg/chat-bubble.svg';
 import ChevronRightSvg from './svg/chevron-right.svg';
-import NvidiaLogoSvg from './svg/nvidia-logo.svg';
+import AppLogoSvg from './svg/app-logo.svg';
+import SidebarSvg from './svg/sidebar.svg';
 import DatabaseSvg from './svg/database.svg';
 import SettingsSvg from './svg/settings.svg';
 import ChartBarSvg from './svg/chart-bar.svg';
@@ -56,7 +57,8 @@ export enum IconName {
 	Copy = 'copy',
 	ChatBubble = 'chat-bubble',
 	ChevronRight = 'chevron-right',
-	NvidiaLogo = 'nvidia-logo',
+	AppLogo = 'app-logo',
+	Sidebar = 'sidebar',
 	Database = 'database',
 	Settings = 'settings',
 	ChartBar = 'chart-bar',
@@ -97,7 +99,8 @@ const icons: Record<IconName, FC<SVGProps<SVGSVGElement>>> = {
 	[IconName.Copy]: CopySvg,
 	[IconName.ChatBubble]: ChatBubbleSvg,
 	[IconName.ChevronRight]: ChevronRightSvg,
-	[IconName.NvidiaLogo]: NvidiaLogoSvg,
+	[IconName.AppLogo]: AppLogoSvg,
+	[IconName.Sidebar]: SidebarSvg,
 	[IconName.Database]: DatabaseSvg,
 	[IconName.Settings]: SettingsSvg,
 	[IconName.ChartBar]: ChartBarSvg,

@@ -108,7 +108,7 @@ const ThreadMessage = ({
 const Composer = () => (
 	<div className="flex flex-col gap-2">
 		<ComposerPrimitive.Root
-			className={`flex flex-col gap-2 rounded-3xl px-4 pt-3 pb-2.5 transition-colors focus-within:border-glass-primary/60 dark:focus-within:border-glass-primary-soft/50 ${glassSurface}`}
+			className={`flex flex-col gap-2 rounded-3xl px-4 pt-3 pb-2.5 transition-colors focus-within:border-primary/60 dark:focus-within:border-primary-soft/50 ${glassSurface}`}
 		>
 			<ComposerPrimitive.Input
 				autoFocus
@@ -156,7 +156,7 @@ const SuggestionList = ({ prompts }: { prompts: string[] }) =>
 					>
 						<Icon
 							name={IconName.ChartBar}
-							className="h-4 w-4 shrink-0 text-glass-primary dark:text-glass-primary-soft"
+							className="h-4 w-4 shrink-0 text-primary dark:text-primary-soft"
 						/>
 						{prompt}
 					</ThreadPrimitive.Suggestion>

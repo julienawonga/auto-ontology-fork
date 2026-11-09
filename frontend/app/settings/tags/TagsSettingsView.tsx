@@ -79,7 +79,7 @@ const TagAuthorCell = ({ author }: { author: TagAuthor | null | undefined }) => 
 		<span className="flex min-w-0 items-center gap-2">
 			<span
 				aria-hidden="true"
-				className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${name === '' ? 'bg-zinc-200 text-secondary dark:bg-zinc-700 dark:text-zinc-400' : 'bg-[#76b900] text-white'}`}
+				className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${name === '' ? 'bg-zinc-200 text-secondary dark:bg-zinc-700 dark:text-zinc-400' : 'bg-primary text-white'}`}
 			>
 				{label.charAt(0).toUpperCase()}
 			</span>
@@ -474,7 +474,7 @@ const TagsList = () => {
 							setSubmitError(null);
 						}}
 						placeholder="Type Tag Name"
-						className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500 ${submitError == null ? 'border-zinc-300 focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 dark:border-zinc-600' : 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/30'}`}
+						className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500 ${submitError == null ? 'border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600' : 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/30'}`}
 					/>
 				</div>
 

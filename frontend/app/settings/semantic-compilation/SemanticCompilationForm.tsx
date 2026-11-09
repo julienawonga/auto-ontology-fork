@@ -176,7 +176,7 @@ export const SemanticCompilationForm = ({
 								</div>
 								{running ? (
 									<span title="Semantic Compilation Is Running">
-										<Spinner className="h-4 w-4 shrink-0 text-[#76b900]" />
+										<Spinner className="h-4 w-4 shrink-0 text-primary" />
 									</span>
 								) : failed ? (
 									<span
@@ -187,7 +187,7 @@ export const SemanticCompilationForm = ({
 									</span>
 								) : (
 									<span
-										className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#76b900]/15 text-[#76b900]"
+										className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
 										title="Semantic Compilation Is Ready"
 									>
 										<Icon name={IconName.Check} className="h-3 w-3" />

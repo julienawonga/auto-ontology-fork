@@ -2,18 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Whether the left navigation is pinned open.
+ * Whether the left navigation is open (icons and labels) or collapsed (icons).
  *
  * Per browser (localStorage), like the theme: a layout preference with nothing
  * to sync. Every access is guarded, since storage can be unavailable; the
- * fallback is the upstream behaviour, a rail that opens on hover.
+ * fallback is the collapsed rail.
  */
 
-const STORAGE_KEY = 'auto-ontology-nav-pinned';
+const STORAGE_KEY = 'auto-ontology-nav-open';
 /** Dispatched on `window` when this tab changes the preference. */
-const CHANGE_EVENT = 'auto-ontology-nav-pinned-change';
+const CHANGE_EVENT = 'auto-ontology-nav-open-change';
 
-export const readNavPinned = (): boolean => {
+export const readNavOpen = (): boolean => {
 	try {
 		return window.localStorage.getItem(STORAGE_KEY) === 'true';
 	} catch {
@@ -21,12 +21,12 @@ export const readNavPinned = (): boolean => {
 	}
 };
 
-/** The server has no storage to read, so it always renders the rail unpinned. */
-export const readNavPinnedOnServer = (): boolean => false;
+/** The server has no storage to read, so it always renders the rail collapsed. */
+export const readNavOpenOnServer = (): boolean => false;
 
-export const setNavPinned = (pinned: boolean): void => {
+export const setNavOpen = (open: boolean): void => {
 	try {
-		if (pinned) window.localStorage.setItem(STORAGE_KEY, 'true');
+		if (open) window.localStorage.setItem(STORAGE_KEY, 'true');
 		else window.localStorage.removeItem(STORAGE_KEY);
 	} catch {
 		// Storage is unavailable, so the choice cannot be kept and the rail
@@ -36,7 +36,7 @@ export const setNavPinned = (pinned: boolean): void => {
 };
 
 /** Subscribe to changes from this tab and from others (for `useSyncExternalStore`). */
-export const subscribeToNavPinned = (onChange: () => void): (() => void) => {
+export const subscribeToNavOpen = (onChange: () => void): (() => void) => {
 	const onStorage = (event: StorageEvent) => {
 		if (event.key === STORAGE_KEY || event.key === null) onChange();
 	};

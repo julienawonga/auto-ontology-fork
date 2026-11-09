@@ -19,7 +19,8 @@ behaves like upstream.
 | [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | `chat-assistant-ui` | Done, verified in the UI |
 | [Glass design on the Chat page](#glass-design-on-the-chat-page) | `chat-glass` | Done, verified in the UI |
 | [Light/dark theme switcher](#lightdark-theme-switcher) | `theme-switcher` | Done, not yet tested in the UI |
-| [Pinnable navigation](#pinnable-navigation) | `ui-refresh` | Done, not yet tested in the UI |
+| [Collapsible navigation](#collapsible-navigation) | `ui-refresh` | Done, not yet tested in the UI |
+| [Blue accent and neutral logo](#blue-accent-and-neutral-logo) | `ui-refresh` | Done, not yet tested in the UI |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -161,8 +162,8 @@ What changed:
 - Visible keyboard focus on every control; text keeps the app's dark tones so
   it stays readable on the frosted surface.
 
-Not yet covered: the active conversation highlight and the left navigation
-still use the green accent, as they are shared with other pages.
+Other pages keep their solid surfaces for now; the accent colour is shared (see
+[Blue accent and neutral logo](#blue-accent-and-neutral-logo)).
 
 ## Light/dark theme switcher
 
@@ -188,20 +189,40 @@ Code: `frontend/lib/theme.ts`, `frontend/common/ThemeSwitcher.tsx`,
 `frontend/app/globals.css`, `frontend/common/UserMenu.tsx`,
 `frontend/components/explorationPage/graph/GraphCanvas.tsx`.
 
-## Pinnable navigation
+## Collapsible navigation
 
 Upstream's left navigation is an icon rail that opens over the page on hover
 and closes as soon as the pointer leaves, so the labels cannot stay visible.
 
 What changed:
 
-- A **Keep open** button at the bottom of the rail pins it open. Pinned, it
-  takes its own width and the page sits beside it instead of under it;
-  **Unpin** returns to the hover behaviour.
+- A toggle at the top of the rail switches it between **open** (icons and
+  labels) and **collapsed** (icons only), as in common chat apps. The page
+  always sits beside it; the hover overlay is gone.
 - Stored per browser (`localStorage`), like the theme, and shared between tabs.
-  If storage is blocked, the rail keeps the hover behaviour.
+  If storage is blocked, the rail stays collapsed.
 
 Code: `frontend/common/NavRail.tsx`, `frontend/lib/navRail.ts`.
+
+## Blue accent and neutral logo
+
+The upstream green accent and the NVIDIA logo are replaced everywhere, so the
+fork no longer carries NVIDIA's branding in its interface. The copyright and
+license notices are unchanged, as Apache-2.0 requires.
+
+What changed:
+
+- One accent token family in `frontend/app/globals.css`: `primary` (#1856FF),
+  `primary-hover`, `primary-strong`, `primary-soft`, `primary-subtle`, with
+  lighter values in dark mode so text stays readable. Changing the accent of the
+  whole app is now a one-line edit.
+- Every hard-coded green (`#76b900` and its lighter and darker shades, about
+  250 uses in 63 files) now uses those tokens.
+- A neutral logo (three linked nodes) replaces the NVIDIA logo in the top bar,
+  the chat, the login and invite pages, and the browser tab icon.
+
+Code: `frontend/app/globals.css`, `frontend/common/icons/svg/app-logo.svg`,
+`frontend/public/favicon.svg`, and the class names across `frontend/`.
 
 ## Planned: foreign keys on partitioned tables
 

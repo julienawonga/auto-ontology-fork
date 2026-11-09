@@ -212,7 +212,7 @@ const RuleTagForm = ({
 						autoFocus
 						// Same frame and height as the search field below it, so the two
 						// controls in this panel read as one set.
-						className="h-9 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500"
+						className="h-9 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500"
 					/>
 					<p className="mt-1.5 text-xs text-secondary dark:text-zinc-400">
 						Every item this search matches is labelled with these tags, and so is every
@@ -293,7 +293,7 @@ const RuleTagForm = ({
 										void handleCreateTag();
 									}}
 									disabled={creating}
-									className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[#4d7a00] transition-colors hover:bg-[#76b900]/10 disabled:cursor-default disabled:opacity-60 dark:text-[#a3d63a] dark:hover:bg-[#76b900]/15"
+									className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-primary-strong transition-colors hover:bg-primary/10 disabled:cursor-default disabled:opacity-60 dark:text-primary-soft dark:hover:bg-primary/15"
 								>
 									<Icon name={IconName.Plus} className="h-4 w-4 shrink-0" />
 									{`${trimmedSearch} (Create Tag - Max. ${MAX_TAG_NAME_LENGTH})`}
@@ -322,7 +322,7 @@ const RuleTagForm = ({
 				<Link
 					href="/settings/rules"
 					onClick={onNavigate}
-					className="inline-flex items-center gap-1.5 text-xs text-secondary no-underline transition-colors hover:text-[#4d7a00] dark:text-zinc-400 dark:hover:text-[#a3d63a]"
+					className="inline-flex items-center gap-1.5 text-xs text-secondary no-underline transition-colors hover:text-primary-strong dark:text-zinc-400 dark:hover:text-primary-soft"
 				>
 					<Icon name={IconName.Tag} className="h-3.5 w-3.5 shrink-0" />
 					Manage Rule Based Tags

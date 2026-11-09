@@ -63,11 +63,11 @@ export const ProgressBar = ({
 			>
 				{isIndeterminate ? (
 					<div
-						className={`${trackSizeClasses[size]} w-1/3 rounded-full bg-[#76b900] motion-safe:animate-progress-indeterminate`}
+						className={`${trackSizeClasses[size]} w-1/3 rounded-full bg-primary motion-safe:animate-progress-indeterminate`}
 					/>
 				) : (
 					<div
-						className={`${trackSizeClasses[size]} rounded-full bg-[#76b900] transition-[width] duration-300 ease-out`}
+						className={`${trackSizeClasses[size]} rounded-full bg-primary transition-[width] duration-300 ease-out`}
 						style={{ width: `${displayPercent}%` }}
 					/>
 				)}

@@ -2170,7 +2170,7 @@ export const ExplorationView = () => {
 												}
 												className={`h-4 w-4 shrink-0 ${
 													node.layer === ExplorationLayer.Semantic
-														? 'text-[#76b900]'
+														? 'text-primary'
 														: 'text-[#3b82b6]'
 												}`}
 											/>
