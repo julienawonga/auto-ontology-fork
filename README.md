@@ -6,6 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Auto Ontology
 
+> **This is a fork.** See [FORK.md](./FORK.md) for what it adds on top of
+> upstream (any OpenAI-compatible model provider, excluding views from ingestion).
+
 Agents can retrieve documents and query databases, but reliability gates agentic analytics: a revenue metric answered faster is worth nothing if the number is wrong. Agents need a context layer that tells them where data lives, what it means, whether to use it, how to use it, where it came from, and what is similar. Auto Ontology is an open library that builds that layer from enterprise metadata, reconciles definitions across systems, and exposes it to any agent harness through MCP, CLI, and API. It complements the semantic models customers already own.
 
 It enables developers to:
