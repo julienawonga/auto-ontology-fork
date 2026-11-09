@@ -15,6 +15,7 @@ import {
 } from '@tanstack/react-query';
 import { NavRail } from '@/common/NavRail';
 import { AppTopBar } from '@/common/AppTopBar';
+import { ThemeSync } from '@/common/ThemeSwitcher';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import { QueryProvider } from '@/contexts/QueryProvider';
 import { getCurrentSession } from '@/auth/auth-guards';
@@ -22,6 +23,7 @@ import { Role } from '@/enums/auth';
 import { connectionQueries } from '@/lib/queries/connections';
 import { tagQueries } from '@/lib/queries/tags';
 import { zoneQueries } from '@/lib/queries/zones';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import './globals.css';
 
 const isLoginOrOauthPath = (pathname: string): boolean =>
@@ -104,8 +106,16 @@ export default async function RootLayout({
 		<html
 			lang="en"
 			className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+			// The inline theme script adds `dark` and a color-scheme style before
+			// React hydrates; let the DOM win for this element.
+			suppressHydrationWarning
 		>
+			<head>
+				{/* Sets the theme class before the first paint, so there is no flash. */}
+				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+			</head>
 			<body className="flex h-full flex-col bg-white text-heading dark:bg-zinc-950 dark:text-zinc-100">
+				<ThemeSync />
 				<QueryProvider>
 					<TooltipProvider openDelayDuration={400} skipDelayDuration={0}>
 						{showAppChrome ? (

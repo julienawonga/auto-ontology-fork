@@ -11,6 +11,7 @@ import { userCan } from '@/auth/permissions';
 import { SelectButton } from '@/common/Button';
 import { PopoverMenu } from '@/common/PopoverMenu';
 import { Text } from '@/common/Text';
+import { ThemeSwitcher } from '@/common/ThemeSwitcher';
 import { SelectButtonTheme } from '@/enums/button';
 import { TextVariant } from '@/enums/text';
 
@@ -71,6 +72,7 @@ export const UserMenu = ({ version }: { version?: string }) => {
 					disabled: signingOut,
 				},
 			]}
+			footer={<ThemeSwitcher />}
 			trigger={({ open, toggle }) => (
 				<SelectButton
 					theme={SelectButtonTheme.Avatar}
