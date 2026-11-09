@@ -17,6 +17,7 @@ behaves like upstream.
 | [Exclude views from ingestion](#exclude-views-from-ingestion) | `exclude-views-filter` | Done, verified end to end |
 | [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | `collapsible-sql` | Done, verified in the UI |
 | [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | `chat-assistant-ui` | Done, not yet tested in the UI |
+| [Glass design on the Chat page](#glass-design-on-the-chat-page) | `chat-glass` | Done, verified in the UI |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -136,6 +137,30 @@ Code: `frontend/components/chatPage/ChatThread.tsx`,
 `frontend/lib/queries/chatSuggestions.ts`,
 `frontend/components/chatPage/MessageBubble.tsx`. It replaces
 `ChatInput.tsx` and `MessageList.tsx`.
+
+## Glass design on the Chat page
+
+A first step away from the upstream look: the Chat page uses a frosted-glass
+style (translucent panels, background blur, light borders) over a softly
+tinted page, with its own palette and typefaces. Other pages are unchanged.
+
+What changed:
+
+- Palette as tokens in `frontend/app/globals.css` (`glass-primary` #1856FF,
+  `glass-secondary`, `glass-success`, `glass-canvas`, …), used through Tailwind
+  classes such as `bg-glass-primary`. Blue replaces the green accent on the
+  Chat page.
+- Plus Jakarta Sans for text and JetBrains Mono for SQL, loaded by
+  `frontend/app/chat/layout.tsx` for the Chat page only.
+- One recipe for the glass surface, hover, focus ring and primary button in
+  `frontend/components/chatPage/glass.ts`, applied to the composer, the
+  question bubble, the conversation list, the scroll button and result cards.
+- A single-value result (such as a total) shows as a card with a large figure.
+- Visible keyboard focus on every control; text keeps the app's dark tones so
+  it stays readable on the frosted surface.
+
+Not yet covered: the active conversation highlight and the left navigation
+still use the green accent, as they are shared with other pages.
 
 ## Planned: foreign keys on partitioned tables
 

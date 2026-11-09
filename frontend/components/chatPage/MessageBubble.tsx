@@ -13,6 +13,7 @@ import { parseSqlResponse, type ParsedTable } from '@/lib/parseSqlResponse';
 import { SqlBlock } from '@/common/SqlBlock';
 import { DynamicTable } from './DynamicTable';
 import { FormattedContent } from './FormattedContent';
+import { glassFocus, glassSurface } from './glass';
 
 type SingleCellResult = { column: string; value: string };
 
@@ -35,11 +36,14 @@ const QueryResultsSection = ({
 		</div>
 		{!sqlResponse && <p className="text-xs italic text-secondary dark:text-zinc-500">null</p>}
 		{sqlResponse && singleCell && (
-			<div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-				<span className="text-xs text-secondary dark:text-zinc-400">
-					{singleCell.column}:{' '}
+			// A single figure is the whole answer, so it gets a card of its own.
+			<div
+				className={`inline-flex min-w-48 flex-col gap-1 rounded-2xl px-5 py-4 ${glassSurface}`}
+			>
+				<span className="text-[11px] font-semibold tracking-wide text-secondary uppercase dark:text-zinc-400">
+					{singleCell.column}
 				</span>
-				<span className="text-sm font-semibold text-heading dark:text-zinc-100">
+				<span className="text-2xl font-semibold text-glass-text tabular-nums dark:text-zinc-50">
 					{singleCell.value}
 				</span>
 			</div>
@@ -112,7 +116,7 @@ export const MessageBubble = ({
 			<div
 				className={
 					isUser
-						? 'max-w-[80%] rounded-3xl bg-zinc-100 px-4 py-2.5 text-heading dark:bg-zinc-800 dark:text-zinc-100'
+						? `max-w-[80%] rounded-3xl px-4 py-2.5 text-glass-text dark:text-zinc-100 ${glassSurface}`
 						: 'w-full text-heading dark:text-zinc-100'
 				}
 			>
@@ -122,7 +126,7 @@ export const MessageBubble = ({
 						aria-expanded={detailsExpanded}
 						aria-controls={detailsId}
 						onClick={() => setDetailsOpen(!detailsExpanded)}
-						className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-secondary transition-colors hover:text-heading dark:text-zinc-400 dark:hover:text-zinc-100"
+						className={`flex cursor-pointer items-center gap-1.5 rounded text-xs font-medium text-secondary transition-colors hover:text-glass-primary dark:text-zinc-400 dark:hover:text-glass-primary-soft ${glassFocus}`}
 					>
 						<Icon
 							name={IconName.ChevronRight}

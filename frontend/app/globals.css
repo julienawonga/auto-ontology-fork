@@ -21,6 +21,30 @@
 	--color-disabled: #b3b4b7;
 
 	--animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
+
+	/*
+	 * Glass palette, trialled on the Chat page only (bg-glass-primary, …).
+	 * Text on translucent surfaces keeps the heading/body tones above, which
+	 * stay above 4.5:1 on the light frosted surface.
+	 */
+	--color-glass-primary: #1856ff;
+	--color-glass-primary-hover: #0f45e0;
+	/* Primary for text and icons on dark surfaces, where #1856ff is too dim. */
+	--color-glass-primary-soft: #6f95ff;
+	--color-glass-secondary: #3a344e;
+	--color-glass-success: #07ca6b;
+	--color-glass-warning: #e89558;
+	--color-glass-danger: #ea2143;
+	--color-glass-text: #141414;
+	/* Page ground the glass floats over, light and dark. */
+	--color-glass-canvas: #f4f6fb;
+	--color-glass-canvas-dark: #07080c;
+}
+
+/* Faces loaded by app/chat/layout.tsx; only defined inside the Chat page. */
+@theme inline {
+	--font-glass: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+	--font-glass-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 @keyframes progress-indeterminate {

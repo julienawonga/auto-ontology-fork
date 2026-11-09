@@ -211,7 +211,13 @@ export const ChatView = () => {
 	);
 
 	return (
-		<div className="flex h-full bg-white dark:bg-zinc-950">
+		<div className="relative isolate flex h-full overflow-hidden bg-glass-canvas dark:bg-glass-canvas-dark">
+			{/* Soft colour fields behind the frosted panels; without something to
+			    blur, the glass would read as plain grey. */}
+			<div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+				<div className="absolute -top-40 right-[-10%] h-[520px] w-[520px] rounded-full bg-glass-primary/20 blur-3xl dark:bg-glass-primary/25" />
+				<div className="absolute bottom-[-20%] left-[15%] h-[460px] w-[460px] rounded-full bg-glass-secondary/15 blur-3xl dark:bg-glass-primary-soft/10" />
+			</div>
 			<ChatSidebar
 				conversations={conversations}
 				activeId={activeConvId}
