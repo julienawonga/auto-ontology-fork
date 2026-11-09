@@ -171,7 +171,11 @@ class PostgresVDB:
 
         self._engine: Optional[PGEngine] = None
         self._store: Optional[PGVectorStore] = None
-        self.vector_size: Optional[int] = kwargs.get("vector_size", 2048)
+        # Imported here, not at module level: ``auto_ontology.utils`` imports this
+        # package, so a top-level import would be circular.
+        from auto_ontology.utils.model_config import embed_dimensions
+
+        self.vector_size: Optional[int] = kwargs.get("vector_size", embed_dimensions())
         # Resetting the database embeddings prior to ingestion
         # In order to support without recreate:
         # 1. The ingestion should return which tables/columns were added/updated/deleted

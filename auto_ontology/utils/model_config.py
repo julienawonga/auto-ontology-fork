@@ -98,3 +98,44 @@ def resolve(prefix: str, field: str) -> str:
     """
     key = f"{prefix}_{field}"
     return os.environ.get(key, "") or _default(field) or _builtin_default(prefix, key)
+
+
+# Width of the vectors in the store. The default is what the Nemotron embedding
+# models emit; set ``EMBED_DIMENSIONS`` to match any other model.
+DEFAULT_EMBED_DIMENSIONS = 2048
+
+
+def _dimensions_from_env() -> int | None:
+    raw = os.environ.get("EMBED_DIMENSIONS", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ValueError(f"EMBED_DIMENSIONS must be a positive integer, got {raw!r}")
+    return value
+
+
+def embed_dimensions() -> int:
+    """Width of the stored vectors: ``EMBED_DIMENSIONS``, else 2048."""
+    return _dimensions_from_env() or DEFAULT_EMBED_DIMENSIONS
+
+
+def embed_dimensions_requested() -> int | None:
+    """``EMBED_DIMENSIONS`` when set, to send as ``dimensions``; ``None`` otherwise.
+
+    Left unset, no ``dimensions`` field goes out, exactly as before.
+    """
+    return _dimensions_from_env()
+
+
+def embed_nim_fields_enabled() -> bool:
+    """Whether embedding requests carry the NVIDIA-only body fields.
+
+    On by default. ``EMBED_NIM_FIELDS=false`` drops ``input_type``, ``truncate``
+    and ``modality`` for endpoints that reject unknown fields.
+    """
+    raw = os.environ.get("EMBED_NIM_FIELDS", "").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
