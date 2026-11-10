@@ -122,6 +122,15 @@ class SQLDatabase(ABC):
     #: statement, which during ingestion costs far more than the cap saves.
     supports_statement_timeout: bool = False
 
+    #: ``True`` when ``execute`` accepts ``read_only=True`` and then runs the
+    #: statement in a read-only transaction, so the database itself refuses a
+    #: write. The agent passes it for every statement it issues, as a second
+    #: layer behind the parse-time guard in
+    #: :mod:`auto_ontology.retrieval.text_to_sql.sql_guard`. A connector that
+    #: does not set this is called without it and relies on the guard (and on
+    #: the grants of its database user) alone.
+    supports_read_only_execution: bool = False
+
     #: Optional regex allow/deny filter over relation names, set from the
     #: connection by :func:`auto_ontology.connectors.registry.create_connector`.
     #: Connectors do not read it themselves — it is enforced centrally in

@@ -2,16 +2,18 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run the SQL a chat turn issues: logged, and capped in time.
+"""Run the SQL a chat turn issues: read-only, logged, and capped in time.
 
-Both behaviours deliberately live here rather than in the connectors. A
+These behaviours deliberately live here rather than in the connectors. A
 connector's ``execute`` is the chokepoint for *all* SQL — ingestion
 introspection and column profiling included — where neither behaviour is
 wanted: logging there buries a question's few statements under hundreds of
 housekeeping queries, and a short timeout would break metadata scans over a
 large ``information_schema``, which legitimately take minutes.
 
-Only agent-issued SQL reaches the calls here.
+Only agent-issued SQL reaches the calls here, which is also why the read-only
+guard sits here: ingestion legitimately runs other statements through the same
+connectors, but nothing the agent writes should ever change the user's data.
 """
 
 from __future__ import annotations
@@ -22,6 +24,10 @@ from typing import Any
 import pandas as pd
 
 from auto_ontology.infra.feature_flags import get_sql_query_timeout_seconds
+from auto_ontology.retrieval.text_to_sql.sql_guard import (
+    UnsafeSqlError,
+    assert_read_only,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +69,11 @@ def execute_chat_sql(
     kind: str = "chat SQL",
     timeout_s: float | None = None,
 ) -> pd.DataFrame:
-    """Log and run one agent-issued statement, capped in time.
+    """Log and run one agent-issued statement: read-only, capped in time.
+
+    Raises:
+        UnsafeSqlError: the statement is not a single read-only query. It is
+            refused before it reaches the database.
 
     A user is waiting on the answer and the pipeline allows one stream at a
     time, so a runaway query would pin the slot. The cap is *timeout_s*, or
@@ -76,11 +86,30 @@ def execute_chat_sql(
     has a statement timeout, client side for DuckDB, SQLite and HeavyDB. One
     that doesn't advertise ``supports_statement_timeout`` is called unchanged,
     so the cap never breaks a connector with no way to honour it.
+
+    A connector that advertises ``supports_read_only_execution`` also runs the
+    statement in a read-only transaction, so the database refuses a write even
+    if it got past the guard.
     """
+    try:
+        assert_read_only(sql, getattr(connector, "dialect", None))
+    except UnsafeSqlError as exc:
+        logger.warning(
+            "[%s] Refused %s: %s\n%s",
+            getattr(connector, "database_name", None) or "unknown",
+            kind,
+            exc,
+            truncate_sql(sql),
+        )
+        raise
+
     log_chat_sql(connector, sql, kind=kind)
 
-    if not getattr(connector, "supports_statement_timeout", False):
-        return connector.execute(sql)
-    if timeout_s is None:
-        timeout_s = get_sql_query_timeout_seconds()
-    return connector.execute(sql, timeout_s=timeout_s)
+    options: dict[str, Any] = {}
+    if getattr(connector, "supports_statement_timeout", False):
+        options["timeout_s"] = (
+            get_sql_query_timeout_seconds() if timeout_s is None else timeout_s
+        )
+    if getattr(connector, "supports_read_only_execution", False):
+        options["read_only"] = True
+    return connector.execute(sql, **options)
