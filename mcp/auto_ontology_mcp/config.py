@@ -2,15 +2,15 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Settings for the Auto Ontology MCP server, read from the environment.
+"""Settings for the Lexis MCP server, read from the environment.
 
-The server talks to the **public** Auto Ontology API, not to the Python services behind
+The server talks to the **public** Lexis API, not to the Python services behind
 it: those are ClusterIP-only and reachable solely through the Next.js proxy,
 which is where authentication and permission checks live. So all it needs is the
-base URL of a Auto Ontology deployment.
+base URL of a Lexis deployment.
 
 It holds no credential of its own, and there is no setting that would give it
-one. Callers sign in against Auto Ontology itself — the same login page and the same SSO
+one. Callers sign in against Lexis itself — the same login page and the same SSO
 behind it that they would meet in a browser — and every call then runs as the
 person who signed in, with exactly their permissions. Nothing to mint, paste, or
 share, and no way to configure a single identity that everybody silently

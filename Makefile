@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ---------------------------------------------------------------------------
-# Auto Ontology image build / publish helpers
+# Lexis image build / publish helpers
 # ---------------------------------------------------------------------------
 # These targets wrap the `docker buildx build` invocations needed to build
 # the backend, frontend and MCP images and (optionally) push them to a
@@ -54,7 +54,7 @@ endif
         publish publish-backend publish-frontend publish-mcp
 
 help:
-	@echo "Auto Ontology image targets:"
+	@echo "Lexis image targets:"
 	@echo "  make build               Build all images locally (host arch only)"
 	@echo "  make build-backend       Build backend image locally"
 	@echo "  make build-frontend      Build frontend image locally"

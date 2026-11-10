@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Auto Ontology data access layer, organised by topic.
+"""Lexis data access layer, organised by topic.
 
 Each module is the single source of truth for a domain:
   datasources     — Database / Schema / Table / Column catalog

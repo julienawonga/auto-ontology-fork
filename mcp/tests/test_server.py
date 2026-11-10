@@ -95,7 +95,7 @@ def test_ask_question_reports_a_structured_answer() -> None:
 
 def test_handshake_advertises_the_auto_ontology_version() -> None:
     # Not FastMCP's, which is what gets reported if the version is left unset
-    # and reads as a Auto Ontology version in a client's server list.
+    # and reads as a Lexis version in a client's server list.
     mcp, client = build_server(_settings())
 
     async def run() -> Any:
@@ -125,7 +125,7 @@ def test_handshake_advertises_the_icon() -> None:
 
     assert len(icons) == 1
     assert icons[0].mimeType == "image/svg+xml"
-    # Inline, so a client can draw it without reaching the network or Auto Ontology.
+    # Inline, so a client can draw it without reaching the network or Lexis.
     assert icons[0].src.startswith("data:image/svg+xml;base64,")
 
 
@@ -204,7 +204,7 @@ def test_no_credential_is_attached_to_the_client_itself() -> None:
 def test_the_signed_in_callers_token_is_forwarded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Auto Ontology issued it, so it goes upstream untouched — no exchange, no unwrapping."""
+    """Lexis issued it, so it goes upstream untouched — no exchange, no unwrapping."""
     monkeypatch.setattr(
         server, "auto_ontology_access_token", lambda: "auto-ontology-issued"
     )
@@ -217,9 +217,9 @@ def test_the_signed_in_callers_token_is_forwarded(
 def test_a_smuggled_api_key_cannot_override_the_signed_in_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """FastMCP copies the caller's headers onto the outbound request, and Auto Ontology
+    """FastMCP copies the caller's headers onto the outbound request, and Lexis
     resolves x-api-key ahead of a bearer token. Left in place, a caller could
-    sign in as one user and then call Auto Ontology as the owner of some other token.
+    sign in as one user and then call Lexis as the owner of some other token.
     """
     monkeypatch.setattr(
         server, "auto_ontology_access_token", lambda: "auto-ontology-issued"

@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": "query-eval-001-mcp-first",
-      "prompt": "How should my coding agent ask Auto Ontology how many open orders we have?",
+      "prompt": "How should my coding agent ask Lexis how many open orders we have?",
       "expected_output": "If MCP is connected, use the handshake tools in order: check_readiness, search_terms, check_answerable, ask_question. Do not jump straight to ask_question. Do not copy a frozen tool table if the handshake list differs.",
       "assertions": [
         "Prefers MCP when available",
@@ -28,7 +28,7 @@
     {
       "id": "query-eval-003-conversation-409",
       "prompt": "As an authenticated user with chat:use and conversation:write, I send two overlapping POSTs to /api/chat/completions with the same conversation_id. What happens?",
-      "expected_output": "The second request returns 409 Conversation in progress. Wait for [DONE] on the SSE stream before sending the next turn. conversation_id is scoped to the authenticated Auto Ontology user.",
+      "expected_output": "The second request returns 409 Conversation in progress. Wait for [DONE] on the SSE stream before sending the next turn. conversation_id is scoped to the authenticated Lexis user.",
       "assertions": [
         "Names 409 Conversation in progress",
         "Requires waiting for [DONE] before the next turn",
@@ -39,12 +39,12 @@
     },
     {
       "id": "query-eval-004-sso-vs-api-token",
-      "prompt": "Our agent already has the user's SSO JWT from the same identity provider Auto Ontology uses. Should it also mint an Auto Ontology API token to call chat?",
-      "expected_output": "No extra Auto Ontology token is required. Auto Ontology accepts the SSO id token as Authorization: Bearer, verifies issuer/signature/expiry, and does not check audience (aud is the calling agent's client id). The token must map to an existing Auto Ontology user (email, then SSO subject). An Auto Ontology API token is for scripts that cannot present SSO.",
+      "prompt": "Our agent already has the user's SSO JWT from the same identity provider Lexis uses. Should it also mint an Lexis API token to call chat?",
+      "expected_output": "No extra Lexis token is required. Lexis accepts the SSO id token as Authorization: Bearer, verifies issuer/signature/expiry, and does not check audience (aud is the calling agent's client id). The token must map to an existing Lexis user (email, then SSO subject). An Lexis API token is for scripts that cannot present SSO.",
       "assertions": [
         "Uses the SSO bearer as the agent's credential",
-        "Does not require minting an Auto Ontology API token for the agent",
-        "Notes audience is not checked and an Auto Ontology user must already exist"
+        "Does not require minting an Lexis API token for the agent",
+        "Notes audience is not checked and an Lexis user must already exist"
       ],
       "expected_skill": "ontology-query",
       "expected_script": null
@@ -56,19 +56,19 @@
       "assertions": [
         "States there is no MCP catalog-browser for raw schemas",
         "Points at describe_table / search_terms / ask_question",
-        "Does not recommend listing information_schema via Auto Ontology MCP"
+        "Does not recommend listing information_schema via Lexis MCP"
       ],
       "expected_skill": "ontology-query",
       "expected_script": null
     },
     {
       "id": "query-eval-006-solver-not-in-repo",
-      "prompt": "Wire Auto Ontology to an optimization solver so chat answers become a vehicle routing job.",
-      "expected_output": "This repository has no solver bridge. Auto Ontology returns answers, SQL, and rows; a partner agent may feed those numbers into a solver. Do not claim Auto Ontology solves routing or LPs.",
+      "prompt": "Wire Lexis to an optimization solver so chat answers become a vehicle routing job.",
+      "expected_output": "This repository has no solver bridge. Lexis returns answers, SQL, and rows; a partner agent may feed those numbers into a solver. Do not claim Lexis solves routing or LPs.",
       "assertions": [
         "States there is no in-repo solver integration",
-        "Allows a partner-wired hop from Auto Ontology rows to a solver",
-        "Does not invent an Auto Ontology routing API"
+        "Allows a partner-wired hop from Lexis rows to a solver",
+        "Does not invent an Lexis routing API"
       ],
       "expected_skill": "ontology-query",
       "expected_script": null

@@ -1,13 +1,13 @@
 ---
 name: ontology-query
 description: >-
-  Query Auto Ontology and validate generated SQL, rows, and
+  Query Lexis and validate generated SQL, rows, and
   answers. Use for MCP or REST access, readiness, authentication, conversations,
   and grounded questions.
 license: Apache-2.0
 metadata:
   version: "0.2.1"
-  author: "Auto-Ontology contributors"
+  author: "Lexis contributors"
   tags:
     - ontology
     - mcp
@@ -21,17 +21,17 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Auto Ontology grounded queries
+# Lexis grounded queries
 
 ## Purpose
 
-Query the current Auto Ontology implementation from an agent without prescribing a
+Query the current Lexis implementation from an agent without prescribing a
 harness, SDK, or LangGraph template. Typed workflow artifacts, statuses, gates,
 and handoffs are in [runtime-contract.yaml](assets/runtime-contract.yaml).
 
 ## Prerequisites
 
-Use a running Auto Ontology deployment and an authenticated MCP or REST client. If Auto Ontology is
+Use a running Lexis deployment and an authenticated MCP or REST client. If Lexis is
 not running, use `ontology-setup` first.
 
 ## Limitations
@@ -87,7 +87,7 @@ Auth (any of these; resolved in one place):
 - Browser session cookie
 - API token: `x-api-key: $AUTO_ONTOLOGY_API_TOKEN` (`Authorization: Bearer` works for
   `auto_ontology_…` tokens too). Token acts as its owner.
-- OAuth bearer issued by Auto Ontology (MCP sign-in)
+- OAuth bearer issued by Lexis (MCP sign-in)
 - SSO id token (`Authorization: Bearer <jwt>`) forwarded by a trusted caller — see
   [stack.md](references/stack.md)
 
@@ -108,7 +108,7 @@ needs `conversation:write`, or it gets 403.
   **`409 Conversation in progress`**.
 - A 404 on a conversation id means it belongs to another user.
 
-Python (from the Auto Ontology README; no extra SDK):
+Python (from the Lexis README; no extra SDK):
 
 ```python
 import os

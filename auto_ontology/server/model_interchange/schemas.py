@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pydantic models for the Auto Ontology model interchange YAML document."""
+"""Pydantic models for the Lexis model interchange YAML document."""
 
 from __future__ import annotations
 
@@ -152,7 +152,7 @@ class ModelSemanticLayer(BaseModel):
 
 
 class AutoOntologyModelDocument(BaseModel):
-    """Top-level Auto Ontology model document exchanged as YAML."""
+    """Top-level Lexis model document exchanged as YAML."""
 
     data_layer: ModelDataLayer = Field(default_factory=ModelDataLayer)
     semantic_layer: ModelSemanticLayer = Field(default_factory=ModelSemanticLayer)

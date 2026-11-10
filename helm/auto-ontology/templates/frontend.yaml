@@ -59,7 +59,7 @@ spec:
               value: "3000"
             - name: HOSTNAME
               value: "0.0.0.0"
-            # Auto Ontology version shown in the app header. Sourced from the Helm chart
+            # Lexis version shown in the app header. Sourced from the Helm chart
             # version so the UI always reflects the deployed chart.
             - name: APP_VERSION
               value: {{ .Chart.Version | quote }}

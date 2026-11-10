@@ -5,9 +5,9 @@
 """Postgres-backed history of semantic compilation passes.
 
 Unlike the ``configurations`` table (owned by the frontend's Prisma schema),
-this table is Auto Ontology's own: written and read only by Python services. It is
+this table is Lexis's own: written and read only by Python services. It is
 declared in :mod:`auto_ontology.dal.schema` and created by a migration like every other
-Auto Ontology table, so nothing here creates it — the reads and writes below assume it
+Lexis table, so nothing here creates it — the reads and writes below assume it
 exists, and degrade to no-ops if it somehow doesn't.
 
 The scheduler records a start/end row for every pass (see

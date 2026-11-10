@@ -702,7 +702,7 @@ pql_analysis = Table(
 )
 
 # Declared in auto_ontology/semantic/constants.py and referenced by reset.py's
-# _SEMANTIC_LABELS, but never written by Auto Ontology today. Created so the reset
+# _SEMANTIC_LABELS, but never written by Lexis today. Created so the reset
 # cascade has something to point at and so a future writer needs no migration.
 text_attribute = Table(
     "text_attribute",

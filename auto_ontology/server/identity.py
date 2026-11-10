@@ -18,7 +18,7 @@ INTERNAL_USER_HEADER = "x-auto-ontology-user-id"
 
 
 def resolve_internal_user(request: Request, *, required: bool) -> str | None:
-    """Return the Auto Ontology user id supplied by the trusted private gateway.
+    """Return the Lexis user id supplied by the trusted private gateway.
 
     Direct callers that do not use conversation persistence may omit these
     headers. FastAPI must not be publicly reachable because the header is not

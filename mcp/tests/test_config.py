@@ -40,7 +40,7 @@ def clean_env(monkeypatch: MonkeyPatch) -> None:
 
 def test_starts_with_nothing_configured() -> None:
     # Every caller signs in for themselves, so there is no credential to supply
-    # and a bare `auto-ontology-mcp` against a local Auto Ontology is a complete configuration.
+    # and a bare `auto-ontology-mcp` against a local Lexis is a complete configuration.
     settings = load_settings()
 
     assert settings.api_url == "http://localhost:3000"

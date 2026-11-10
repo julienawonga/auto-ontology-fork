@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""MCP server exposing the Auto Ontology semantic layer to agent harnesses."""
+"""MCP server exposing the Lexis semantic layer to agent harnesses."""
 
 from __future__ import annotations
 

@@ -23,7 +23,7 @@ import type { Database } from '@/types/datasources';
 import type { ImportEntityCounts, ImportSummary } from '@/types/modelInterchange';
 
 const FORMAT_LABEL: Record<ModelFormat, string> = {
-	[ModelFormat.AUTO_ONTOLOGY]: 'Native Auto Ontology',
+	[ModelFormat.AUTO_ONTOLOGY]: 'Native Lexis',
 	[ModelFormat.OSSIE]: 'Apache Ossie',
 };
 
@@ -38,8 +38,7 @@ const OSSIE_WITH_ONTOLOGY_FILENAME = 'ossie-model.zip';
 const FORMAT_OPTIONS: { value: ModelFormat; description: string }[] = [
 	{
 		value: ModelFormat.AUTO_ONTOLOGY,
-		description:
-			'Everything Auto Ontology stores, including catalog objects Ossie cannot name.',
+		description: 'Everything Lexis stores, including catalog objects Ossie cannot name.',
 	},
 	{
 		value: ModelFormat.OSSIE,
@@ -350,8 +349,8 @@ export const ImportExportView = () => {
 					Import Model
 				</h2>
 				<p className="mt-1 text-xs text-secondary">
-					Upload a native Auto Ontology or Apache Ossie model YAML file to write it into
-					the catalog and semantic layer. The format is detected from the file.
+					Upload a native Lexis or Apache Ossie model YAML file to write it into the
+					catalog and semantic layer. The format is detected from the file.
 				</p>
 
 				<FileUpload
@@ -361,7 +360,7 @@ export const ImportExportView = () => {
 					validate={validateYamlFile}
 					accept=".yaml,.yml"
 					description="YAML files (.yaml, .yml)"
-					aria-label="Upload a Auto Ontology or Apache Ossie model YAML file"
+					aria-label="Upload a Lexis or Apache Ossie model YAML file"
 					className="mt-4"
 				/>
 

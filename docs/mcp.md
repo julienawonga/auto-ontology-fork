@@ -4,7 +4,7 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Auto-Ontology MCP server
+# Lexis MCP server
 
 Lets any MCP-capable agent — Cursor, Claude Desktop, an internal agent — ask
 questions about your data in natural language, and inspect the semantic layer
@@ -13,7 +13,7 @@ Protocol](https://modelcontextprotocol.io) can use it.
 
 ## How it works
 
-The server is an HTTP client of the public Auto-Ontology API. It holds no database
+The server is an HTTP client of the public Lexis API. It holds no database
 credentials, no model configuration, and no credentials of its own:
 
 ```
@@ -30,7 +30,7 @@ the person behind it can do** — a viewer gets a viewer's answers.
 
 ## Running it
 
-Run one server; people log in through it. The URL of your Auto-Ontology deployment is the
+Run one server; people log in through it. The URL of your Lexis deployment is the
 only thing it needs to be told:
 
 ```sh
@@ -41,7 +41,7 @@ Install with `uvx`, which fetches and builds straight from the repository, so
 there is nothing to clone:
 
 ```sh
-uvx --from "git+https://github.com/julienawonga/auto-ontology-fork.git#subdirectory=mcp" auto-ontology-mcp
+uvx --from "git+https://github.com/julienawonga/lexis.git#subdirectory=mcp" auto-ontology-mcp
 ```
 
 > [!NOTE]
@@ -67,32 +67,32 @@ client after editing its config, since most read MCP configuration only at
 startup.
 
 The client sees that the server wants authorization and offers to sign in —
-Cursor lists it as needing login. The user gets Auto-Ontology's ordinary login page, with
+Cursor lists it as needing login. The user gets Lexis's ordinary login page, with
 whatever SSO that deployment uses, and the client ends up holding a token it
 manages itself. Nothing is minted or pasted by hand, and every call runs as the
 person who signed in.
 
-Then ask something like *"what does Auto-Ontology mean by an active customer, and how many
+Then ask something like *"what does Lexis mean by an active customer, and how many
 were there last quarter?"*
 
 ## Sign-in
 
-Auto-Ontology is the authorization server. This server holds no client id, no client
+Lexis is the authorization server. This server holds no client id, no client
 secret, and no redirect URI, so there is nothing to configure per deployment and
 nothing to register with an identity provider — clients register themselves with
-Auto-Ontology automatically.
+Lexis automatically.
 
-Registrations and grants live in Auto-Ontology's database, so replicas share them and a
+Registrations and grants live in Lexis's database, so replicas share them and a
 restart signs nobody out. Permissions come from the account on every call rather
 than from the token, so changing a role, banning a user, or deleting a grant
 takes effect immediately.
 
-The tokens are opaque, so the server asks Auto-Ontology's OAuth UserInfo endpoint to check
+The tokens are opaque, so the server asks Lexis's OAuth UserInfo endpoint to check
 each one. That bearer-authenticated endpoint needs no client secret and checks
 expiry, revocation, client, and browser-session state on every call. The grant
-must include the `openid` scope (Better Auth's UserInfo requirement); Auto-Ontology
+must include the `openid` scope (Better Auth's UserInfo requirement); Lexis
 advertises it on the authorization server so clients that copy
-`scopes_supported` include it. If Auto-Ontology cannot be reached the call fails as an
+`scopes_supported` include it. If Lexis cannot be reached the call fails as an
 error rather than as "sign in again", so an outage does not send everyone into a
 login that cannot succeed either.
 
@@ -100,7 +100,7 @@ There is no way to configure a token for the server itself. One would make every
 caller act as its owner — their permissions, their conversation history — and
 nothing in the protocol would reveal it.
 
-## Pointing at an Auto-Ontology on your own machine
+## Pointing at an Lexis on your own machine
 
 Only `AUTO_ONTOLOGY_API_URL` changes. For the Docker stack the web app is on `:3000`:
 
@@ -108,7 +108,7 @@ Only `AUTO_ONTOLOGY_API_URL` changes. For the Docker stack the web app is on `:3
 AUTO_ONTOLOGY_API_URL=http://localhost:3000 auto-ontology-mcp
 ```
 
-Sign-in needs an Auto-Ontology new enough to be an authorization server, which an
+Sign-in needs an Lexis new enough to be an authorization server, which an
 already-built image may not be. Checking first is worth it, because otherwise the
 failure surfaces as a client that cannot log in:
 
@@ -126,7 +126,7 @@ underlying databases.
 
 | Tool | What it is for |
 | --- | --- |
-| `ask_question` | **The primary tool.** Ask a question in plain language; get the answer, the SQL Auto-Ontology ran, and the rows. |
+| `ask_question` | **The primary tool.** Ask a question in plain language; get the answer, the SQL Lexis ran, and the rows. |
 | `check_answerable` | Grade whether the semantic layer covers a question. Cheap pre-flight before `ask_question`. |
 | `check_readiness` | Whether this deployment can answer anything at all. |
 | `search_terms` | Search the business glossary. |
@@ -176,7 +176,7 @@ under `unverified` and the verdict stands on what could be checked.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `AUTO_ONTOLOGY_API_URL` | `http://localhost:3000` | Base URL of the Auto-Ontology web app. |
+| `AUTO_ONTOLOGY_API_URL` | `http://localhost:3000` | Base URL of the Lexis web app. |
 | `AUTO_ONTOLOGY_MCP_PUBLIC_URL` | `http://localhost:3003` | Public MCP origin, without `/mcp`. The frontend must receive the same value so issued tokens have the resource URL clients use. |
 
 Rarely needed: `AUTO_ONTOLOGY_MCP_HOST` and `AUTO_ONTOLOGY_MCP_PORT` (bind address and port, default
@@ -213,7 +213,7 @@ spelling of the same host, almost always `127.0.0.1` against `localhost`. Set
 `AUTO_ONTOLOGY_MCP_PUBLIC_URL` to the URL the client uses, or leave `AUTO_ONTOLOGY_MCP_HOST` unset.
 
 **"This request carried no signed-in session"** — the grant behind the call
-expired or was revoked in Auto-Ontology. Sign in again from the client.
+expired or was revoked in Lexis. Sign in again from the client.
 
 **`ask_question` returned an empty answer, with no SQL and no error** — the run
 completed but retrieval found nothing to build a query from. Call
@@ -221,7 +221,7 @@ completed but retrieval found nothing to build a query from. Call
 question can succeed however it is phrased. If the deployment is ready, the
 question's vocabulary is the problem — `search_terms` for the nouns in it.
 
-**"Auto-Ontology cannot answer right now"** — usually the semantic layer was never
+**"Lexis cannot answer right now"** — usually the semantic layer was never
 compiled; confirm with `check_readiness`. It also appears when a
 `conversation_id` already has a turn in flight.
 

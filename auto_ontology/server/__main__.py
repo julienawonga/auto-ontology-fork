@@ -78,7 +78,7 @@ def create_app() -> FastAPI:
     tests — can construct the app and read ``app.openapi()`` without
     starting uvicorn.
     """
-    app = FastAPI(title="Auto Ontology API", lifespan=lifespan)
+    app = FastAPI(title="Lexis API", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
@@ -117,7 +117,7 @@ def create_app() -> FastAPI:
 
 
 def main() -> None:
-    logger.info("Starting Auto Ontology API server — app version %s", get_app_version())
+    logger.info("Starting Lexis API server — app version %s", get_app_version())
 
     app = create_app()
 

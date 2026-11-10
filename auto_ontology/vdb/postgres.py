@@ -203,7 +203,7 @@ class PostgresVDB:
             # on -- so the default is set to clear the ceiling, not for headroom
             # nothing used.
             #
-            # Budget connections before raising these. Auto Ontology opens two of these
+            # Budget connections before raising these. Lexis opens two of these
             # stores (data and semantic), each able to reach
             # pool_size + max_overflow, and the catalog pool in auto_ontology.dal.session
             # is separate and not covered by AUTO_ONTOLOGY_PG_POOL_SIZE.

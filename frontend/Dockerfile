@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ---------------------------------------------------------------------------
-# Auto Ontology Next.js frontend image
+# Lexis Next.js frontend image
 # ---------------------------------------------------------------------------
 # Build (from /frontend):  docker build -t auto-ontology-frontend:latest .
 # Run:                     docker run --rm -p 3000:3000 \

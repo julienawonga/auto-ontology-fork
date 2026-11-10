@@ -5,7 +5,7 @@
 """Composite and spaced-name primary keys, against the real KumoRFM SDK.
 
 A warehouse table keyed on several columns (``PEOPLE`` on
-``('Customer ID', 'REGION')``) is only usable once Auto Ontology declares that key itself:
+``('Customer ID', 'REGION')``) is only usable once Lexis declares that key itself:
 metadata inference picks no key for such a table, and KumoRFM then answers a
 declared composite key with a single surrogate ``__kumo_key_*`` column that stands
 in for the tuple on both ends of every edge. These exercise the SDK rather than a

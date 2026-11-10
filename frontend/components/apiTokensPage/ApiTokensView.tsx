@@ -206,8 +206,8 @@ export const ApiTokensView = () => {
 							API Tokens
 						</h1>
 						<p className="mt-1 text-xs text-secondary dark:text-zinc-400">
-							Call the Auto Ontology API from scripts without signing in. A token acts
-							as you — it can do exactly what your account can, and nothing more.
+							Call the Lexis API from scripts without signing in. A token acts as you
+							— it can do exactly what your account can, and nothing more.
 						</p>
 					</div>
 					<Button theme={ButtonTheme.Primary} size={Size.SMALL} onClick={openCreate}>
@@ -224,9 +224,8 @@ export const ApiTokensView = () => {
 									Copy your token now
 								</h2>
 								<p className="mt-1 text-xs text-body dark:text-zinc-400">
-									Auto Ontology stores only a hash of it, so this is the one and
-									only time it can be shown. Send it as the <code>x-api-key</code>{' '}
-									header.
+									Lexis stores only a hash of it, so this is the one and only time
+									it can be shown. Send it as the <code>x-api-key</code> header.
 								</p>
 							</div>
 							<Button
@@ -258,7 +257,7 @@ export const ApiTokensView = () => {
 					<EmptyState
 						icon={IconName.Key}
 						title="No API Tokens Yet"
-						description="Create one to authenticate scripts and scheduled jobs against the Auto Ontology API."
+						description="Create one to authenticate scripts and scheduled jobs against the Lexis API."
 						variant={EmptyStateVariant.Dashed}
 					/>
 				) : null}

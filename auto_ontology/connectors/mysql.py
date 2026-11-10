@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""MySQL connector implementing Auto Ontology's SQLDatabase ABC."""
+"""MySQL connector implementing Lexis's SQLDatabase ABC."""
 
 from __future__ import annotations
 

@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Alembic environment for the Auto Ontology catalog/semantic schema.
+"""Alembic environment for the Lexis catalog/semantic schema.
 
 **Scoped to one schema, deliberately.** Three systems share this database:
 Prisma owns ``frontend`` (and ``prisma db push`` reconciles drift there on every
@@ -53,16 +53,16 @@ _MISSING = object()
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Consider only objects in the connection's default schema.
 
-    This is what keeps autogenerate away from the two schemas Auto Ontology does not own:
+    This is what keeps autogenerate away from the two schemas Lexis does not own:
     Prisma's ``frontend`` and langchain_postgres' ``vdb``. Both are reflected and
     reach this function; without the filter they are tables Alembic can see but
     cannot find in ``METADATA``, and it would faithfully emit ``drop_table`` for
     every one of them.
 
-    The corollary now that Auto Ontology holds ``public``: anything created there by
+    The corollary now that Lexis holds ``public``: anything created there by
     something other than a migration *will* be proposed for deletion, because
     from here it is indistinguishable from a table someone removed from the
-    model. That is the intended reading — ``public`` is Auto Ontology's — but it means a
+    model. That is the intended reading — ``public`` is Lexis's — but it means a
     stray table is a loaded footgun rather than a curiosity.
 
     Alembic passes a wide range of objects through here — tables, columns,
@@ -90,7 +90,7 @@ def include_object(obj, name, type_, reflected, compare_to) -> bool:
         return type_ not in {"table", "column"}
     # Both sides spell the default schema as None: the MetaData is unqualified,
     # and Alembic normalises a reflected default-schema table to None too. The
-    # schemas Auto Ontology does not own -- `frontend` and `vdb` -- come back named, so
+    # schemas Lexis does not own -- `frontend` and `vdb` -- come back named, so
     # this single test is the whole filter.
     return schema is None
 
@@ -149,7 +149,7 @@ def run_migrations_online() -> None:
         # named after the role. Create one -- a schema named `auto_ontology` while the role
         # is also called `auto_ontology` -- and every unqualified `CREATE TABLE` in the
         # database silently retargets to it. That is not hypothetical; it is what
-        # happened when Auto Ontology's tables lived in a `auto_ontology` schema. Prisma's tables were
+        # happened when Lexis's tables lived in a `auto_ontology` schema. Prisma's tables were
         # created there instead of its own schema, so the next `db push` found its
         # schema empty, tried to create them again, and failed with
         # `relation "conversations" already exists`, leaving the frontend blocked

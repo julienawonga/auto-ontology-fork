@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # writes. Read at call time so tests can shrink it without rewriting queries.
 IN_QUERY_BATCH = 1000
 
-# Auto Ontology's tables are unqualified and resolve through `search_path`, which
+# Lexis's tables are unqualified and resolve through `search_path`, which
 # `get_engine` pins to `public` on every connection. There is deliberately no
 # schema constant: naming the default schema is what produced permanent
 # autogenerate drift and made Alembic stop recognising its own version table,
@@ -117,7 +117,7 @@ def get_engine() -> Engine:
             # `"$user", public` -- where `"$user"` is inert only for as long as
             # no schema shares the role's name. Create one and every unqualified
             # statement silently retargets to it; that is not hypothetical, it
-            # is what happened when Auto Ontology's tables lived in a `auto_ontology` schema.
+            # is what happened when Lexis's tables lived in a `auto_ontology` schema.
             #
             # `alembic/env.py` issues an `ALTER ROLE ... SET search_path` too,
             # but that is not this guarantee and cannot stand in for it: it

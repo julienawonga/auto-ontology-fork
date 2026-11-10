@@ -253,7 +253,7 @@ _POSTGRES_DIALECT_RULES = (
 
 
 # MySQL's ``/`` never truncates to an integer: it returns a DECIMAL with
-# div_precision_increment (by default 4, and Auto Ontology's MySQL connector
+# div_precision_increment (by default 4, and Lexis's MySQL connector
 # leaves it there) more decimal places than the dividend (integer
 # division is the separate DIV operator). So the generic "cast to REAL before
 # dividing" rule only adds casts here, and the model's MySQL cast of choice,

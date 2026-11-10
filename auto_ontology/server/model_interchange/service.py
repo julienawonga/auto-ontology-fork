@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Orchestration for native Auto Ontology and Apache Ossie model YAML export/import."""
+"""Orchestration for native Lexis and Apache Ossie model YAML export/import."""
 
 from __future__ import annotations
 
@@ -81,9 +81,9 @@ def _dialect_by_database_name() -> dict[str, str]:
 
 
 def detect_model_format(payload: Mapping[str, Any]) -> ModelFormat:
-    """Tell an Apache Ossie document apart from a native Auto Ontology one.
+    """Tell an Apache Ossie document apart from a native Lexis one.
 
-    Only a root holding Auto Ontology's own keys is read as native. Anything
+    Only a root holding Lexis's own keys is read as native. Anything
     else goes to the Ossie converter, which rejects what it cannot read; read
     as native, it would validate as an empty document, and an import with
     ``replace`` would then wipe the catalog.
@@ -109,7 +109,7 @@ def _project_terms_onto_one_table(
 ) -> AutoOntologyModelDocument:
     """Narrow every term down to a single represented table.
 
-    An Ossie dataset is backed by exactly one table, while a Auto Ontology term may
+    An Ossie dataset is backed by exactly one table, while a Lexis term may
     represent several. Until the converter can split such a term into one
     dataset per table, the export keeps the table carrying most of the term's
     column attributes and drops the attributes belonging to the others, so

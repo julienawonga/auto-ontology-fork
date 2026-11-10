@@ -6,20 +6,20 @@ SPDX-License-Identifier: Apache-2.0
 
 <div align="center">
 
-<img src="./frontend/public/favicon.svg" alt="Auto Ontology logo" width="96" height="96">
+<img src="./frontend/public/favicon.svg" alt="Lexis logo" width="96" height="96">
 
-# Auto Ontology
+# Lexis
 
 ### Ask your database anything, and get an answer you can check.
 
-Auto Ontology reads your schemas, builds a **business ontology** on top of them, and lets people and AI agents
+Lexis reads your schemas, builds a **business ontology** on top of them, and lets people and AI agents
 query your data in plain language, with the SQL, the steps and the definitions behind every answer.
 
-[![CI](https://github.com/julienawonga/auto-ontology-fork/actions/workflows/ci-python.yml/badge.svg)](https://github.com/julienawonga/auto-ontology-fork/actions/workflows/ci-python.yml)
-[![Frontend CI](https://github.com/julienawonga/auto-ontology-fork/actions/workflows/ci-client.yml/badge.svg)](https://github.com/julienawonga/auto-ontology-fork/actions/workflows/ci-client.yml)
+[![CI](https://github.com/julienawonga/lexis/actions/workflows/ci-python.yml/badge.svg)](https://github.com/julienawonga/lexis/actions/workflows/ci-python.yml)
+[![Frontend CI](https://github.com/julienawonga/lexis/actions/workflows/ci-client.yml/badge.svg)](https://github.com/julienawonga/lexis/actions/workflows/ci-client.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1856ff.svg)](./LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/julienawonga/auto-ontology-fork?style=flat&color=1856ff)](https://github.com/julienawonga/auto-ontology-fork/stargazers)
-[![Last commit](https://img.shields.io/github/last-commit/julienawonga/auto-ontology-fork?color=1856ff)](https://github.com/julienawonga/auto-ontology-fork/commits/main)
+[![GitHub stars](https://img.shields.io/github/stars/julienawonga/lexis?style=flat&color=1856ff)](https://github.com/julienawonga/lexis/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/julienawonga/lexis?color=1856ff)](https://github.com/julienawonga/lexis/commits/main)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-07ca6b.svg)](./CONTRIBUTING.md)
 
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
@@ -41,13 +41,13 @@ query your data in plain language, with the SQL, the steps and the definitions b
 
 ---
 
-## 💡 Why Auto Ontology?
+## 💡 Why Lexis?
 
 Text-to-SQL demos look great until the number is wrong. A revenue figure answered in two seconds is worth nothing if
 nobody can tell **which tables it joined, which definition of "revenue" it used, or whether that definition is the
 one finance agreed on**.
 
-Auto Ontology puts a **semantic layer** between your questions and your databases:
+Lexis puts a **semantic layer** between your questions and your databases:
 
 - 🧠 **It understands your data.** It profiles every table and column, then compiles business **Terms**
   (*Customer*, *Payment*, *Store*), their attributes and their relationships into an ontology stored next to your
@@ -102,7 +102,7 @@ uses **Pagila**, a sample DVD-rental database that ships with the repository.
 **1. Clone and configure**
 
 ```bash
-git clone https://github.com/julienawonga/auto-ontology-fork.git auto-ontology && cd auto-ontology
+git clone https://github.com/julienawonga/lexis.git auto-ontology && cd auto-ontology
 cp .env.example .env
 ```
 
@@ -248,7 +248,7 @@ curl -N http://localhost:3000/api/chat/completions \
 - [ ] One-click deploy templates (Railway, Render)
 - [ ] Replace the remaining vendor UI components with open ones
 
-Have an idea? [Open an issue](https://github.com/julienawonga/auto-ontology-fork/issues/new): feature requests and
+Have an idea? [Open an issue](https://github.com/julienawonga/lexis/issues/new): feature requests and
 feedback shape the roadmap.
 
 ## 🤝 Contributing
@@ -256,7 +256,7 @@ feedback shape the roadmap.
 Contributions are welcome, from typo fixes to new connectors. Read [CONTRIBUTING.md](./CONTRIBUTING.md), then open
 a pull request: CI runs Ruff, pytest, Prettier, ESLint, the frontend build and the OpenAPI checks on every PR.
 
-If Auto Ontology is useful to you, **a ⭐ on the repository helps others find it.**
+If Lexis is useful to you, **a ⭐ on the repository helps others find it.**
 
 ## 📚 Documentation
 
@@ -273,13 +273,13 @@ If Auto Ontology is useful to you, **a ⭐ on the repository helps others find i
 
 ## ⭐ Star history
 
-<a href="https://star-history.com/#julienawonga/auto-ontology-fork&Date">
-  <img src="https://api.star-history.com/svg?repos=julienawonga/auto-ontology-fork&type=Date" alt="Star history chart" width="600">
+<a href="https://star-history.com/#julienawonga/lexis&Date">
+  <img src="https://api.star-history.com/svg?repos=julienawonga/lexis&type=Date" alt="Star history chart" width="600">
 </a>
 
 ## 📄 License and credits
 
-Auto Ontology is licensed under the [Apache License 2.0](./LICENSE). It started as a fork of
+Lexis is licensed under the [Apache License 2.0](./LICENSE). It started as a fork of
 [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology); files from the original project keep their
 copyright headers, as the license requires. Third-party components are listed in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) and

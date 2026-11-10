@@ -161,7 +161,7 @@ def test_an_answer_over_everything_does_not_apologise_for_it() -> None:
 
 
 def test_predict_all_refuses_a_population_it_cannot_cover() -> None:
-    """``predict_all`` is ported code with no caller in Auto Ontology today.
+    """``predict_all`` is ported code with no caller in Lexis today.
 
     Pinned anyway: it is the one refusal site whose raise nothing would catch,
     so whoever wires it up should find the contract already stated rather than

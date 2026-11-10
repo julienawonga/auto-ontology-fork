@@ -75,7 +75,7 @@ const ConsentForm = () => {
 					Authorize MCP access
 				</h1>
 				<p className="text-sm text-body dark:text-zinc-400">
-					{clientId} is requesting access to Auto Ontology as your account.
+					{clientId} is requesting access to Lexis as your account.
 				</p>
 			</div>
 
@@ -125,9 +125,7 @@ const ConsentPage = () => (
 				<span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary">
 					<Icon name={IconName.AppLogo} className="h-6 w-6 text-white" />
 				</span>
-				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">
-					Auto Ontology
-				</span>
+				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">Lexis</span>
 			</div>
 			<Suspense fallback={null}>
 				<ConsentForm />

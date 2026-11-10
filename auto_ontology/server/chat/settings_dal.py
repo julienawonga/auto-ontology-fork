@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Read user-configured acronyms and custom prompts from the Auto Ontology metadata DB.
+"""Read user-configured acronyms and custom prompts from the Lexis metadata DB.
 
 The frontend manages these via Prisma (`acronyms` and `prompts` tables in the
 same Postgres instance the backend uses); the chat router pulls them on every

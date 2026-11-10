@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
 # SPDX-License-Identifier: Apache-2.0
 
-# Builds the Auto Ontology images for amd64 and arm64 and pushes them to the
+# Builds the Lexis images for amd64 and arm64 and pushes them to the
 # GitHub Container Registry, then packages the Helm chart and pushes it there
 # as an OCI artifact:
 #

@@ -2,11 +2,11 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Auto Ontology MCP server entrypoint.
+"""Lexis MCP server entrypoint.
 
-Exposes the Auto Ontology semantic layer to any MCP-capable agent harness. It holds no
+Exposes the Lexis semantic layer to any MCP-capable agent harness. It holds no
 database connections, no model configuration, and no credentials: it is an HTTP
-client of the public Auto Ontology API and needs only the URL of a Auto Ontology deployment, so it
+client of the public Lexis API and needs only the URL of a Lexis deployment, so it
 runs equally well beside one or on a laptop far away from it.
 
 Usage::
@@ -18,7 +18,7 @@ Without installing anything::
 
     uvx --from auto-ontology-mcp auto-ontology-mcp
 
-Callers sign in against Auto Ontology itself in a browser, so there is nothing to give the
+Callers sign in against Lexis itself in a browser, so there is nothing to give the
 server up front and nothing for a user to mint by hand.
 """
 
@@ -30,7 +30,7 @@ import sys
 from dotenv import load_dotenv
 
 # Load before importing config so a `.env` beside the working directory can
-# supply the URL, matching how the rest of Auto Ontology is configured locally.
+# supply the URL, matching how the rest of Lexis is configured locally.
 load_dotenv()
 
 from auto_ontology_mcp import get_version  # noqa: E402
@@ -54,7 +54,7 @@ def main() -> int:
         return 2
 
     logger.info(
-        "Starting Auto Ontology MCP server — version %s, listening on %s",
+        "Starting Lexis MCP server — version %s, listening on %s",
         get_version(),
         settings.public_url,
     )

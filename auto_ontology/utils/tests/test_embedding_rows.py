@@ -102,7 +102,7 @@ def test_column_text_drops_empty_optional_parts() -> None:
 
 
 def test_row_uses_the_auto_ontology_path_prefix() -> None:
-    """The prefix is provenance only, but it must match the rest of Auto Ontology.
+    """The prefix is provenance only, but it must match the rest of Lexis.
 
     Every other emit site in the codebase writes ``auto_ontology:``; a row builder that
     disagreed would make stored provenance depend on which code path ingested

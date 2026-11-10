@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": "setup-eval-001-underspecified",
-      "prompt": "Use the ontology-setup skill to handle this request safely: Install Auto Ontology for me.",
+      "prompt": "Use the ontology-setup skill to handle this request safely: Install Lexis for me.",
       "expected_output": "The request is underspecified, so the agent asks the required questions before running a command: target (Helm on Kubernetes as the official install, Docker Compose on one machine, a developer --dev/--ds workflow, or MCP-only against an existing instance), whether DEFAULT_MODELS_API_KEY is available, the bootstrap admin account, source database / CONNECTION_STRINGS vs UI connections, and for Compose whether host port 5432 is free. It does not guess a target and run it silently.",
       "assertions": [
         "Loads ontology-setup before choosing an installation path",
@@ -16,7 +16,7 @@
     },
     {
       "id": "setup-eval-002-use-existing-scripts",
-      "prompt": "I cloned the Auto Ontology repository and filled in .env. Host port 5432 is free. How do I start the full local stack?",
+      "prompt": "I cloned the Lexis repository and filled in .env. Host port 5432 is free. How do I start the full local stack?",
       "expected_output": "The agent uses the existing Compose file from the repository root: docker compose up -d --build after .env is filled. It does not write a new docker-compose file or a custom install script, and it does not present dev_tools/setup_env.sh as the installer.",
       "assertions": [
         "Uses docker compose up -d --build from the repo root",
@@ -28,7 +28,7 @@
     },
     {
       "id": "setup-eval-003-auth-secret-cookies",
-      "prompt": "After I restarted docker compose the Auto Ontology UI at localhost:3000 loads but the left navigation is missing.",
+      "prompt": "After I restarted docker compose the Lexis UI at localhost:3000 loads but the left navigation is missing.",
       "expected_output": "Stale Better Auth session cookie, typically after AUTH_SECRET changed or the database was reset. Clear site data for localhost:3000 or delete better-auth.session_token and sign in again. This is not a compose or frontend-build failure.",
       "assertions": [
         "Identifies a stale Better Auth cookie / AUTH_SECRET change",
@@ -40,7 +40,7 @@
     },
     {
       "id": "setup-eval-004-postgres-port-host-only",
-      "prompt": "5432 is taken on my laptop so I set POSTGRES_PORT=15432 in .env. The Auto Ontology container still talks to Postgres on 5432. Is that a bug?",
+      "prompt": "5432 is taken on my laptop so I set POSTGRES_PORT=15432 in .env. The Lexis container still talks to Postgres on 5432. Is that a bug?",
       "expected_output": "Not a bug. POSTGRES_PORT only changes the host-side port mapping. Containers always reach Postgres on 5432 on the compose network. Host access becomes localhost:15432.",
       "assertions": [
         "States that POSTGRES_PORT is host-side only",
@@ -52,7 +52,7 @@
     },
     {
       "id": "setup-eval-005-mcp-already-up",
-      "prompt": "Auto Ontology is already running at https://ontology.example.com. I only need my coding agent to query it.",
+      "prompt": "Lexis is already running at https://ontology.example.com. I only need my coding agent to query it.",
       "expected_output": "Do not reinstall. Point AUTO_ONTOLOGY_API_URL at the web app and run auto-ontology-mcp (uvx from the mcp subdirectory). Confirm GET $AUTO_ONTOLOGY_API_URL/.well-known/oauth-authorization-server returns 200. Client config uses the /mcp suffix; the user signs in; no token on the MCP server.",
       "assertions": [
         "Does not run docker compose or setup_env.sh",
@@ -88,7 +88,7 @@
     },
     {
       "id": "setup-eval-008-connect-source-workflow",
-      "prompt": "Auto Ontology is running and I'm signed in as an admin. Add our Postgres warehouse as a source and tell me when it's ready to answer questions.",
+      "prompt": "Lexis is running and I'm signed in as an admin. Add our Postgres warehouse as a source and tell me when it's ready to answer questions.",
       "expected_output": "Test first with POST /api/connections/test (connection:manage), fix any 422 before creating, then POST /api/connections. A 201 only means the connection was saved; ingestion is triggered best-effort, so do not report readiness yet. Verify the database and expected tables appear in GET /api/datasources/dbs, check semantic-compilation status, and run MCP check_readiness before saying it can answer questions.",
       "assertions": [
         "Tests the connection before creating it",
@@ -112,7 +112,7 @@
     },
     {
       "id": "setup-eval-010-helm-install",
-      "prompt": "Install Auto Ontology on our Kubernetes cluster. I have kubectl and helm access, a container registry the cluster can pull from, and an API key for an OpenAI-compatible model endpoint.",
+      "prompt": "Install Lexis on our Kubernetes cluster. I have kubectl and helm access, a container registry the cluster can pull from, and an API key for an OpenAI-compatible model endpoint.",
       "expected_output": "Use the Helm chart in helm/auto-ontology as described in DEPLOYMENT.md: build the images with docker compose build and push them to the registry, then helm install auto-ontology ./helm/auto-ontology -f with a values file the user creates containing the backend, ingestion and frontend image repositories, defaultModelsApiKey, postgresPassword, adminEmail and adminPassword (required, or the install fails), and optionally connectionStrings; secrets are not passed with --set. Set appUrl to the origin users will browse to unless they use kubectl port-forward svc/frontend 3000:3000. The user sets the secret values themselves rather than pasting them into the conversation. Do not use dev_tools/setup_env.sh.",
       "assertions": [
         "Uses the repository Helm chart rather than dev_tools/setup_env.sh or running the stack with docker compose",

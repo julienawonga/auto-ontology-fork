@@ -52,9 +52,7 @@ const HandoffPage = () => (
 				<span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary">
 					<Icon name={IconName.AppLogo} className="h-6 w-6 text-white" />
 				</span>
-				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">
-					Auto Ontology
-				</span>
+				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">Lexis</span>
 			</div>
 			<Suspense fallback={null}>
 				<HandoffStatus />

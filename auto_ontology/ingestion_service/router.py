@@ -135,7 +135,7 @@ async def semantic_status(request: Request) -> dict[str, bool | str | None]:
     than the last success).
 
     Backed by the ``semantic_compilation_history`` table (see ``history.py``),
-    which this service owns — the Auto Ontology API server relays this response rather
+    which this service owns — the Lexis API server relays this response rather
     than reading that table itself.
     """
     scheduler = request.app.state.semantic_scheduler

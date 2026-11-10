@@ -12,7 +12,7 @@ requests.**
 
 Report them privately through GitHub instead: open the repository's **Security** tab and
 choose **Report a vulnerability**
-([direct link](https://github.com/julienawonga/auto-ontology-fork/security/advisories/new)).
+([direct link](https://github.com/julienawonga/lexis/security/advisories/new)).
 Only the maintainers can see the report.
 
 Please include:

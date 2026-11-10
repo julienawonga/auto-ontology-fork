@@ -238,7 +238,7 @@ def entity_spec(label: str | list[str]) -> EntitySpec:
     Accepts a list as well as a string: a node in a property graph can carry
     several labels, so the write primitive takes a list and callers such
     as ``merge_schema_nodes`` pass one through unchanged. The first is used,
-    matching ``labels(n)[0]`` everywhere else in the codebase — Auto Ontology never puts
+    matching ``labels(n)[0]`` everywhere else in the codebase — Lexis never puts
     more than one label on a catalog node.
     """
     if isinstance(label, (list, tuple)):

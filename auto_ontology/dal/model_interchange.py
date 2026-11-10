@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Auto Ontology model YAML export and import.
+"""Lexis model YAML export and import.
 
 CRUD over the catalog and semantic entities, driven by a YAML document.
 

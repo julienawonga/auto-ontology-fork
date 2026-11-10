@@ -3,13 +3,13 @@ SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Contributing to Auto Ontology
+# Contributing to Lexis
 
 Thanks for your interest! Contributions of every size are welcome: bug reports, docs,
 new connectors, UI improvements, tests.
 
 - **Found a bug or have an idea?** Open an
-  [issue](https://github.com/julienawonga/auto-ontology-fork/issues/new/choose) with the
+  [issue](https://github.com/julienawonga/lexis/issues/new/choose) with the
   matching template.
 - **Want to change code?** Open a pull request; for anything larger than a small fix,
   start with an issue so we can agree on the approach first.

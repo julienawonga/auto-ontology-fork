@@ -4,7 +4,7 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Deploying Auto-Ontology on Kubernetes
+# Deploying Lexis on Kubernetes
 
 ## Released artifacts
 
@@ -40,7 +40,7 @@ To build or push the images by hand, see `make help`
 ## Deploying a Release
 
 1. Pick a chart version from the repository's
-   [packages](https://github.com/julienawonga/auto-ontology-fork/packages) or
+   [packages](https://github.com/julienawonga/lexis/packages) or
    tags.
 
 2. Put the secrets and model settings in a values file. Create it in an editor
@@ -61,7 +61,7 @@ To build or push the images by hand, see `make help`
    connectionStrings: <CONNECTION-STRINGS>   # optional; or add connections in the UI
    ```
 
-   Auto-Ontology has no built-in model provider: point it at any
+   Lexis has no built-in model provider: point it at any
    OpenAI-compatible endpoint (a gateway such as a LiteLLM proxy, a hosted
    provider, or a self-hosted server). The `defaultModels*` triplet is shared
    by every model role, and the per-role values in `values.yaml`

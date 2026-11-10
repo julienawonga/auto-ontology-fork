@@ -76,7 +76,7 @@ export const InviteSetPassword = ({ token, email, kind }: InviteSetPasswordProps
 						<Icon name={IconName.AppLogo} className="h-6 w-6 text-white" />
 					</span>
 					<span className="text-lg font-bold text-glass-text dark:text-zinc-50">
-						Auto Ontology
+						Lexis
 					</span>
 				</div>
 				{savedWithoutSession ? (

@@ -11,7 +11,7 @@
 //
 // FastAPI owns completion persistence so web and Agent API callers share one
 // history implementation. This route authenticates the caller, forwards its
-// Auto Ontology user identity over the private upstream hop, and otherwise preserves SSE.
+// Lexis user identity over the private upstream hop, and otherwise preserves SSE.
 
 import { after } from 'next/server';
 import { withPermission } from '@/auth/with-auth';

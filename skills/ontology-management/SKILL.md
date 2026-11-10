@@ -1,12 +1,12 @@
 ---
 name: ontology-management
 description: >-
-  Model and publish semantic definitions in Auto Ontology. Use for terms, relationships,
+  Model and publish semantic definitions in Lexis. Use for terms, relationships,
   measures, imports, and governed results—not deployment or querying.
 license: Apache-2.0
 metadata:
   version: "0.2.1"
-  author: "Auto-Ontology contributors"
+  author: "Lexis contributors"
   tags:
     - ontology
     - ontology
@@ -21,11 +21,11 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Auto Ontology management and modeling
+# Lexis management and modeling
 
 ## Purpose
 
-Inspect and change Auto Ontology's semantic layer without confusing a successful API call
+Inspect and change Lexis's semantic layer without confusing a successful API call
 with correct business meaning or durable publication. The machine-readable
 inputs, outputs, statuses, gates, and handoffs are in
 [runtime-contract.yaml](assets/runtime-contract.yaml).
@@ -41,18 +41,18 @@ Choose the focused workflow before acting:
 
 MCP tools only **read**. Create, patch, import, and compile-reset go through
 the Next.js `/api/...` gateway. Governed result rows require an approved source
-writer; Auto Ontology has no generic result-row writeback endpoint. Request bodies and
+writer; Lexis has no generic result-row writeback endpoint. Request bodies and
 field types live in `docs/openapi/auto-ontology-api.json`; this skill names operations and
 permissions only.
 
 ## Prerequisites
 
-Use a running, authenticated Auto Ontology deployment. Use `ontology-setup` when
+Use a running, authenticated Lexis deployment. Use `ontology-setup` when
 the deployment or semantic layer is not ready.
 
 ## Limitations
 
-MCP is read-only, Auto Ontology has no generic result-row writeback endpoint, and current
+MCP is read-only, Lexis has no generic result-row writeback endpoint, and current
 model import and certification APIs do not prove atomic promotion. Follow the
 publication gates below and fail closed when exact readback is unavailable.
 
@@ -116,7 +116,7 @@ revision, certification history, or version lineage.
 - `POST /api/model/export` — YAML of catalog + semantic layer.
   Permission `modelInterchange:export`. Body may set catalog database **IDs**
   in `databases` (empty = all) and `format` (`auto_ontology` or `ossie`).
-- `POST /api/model/import` — multipart YAML; native Auto Ontology
+- `POST /api/model/import` — multipart YAML; native Lexis
   (`data_layer` / `semantic_layer`) or Apache Ossie (`version`, `name`,
   `datasets` at the root).
   Query `replace` (default true) and `embed` (default true). Permission
@@ -142,6 +142,6 @@ before changing the model or resetting compilation.
 - [write-api.md](references/write-api.md)
 - [modeling.md](references/modeling.md)
 - [publication.md](references/publication.md)
-- `ontology-query` — how to call Auto Ontology and validate query results
+- `ontology-query` — how to call Lexis and validate query results
 - `ontology-setup` — deployment not ready
 - `mcp/auto_ontology_mcp/tools.py` — live read-tool allow-list

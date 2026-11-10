@@ -1,13 +1,13 @@
 ---
 name: ontology-setup
 description: >-
-  Set up or troubleshoot the Auto Ontology runtime. Use for Helm (the official
+  Set up or troubleshoot the Lexis runtime. Use for Helm (the official
   install), Docker Compose, developer setup, and MCP connection to an existing
   deployment.
 license: Apache-2.0
 metadata:
   version: "0.3.1"
-  author: "Auto-Ontology contributors"
+  author: "Lexis contributors"
   tags:
     - ontology
     - install
@@ -23,11 +23,11 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Auto Ontology setup
+# Lexis setup
 
 ## Purpose
 
-Bring up the current Auto Ontology implementation, troubleshoot it, or connect an agent
+Bring up the current Lexis implementation, troubleshoot it, or connect an agent
 to an instance that is already running. Do not invent a second installer:
 the official installation is the Helm chart in repository-root `DEPLOYMENT.md`;
 Docker Compose runs the same stack on one machine. `dev_tools/setup_env.sh` is a
@@ -46,7 +46,7 @@ Ask these if not already clear. Do not guess a default and emit a command.
 
 1. **Target** — Helm on Kubernetes (the official install, and the default
    recommendation), Docker Compose on one machine, a developer workflow
-   (`--dev` / `--ds`, only when changing Auto Ontology itself), or "Auto
+   (`--dev` / `--ds`, only when changing Lexis itself), or "Auto
    Ontology is already up, I only need MCP"?
 2. **Model endpoint** — which OpenAI-compatible endpoint serves the models,
    and is its key available as `DEFAULT_MODELS_API_KEY` (Helm:
@@ -144,7 +144,7 @@ login broken.
 
 ## Developer workflows (`--dev`, `--ds`)
 
-Only for people changing Auto Ontology itself; these are not installations.
+Only for people changing Lexis itself; these are not installations.
 `dev_tools/setup_env.sh` starts part of the stack in Docker and leaves the rest
 to run from the checkout. Both need the `.env` above plus:
 
@@ -188,17 +188,17 @@ This skill uses the repository's existing Helm chart and Compose file and does
 not cover GitOps pipelines, change semantic definitions, or treat partial Vault
 configuration as secret storage. Ask before destructive volume deletion.
 
-## Auto Ontology is already up — MCP only
+## Lexis is already up — MCP only
 
 Do not reinstall. Point `AUTO_ONTOLOGY_API_URL` at the **web app** (Compose UI is
 `:3000`, not FastAPI `:3001`):
 
 ```bash
-AUTO_ONTOLOGY_API_URL=http://localhost:3000 uvx --from "git+https://github.com/julienawonga/auto-ontology-fork.git#subdirectory=mcp" auto-ontology-mcp
+AUTO_ONTOLOGY_API_URL=http://localhost:3000 uvx --from "git+https://github.com/julienawonga/lexis.git#subdirectory=mcp" auto-ontology-mcp
 ```
 
 The package is not on PyPI, so `uvx` installs it from the Git repository. Client config uses the MCP server URL with a `/mcp` suffix.
-People sign in through Auto Ontology; do not put a token on the MCP server.
+People sign in through Lexis; do not put a token on the MCP server.
 
 Confirm the deployment is new enough to be an authorization server:
 
@@ -275,6 +275,6 @@ configuration. Redact secrets before sharing command output as evidence.
 
 - [troubleshooting.md](references/troubleshooting.md)
 - [runtime-contract.yaml](assets/runtime-contract.yaml)
-- `ontology-query` — call Auto Ontology once it is running
+- `ontology-query` — call Lexis once it is running
 - `ontology-management` — edit the semantic layer
-- `CLAUDE.md` — maintain Auto Ontology itself
+- `CLAUDE.md` — maintain Lexis itself
