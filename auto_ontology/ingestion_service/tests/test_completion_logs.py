@@ -480,6 +480,35 @@ def test_semantic_scheduler_does_not_claim_success_when_one_fails(
     assert "1 of 2 database(s) succeeded, 1 failed" in text
 
 
+def test_an_incomplete_semantic_index_is_recorded_as_a_failed_pass(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The history row is what the settings page reads. With every embedding
+    rejected it said ``succeeded`` 21 times over an empty index."""
+    import auto_ontology.ingestion_service.semantic_scheduler as mod
+    from auto_ontology.semantic.compile import SemanticIndexIncompleteError
+
+    def _compiled_but_not_embedded(database_name: str) -> int:
+        raise SemanticIndexIncompleteError("missing 80 of 80")
+
+    _patch_semantic_scheduler(monkeypatch, ["pagila"], _compiled_but_not_embedded)
+    recorded: list[tuple[int | None, str | None]] = []
+    monkeypatch.setattr(mod, "record_run_start", lambda: 7)
+    monkeypatch.setattr(
+        mod,
+        "record_run_finish",
+        lambda run_id, outcome: recorded.append((run_id, outcome)),
+    )
+
+    with caplog.at_level(logging.INFO):
+        asyncio.run(SemanticScheduler()._run_once())
+
+    assert recorded == [(7, mod.RUN_FAILED)]
+    text = _messages(caplog)
+    assert "semantic: finished successfully" not in text
+    assert "0 of 1 database(s) succeeded, 1 failed" in text
+
+
 def test_semantic_scheduler_disabled_run_claims_nothing(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -114,72 +114,92 @@ def build_semantic_embedder(
     )
 
 
+@dataclass(frozen=True)
+class SemanticIndexRebuild:
+    """Outcome of :func:`embed_all_semantic_nodes`.
+
+    Both numbers, because the embed step drops the rows an endpoint rejects
+    instead of raising: ``written < expected`` is the only sign of a partial
+    rebuild.
+    """
+
+    expected: int
+    written: int
+
+
 def embed_all_semantic_nodes(
     embedder: SemanticEmbedder,
-) -> int:
-    """Embed every Term + ColumnAttribute currently in the store in a single batch.
+) -> SemanticIndexRebuild:
+    """Re-embed every Term + ColumnAttribute of the embedder's database.
 
-    Fetches all semantic nodes, builds one combined DataFrame, makes a single
-    HTTP call to the embed endpoint, and writes all results to the VDB in one
-    pass.  Returns the total number of rows written.
+    The only way to repair the semantic index: compilation embeds a Term once,
+    inline, when its table is first compiled, and never revisits a table that
+    already has one -- so rows lost to a failing embed endpoint stay lost.
+
+    Safe to repeat. Each embedded row replaces the one stored under the same
+    id, and only rows that came back with an embedding are replaced, so a run
+    against a failing endpoint removes nothing that still works.
     """
     from collections import defaultdict
 
-    from auto_ontology.dal.terms import fetch_all_terms_and_attributes
+    from auto_ontology.dal.terms import fetch_terms_and_attributes_for_database
 
-    terms, attrs = fetch_all_terms_and_attributes()
-    if not terms and not attrs:
-        logger.info("embed_all_semantic_nodes: nothing to embed")
-        return 0
+    database_name = embedder.database_name
+    terms, attrs = fetch_terms_and_attributes_for_database(database_name)
 
     attrs_by_term: dict[str, list[dict]] = defaultdict(list)
     for attr in attrs:
-        term_name = attr.get("term_name") or ""
-        if term_name:
-            attrs_by_term[term_name].append(attr)
+        attrs_by_term[attr.get("term_name") or ""].append(attr)
 
     all_rows: list[dict] = []
     for term in terms:
-        term_name = term.get("name") or ""
-        if not term_name:
-            continue
         all_rows.extend(
-            _build_rows(
-                embedder.database_name,
-                {
-                    "name": term_name,
-                    "description": term.get("description") or "",
-                    "synonyms": term.get("synonyms") or [],
-                    "id": term.get("id"),
-                    "schema_names": term.get("schema_names") or [],
-                },
-                attrs_by_term.get(term_name, []),
-            )
+            _build_rows(database_name, term, attrs_by_term.pop(term["name"], []))
         )
+    # Attributes naming a Term this database does not represent. Embedded
+    # without that Term's synonyms rather than dropped: the health check counts
+    # every attribute of the database, and a row never embedded would be a gap
+    # no rebuild could close.
+    for orphans in attrs_by_term.values():
+        all_rows.extend(_build_rows(database_name, {}, orphans))
 
     if not all_rows:
-        logger.info("embed_all_semantic_nodes: no rows to embed")
-        return 0
+        logger.info("embed_all_semantic_nodes: nothing to embed for %r", database_name)
+        return SemanticIndexRebuild(expected=0, written=0)
 
     embedded_df = batch_embed(all_rows, embedder.embed_params)
-    if embedded_df is None or embedded_df.empty:
-        logger.warning("embed_all_semantic_nodes: embed produced no rows")
-        return 0
-
-    with_embeddings = [
-        row
-        for row in embedded_df.to_dict(orient="records")
-        if (row.get("metadata") or {}).get("embedding")
-    ]
+    with_embeddings = (
+        []
+        if embedded_df is None or embedded_df.empty
+        else [
+            row
+            for row in embedded_df.to_dict(orient="records")
+            if (row.get("metadata") or {}).get("embedding")
+        ]
+    )
     if not with_embeddings:
         logger.warning(
-            "embed_all_semantic_nodes: 0/%d rows had embeddings", len(all_rows)
+            "embed_all_semantic_nodes: 0/%d rows had embeddings for %r",
+            len(all_rows),
+            database_name,
         )
-        return 0
+        return SemanticIndexRebuild(expected=len(all_rows), written=0)
 
-    write_embedded_rows(embedder.vdb, with_embeddings)
-    logger.info("embed_all_semantic_nodes: %d VDB row(s) written", len(with_embeddings))
-    return len(with_embeddings)
+    # The store only appends, so the rows being rewritten go first; otherwise
+    # every rebuild would leave a second copy of each.
+    embedder.vdb.delete_by_ids(
+        [row["metadata"]["id"] for row in with_embeddings if row["metadata"].get("id")],
+        database_name,
+    )
+    written = write_embedded_rows(embedder.vdb, with_embeddings)
+    log = logger.info if written == len(all_rows) else logger.warning
+    log(
+        "embed_all_semantic_nodes: %d/%d VDB row(s) written for %r",
+        written,
+        len(all_rows),
+        database_name,
+    )
+    return SemanticIndexRebuild(expected=len(all_rows), written=written)
 
 
 def _format_sample_values(raw: Any, data_type: str | None = None) -> str:

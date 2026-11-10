@@ -2,6 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from typing import Any, cast
 
 import pytest
@@ -13,6 +14,18 @@ from auto_ontology.retrieval.text_to_sql.agents.candidates_retrieval import (
 )
 from auto_ontology.retrieval.text_to_sql.state import AgentState
 from auto_ontology.semantic.constants import LABEL_COLUMN_ATTRIBUTE, LABEL_SQL_ATTRIBUTE
+from auto_ontology.semantic.index_health import SemanticIndexHealth
+
+
+@pytest.fixture(autouse=True)
+def healthy_semantic_index(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty retrieval consults the index health, which reads the store."""
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "check_semantic_index",
+        lambda database_name: SemanticIndexHealth(database_name, 0, 0),
+    )
+    monkeypatch.setattr(candidates_retrieval, "check_semantic_indexes", lambda: [])
 
 
 def _hit(
@@ -350,3 +363,123 @@ def test_full_evidence_adds_column_attribute_vector_results(
     assert hits[0]["id"] == "eligible-rate"
     assert hits[0]["query_evidence"] == evidence
     assert hits[0]["query_entities"] == ["eligible rate"]
+
+
+# ---------------------------------------------------------------------------
+# An empty retrieval over an index that was never filled
+# ---------------------------------------------------------------------------
+
+
+def _retrieve_nothing(
+    monkeypatch: pytest.MonkeyPatch, *, target_db: str | None
+) -> None:
+    monkeypatch.setattr(candidates_retrieval, "_search_by_label", lambda *_a: [])
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "_llm_filter_both",
+        lambda _llm, _question, custom, sql: (custom, sql),
+    )
+    monkeypatch.setattr(
+        candidates_retrieval, "custom_analysis_exists", lambda *_: False
+    )
+    CandidateRetrievalAgent().execute(_state(["rentals"], target_db=target_db))
+
+
+def test_an_empty_index_behind_existing_terms_is_warned_about(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Retrieval returning nothing is silent by design -- the chat falls back to
+    the raw schema -- which is how an index holding no row at all went unseen."""
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "check_semantic_index",
+        lambda database_name: SemanticIndexHealth(database_name, 80, 0),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        _retrieve_nothing(monkeypatch, target_db="pagila")
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(
+        "Semantic index is empty for database 'pagila'" in w and "80" in w
+        for w in warnings
+    )
+
+
+def test_every_database_is_checked_when_none_was_selected(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "check_semantic_indexes",
+        lambda: [
+            SemanticIndexHealth("chinook", 12, 12),
+            SemanticIndexHealth("pagila", 80, 0),
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING):
+        _retrieve_nothing(monkeypatch, target_db=None)
+
+    text = "\n".join(r.getMessage() for r in caplog.records)
+    assert "Semantic index is empty for database 'pagila'" in text
+    assert "'chinook'" not in text
+
+
+def test_no_hits_from_a_populated_index_is_not_a_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Some questions match nothing; that is not a fault to report."""
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "check_semantic_index",
+        lambda database_name: SemanticIndexHealth(database_name, 80, 80),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        _retrieve_nothing(monkeypatch, target_db="pagila")
+
+    assert "Semantic index is empty" not in caplog.text
+
+
+def test_the_index_is_not_checked_when_retrieval_found_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The check costs queries; a working chat must not pay for it."""
+
+    def _unexpected(database_name: str) -> SemanticIndexHealth:
+        raise AssertionError("index health checked on a non-empty retrieval")
+
+    monkeypatch.setattr(candidates_retrieval, "check_semantic_index", _unexpected)
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "_search_by_label",
+        lambda _r, _q, label, _k, _db=None: (
+            [_hit("rental-date", "pagila", 0.1)]
+            if label == LABEL_COLUMN_ATTRIBUTE
+            else []
+        ),
+    )
+    monkeypatch.setattr(
+        candidates_retrieval,
+        "_llm_filter_both",
+        lambda _llm, _question, custom, sql: (custom, sql),
+    )
+    monkeypatch.setattr(
+        candidates_retrieval, "custom_analysis_exists", lambda *_: False
+    )
+
+    result = CandidateRetrievalAgent().execute(_state(["rentals"], target_db="pagila"))
+
+    assert len(result["path_state"]["retrieved_column_attributes"]) == 1
+
+
+def test_a_failing_health_check_does_not_fail_the_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _unreachable(database_name: str) -> SemanticIndexHealth:
+        raise RuntimeError("store unreachable")
+
+    monkeypatch.setattr(candidates_retrieval, "check_semantic_index", _unreachable)
+
+    _retrieve_nothing(monkeypatch, target_db="pagila")

@@ -6154,6 +6154,65 @@
         "x-auto-ontology-proxied": true
       }
     },
+    "/api/semantic-compilation/reindex": {
+      "post": {
+        "description": "semanticCompilationApi.reindex — re-embed one database's Terms and\nColumnAttributes into the semantic index (?database_name=). It rewrites\nindex rows rather than deleting any ontology data, but it runs the embedding\nendpoint over the whole database, so it sits behind `manage` like the reset.",
+        "operationId": "post_api_semantic_compilation_reindex",
+        "parameters": [
+          {
+            "description": "Name of the catalog database whose semantic index to rebuild.",
+            "in": "query",
+            "name": "database_name",
+            "required": true,
+            "schema": {
+              "description": "Name of the catalog database whose semantic index to rebuild.",
+              "title": "Database Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticReindexResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reindex",
+        "tags": ["semantic-compilation"],
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/semantic-compilation/reindex/route.ts",
+        "x-auto-ontology-permissions": {
+          "semanticCompilation": ["manage"]
+        },
+        "x-auto-ontology-proxied": true
+      }
+    },
     "/api/semantic-compilation/reset": {
       "post": {
         "description": "semanticCompilationApi.reset — delete every database's compiled semantic\nlayer. Destructive, so it sits behind `manage` rather than the `read` tier\nthat may view the toggle.",
@@ -11722,12 +11781,72 @@
         "title": "SemanticGraphNode",
         "type": "object"
       },
+      "SemanticIndexStatus": {
+        "additionalProperties": true,
+        "description": "One database's ontology against its rows in the semantic vector index.\n\n``expected`` counts the Terms and ColumnAttributes the relational store\nholds, ``indexed`` how many of them have an embedding row, and ``missing``\nthe difference. Anything but ``missing == 0`` means chat retrieval cannot\nsee part of the semantic layer.",
+        "properties": {
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "indexed": {
+            "title": "Indexed",
+            "type": "integer"
+          },
+          "missing": {
+            "title": "Missing",
+            "type": "integer"
+          }
+        },
+        "required": ["database_name", "expected", "indexed", "missing"],
+        "title": "SemanticIndexStatus",
+        "type": "object"
+      },
+      "SemanticReindexResponse": {
+        "additionalProperties": true,
+        "description": "Result of rebuilding one database's semantic index.\n\n``written < expected`` is a partial rebuild: the embedding endpoint did not\nreturn a vector for every row.",
+        "properties": {
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "written": {
+            "title": "Written",
+            "type": "integer"
+          }
+        },
+        "required": ["database_name", "expected", "written"],
+        "title": "SemanticReindexResponse",
+        "type": "object"
+      },
       "SemanticStatusResponse": {
         "additionalProperties": true,
         "properties": {
           "calculated": {
             "title": "Calculated",
             "type": "boolean"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SemanticIndexStatus"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
           },
           "last_failure_at": {
             "anyOf": [

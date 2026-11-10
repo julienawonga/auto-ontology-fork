@@ -864,3 +864,74 @@ def test_synonyms_are_keyed_by_name_and_skip_empty_ones(world) -> None:
 
 def test_synonyms_are_empty_for_an_empty_list() -> None:
     assert t.fetch_term_synonyms([]) == {}
+
+
+# --------------------------------------------------------------------------
+# One database's semantic index
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def other_world():
+    """A second database, to prove a read stays inside the first."""
+    w = World(f"t-{uuid.uuid4().hex[:8]}")
+    yield w
+    store().query_write(
+        s.catalog_database.delete().where(s.catalog_database.c.id == w.database)
+    )
+    for table in (s.column_attribute, s.term):
+        store().query_write(table.delete().where(table.c.name.like(f"{w.prefix}%")))
+
+
+def test_index_ids_are_the_terms_and_attributes_of_one_database(
+    world, other_world
+) -> None:
+    """Terms are global and index rows are per database, so the scope is what
+    keeps one database's rebuild from embedding another's ontology as its own."""
+    world.table("orders", columns=("id", "total"))
+    order = world.term("Order", represents=("orders",))
+    order_id = world.column_attribute("order-id", "Order", table="orders", column="id")
+    total = world.column_attribute("total", "Order", table="orders", column="total")
+    # Never embedded, so never expected: not semantic, or not on a table.
+    world.term("Imported", represents=("orders",), source="import")
+    world.term("Unrepresented")
+    other_world.table("films", columns=("id",))
+    other_world.term("Film", represents=("films",))
+    other_world.column_attribute("film-id", "Film", table="films", column="id")
+
+    term_ids, attribute_ids = t.fetch_semantic_node_ids_for_database(world.prefix)
+
+    assert term_ids == {order}
+    assert attribute_ids == {order_id, total}
+
+
+def test_the_rebuild_input_is_the_set_the_health_check_expects(
+    world, other_world
+) -> None:
+    """Two readers of one definition: if they disagreed, a rebuild would leave
+    a gap the health check reports forever."""
+    world.table("orders", columns=("id", "total"))
+    world.table("order_items", columns=("id",))
+    # One Term over two tables is still one row to embed.
+    world.term("Order", represents=("orders", "order_items"))
+    world.column_attribute("order-id", "Order", table="orders", column="id")
+    world.column_attribute("total", "Order", table="orders", column="total")
+    other_world.table("films", columns=("id",))
+    other_world.term("Film", represents=("films",))
+
+    terms, attrs = t.fetch_terms_and_attributes_for_database(world.prefix)
+    term_ids, attribute_ids = t.fetch_semantic_node_ids_for_database(world.prefix)
+
+    assert [row["id"] for row in terms] == sorted(term_ids)
+    assert terms[0]["name"] == f"{world.prefix}-Order"
+    assert terms[0]["schema_names"] == ["public"]
+    assert sorted(row["id"] for row in attrs) == sorted(attribute_ids)
+    assert {row["table_name"] for row in attrs} == {"orders"}
+    assert {row["source_column"] for row in attrs} == {"id", "total"}
+
+
+def test_a_database_without_terms_expects_nothing(world) -> None:
+    world.table("orders", columns=("id",))
+
+    assert t.fetch_semantic_node_ids_for_database(world.prefix) == (set(), set())
+    assert t.fetch_terms_and_attributes_for_database(world.prefix) == ([], [])

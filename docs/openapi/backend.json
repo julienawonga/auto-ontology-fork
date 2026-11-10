@@ -3694,12 +3694,81 @@
         "title": "SemanticGraphNode",
         "type": "object"
       },
+      "SemanticIndexStatus": {
+        "additionalProperties": true,
+        "description": "One database's ontology against its rows in the semantic vector index.\n\n``expected`` counts the Terms and ColumnAttributes the relational store\nholds, ``indexed`` how many of them have an embedding row, and ``missing``\nthe difference. Anything but ``missing == 0`` means chat retrieval cannot\nsee part of the semantic layer.",
+        "properties": {
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "indexed": {
+            "title": "Indexed",
+            "type": "integer"
+          },
+          "missing": {
+            "title": "Missing",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_name",
+          "expected",
+          "indexed",
+          "missing"
+        ],
+        "title": "SemanticIndexStatus",
+        "type": "object"
+      },
+      "SemanticReindexResponse": {
+        "additionalProperties": true,
+        "description": "Result of rebuilding one database's semantic index.\n\n``written < expected`` is a partial rebuild: the embedding endpoint did not\nreturn a vector for every row.",
+        "properties": {
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "written": {
+            "title": "Written",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_name",
+          "expected",
+          "written"
+        ],
+        "title": "SemanticReindexResponse",
+        "type": "object"
+      },
       "SemanticStatusResponse": {
         "additionalProperties": true,
         "properties": {
           "calculated": {
             "title": "Calculated",
             "type": "boolean"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SemanticIndexStatus"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
           },
           "last_failure_at": {
             "anyOf": [
@@ -8747,6 +8816,51 @@
         ]
       }
     },
+    "/api/semantic-compilation/reindex": {
+      "post": {
+        "description": "Re-embed one database's Terms and ColumnAttributes into the semantic index.\n\nCompilation embeds a table's Terms once, when the table is first compiled,\nso embeddings lost to a failing endpoint are never retried; this rebuilds\nthem from the Terms already stored, without recompiling anything.\n\nAdditive and repeatable: each row replaces the one stored under the same\nid, and nothing else in the index is touched. Runs synchronously so the\nresult can say how many rows were ``written`` out of those ``expected`` \u2014\nfewer means the embedding endpoint did not return a vector for every row,\nand the rows it did return are still written.\n\n404 for a database the catalog does not hold, 409 while a compilation pass\nis running (both would be writing the same rows), 503 when no embedding\nendpoint is configured.",
+        "operationId": "reindex_api_semantic_compilation_reindex_post",
+        "parameters": [
+          {
+            "description": "Name of the catalog database whose semantic index to rebuild.",
+            "in": "query",
+            "name": "database_name",
+            "required": true,
+            "schema": {
+              "description": "Name of the catalog database whose semantic index to rebuild.",
+              "title": "Database Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticReindexResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reindex",
+        "tags": [
+          "semantic-compilation"
+        ]
+      }
+    },
     "/api/semantic-compilation/reset": {
       "post": {
         "description": "Ask the ingestion service to rebuild every database's semantic layer.\n\nThe service deletes the semantic nodes and embeddings and compiles them\nagain, so the layer is rebuilt without waiting for the next scheduled run.",
@@ -8771,7 +8885,7 @@
     },
     "/api/semantic-compilation/status": {
       "get": {
-        "description": "Report whether the semantic layer has been calculated (any Term exists),\nwhether the ingestion service is compiling it right now, when the last\npass completed successfully, and when it last failed.\n\n``running`` needs the live ingestion process, so it goes through the HTTP\nproxy and degrades to ``False`` if that's unreachable. ``last_success_at``\nand ``last_failure_at`` are read straight from the ``semantic_compilation_history``\ntable instead \u2014 a temporarily unreachable ingestion service has no bearing\non Postgres, so history stays visible even while it's down (see\n``auto_ontology/server/ingestion/proxy.py``).",
+        "description": "Report whether the semantic layer has been calculated (any Term exists),\nwhether the ingestion service is compiling it right now, when the last\npass completed successfully, when it last failed, and how much of each\ndatabase's ontology is present in the semantic vector index.\n\n``running`` needs the live ingestion process, so it goes through the HTTP\nproxy and degrades to ``False`` if that's unreachable. ``last_success_at``\nand ``last_failure_at`` are read straight from the ``semantic_compilation_history``\ntable instead \u2014 a temporarily unreachable ingestion service has no bearing\non Postgres, so history stays visible even while it's down (see\n``auto_ontology/server/ingestion/proxy.py``).\n\n``index`` lists, per database, the Terms and ColumnAttributes ``expected``\nfrom the relational store, how many are ``indexed`` and how many are\n``missing``. A non-zero ``missing`` means chat cannot retrieve part of the\nsemantic layer; ``POST /semantic-compilation/reindex`` rebuilds it. ``null``\nwhen the comparison could not be made.",
         "operationId": "semantic_status_api_semantic_compilation_status_get",
         "responses": {
           "200": {
