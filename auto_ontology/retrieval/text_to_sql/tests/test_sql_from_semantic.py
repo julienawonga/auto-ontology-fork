@@ -129,6 +129,25 @@ def test_projection_strictness_is_configured_per_request() -> None:
     assert combined_aggregate_rule in format_projection_rules(True)
 
 
+def test_ranking_questions_return_the_item_and_its_value_by_default() -> None:
+    """Users reading "top 3 countries by revenue" need the revenue column too."""
+    rules = format_projection_rules(shorten_answer=False)
+
+    assert "return the item AND the value it is ranked by" in rules
+    assert "never only its id or code" in rules
+    # The benchmark-style "one or the other" rule must not leak into this mode.
+    assert "never both" not in rules
+    assert "never add the ORDER BY metric" not in rules
+
+
+def test_strict_mode_keeps_the_ranking_item_or_value_rule() -> None:
+    """Benchmark-style answers still compare columns exactly."""
+    strict = format_projection_rules(shorten_answer=True)
+
+    assert "this overrides the ranking rule above" in strict
+    assert "select ONLY the item named OR the aggregated value, never both" in strict
+
+
 def test_derived_formula_nulls_stay_inside_the_calculation() -> None:
     strict = format_projection_rules(shorten_answer=True)
 

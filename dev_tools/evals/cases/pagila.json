@@ -38,8 +38,7 @@
             ]
           ]
         }
-      ],
-      "allow_missing_columns": true
+      ]
     },
     {
       "id": "pagila.customer_count",
@@ -220,9 +219,19 @@
               23.95
             ]
           ]
+        },
+        {
+          "label": "split_name",
+          "sql": "SELECT cu.first_name, cu.last_name, SUM(p.amount) AS total FROM payment p JOIN customer cu ON cu.customer_id = p.customer_id GROUP BY cu.customer_id, cu.first_name, cu.last_name ORDER BY total DESC LIMIT 1",
+          "expected": [
+            [
+              "RUTH",
+              "MARTINEZ",
+              23.95
+            ]
+          ]
         }
-      ],
-      "allow_missing_columns": true
+      ]
     },
     {
       "id": "pagila.avg_film_length",
@@ -263,8 +272,7 @@
             ]
           ]
         }
-      ],
-      "allow_missing_columns": true
+      ]
     },
     {
       "id": "pagila.store2_top_category_revenue",
@@ -298,8 +306,7 @@
             ]
           ]
         }
-      ],
-      "allow_missing_columns": true
+      ]
     },
     {
       "id": "pagila.revenue_by_country_store1_customers",
