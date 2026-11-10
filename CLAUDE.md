@@ -39,7 +39,7 @@ In [`frontend/CLAUDE.md`](./frontend/CLAUDE.md), loaded when working under `fron
 
 ## Git
 
-- Commit messages: concise imperative style. Add `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` only on commits where Claude wrote most of the code (roughly an 80/20 split with the maintainer); omit it on small fixes or commits the maintainer mostly wrote.
+- Commit messages: concise imperative style. Add a `Co-Authored-By: Claude <model name> <noreply@anthropic.com>` trailer, naming the model that actually wrote it, only on commits where Claude wrote most of the code (roughly an 80/20 split with the maintainer); omit it on small fixes or commits the maintainer mostly wrote.
 - Branch from `main`.
 
 ### Opening a PR
@@ -64,3 +64,24 @@ The OpenAPI one is the easy one to miss: `docs/openapi/backend.json` and
 Editing a docstring on any `@router` handler — not just changing a signature or
 model — makes the committed spec stale and fails "Backend spec is up to date".
 Regenerate and commit the result whenever a route's code or docs change.
+
+### Changing the text-to-SQL engine
+
+A change to what the model sees or how its SQL is built (prompts, retrieval,
+candidate preparation, validation, the ontology) is not judged by CI. Measure it
+with the eval harness before merging, and merge only on an `ACCEPT`:
+
+```bash
+python -m dev_tools.evals run --label candidate --out candidate.json
+python -m dev_tools.evals compare baseline.json candidate.json --margin 0.02
+```
+
+[`docs/evaluation.md`](./docs/evaluation.md) has the commands and the rules: fix
+the cases before measuring, score both sides with the same cases file, report
+strict and tolerant scores, and check the backend is not logging
+`Retrieved 0 ColumnAttributes` for every question (an empty semantic index
+means the run measured the raw schema, not the ontology).
+
+Agent-issued SQL must stay read-only and row-capped: see
+[`docs/query-safety.md`](./docs/query-safety.md) before touching
+`chat_sql.py`, `sql_guard.py` or a connector's `execute`.

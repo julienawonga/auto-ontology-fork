@@ -242,7 +242,14 @@ curl -N http://localhost:3000/api/chat/completions \
 - [x] Glass UI with light and dark themes, sidebar with Ctrl+K search
 - [x] Chat with folded reasoning and SQL, copy, suggestions from certified analyses
 - [x] Docker Official Images, digest-pinned
-- [ ] Foreign keys declared on partitioned tables (Postgres)
+- [x] Foreign keys declared on partitioned tables, and composite keys (Postgres)
+- [x] Agent SQL is read-only and row-capped, enforced by the database on five engines
+- [x] Evaluation harness for the text-to-SQL engine
+- [ ] Rebuild and health check of the semantic index
+- [ ] Provenance and review status on ontology facts; never overwrite a human edit
+- [ ] Business metrics as verified, reusable definitions
+- [ ] Matching question values to stored values
+- [ ] Clarification questions in chat
 - [ ] Key-figure tiles on database pages
 - [ ] Interface translations (French first)
 - [ ] One-click deploy templates (Railway, Render)
@@ -266,6 +273,8 @@ If Lexis is useful to you, **a ⭐ on the repository helps others find it.**
 | Connections, scoping and Vault | [docs/connections.md](./docs/connections.md) |
 | Authentication, SSO and API tokens | [docs/authentication.md](./docs/authentication.md) |
 | Conversation API | [docs/conversation-api.md](./docs/conversation-api.md) |
+| Safety of agent-issued SQL | [docs/query-safety.md](./docs/query-safety.md) |
+| Evaluating the text-to-SQL engine | [docs/evaluation.md](./docs/evaluation.md) |
 | MCP server | [docs/mcp.md](./docs/mcp.md) |
 | Kubernetes with Helm | [DEPLOYMENT.md](./DEPLOYMENT.md) |
 | REST API (OpenAPI) | [docs/openapi/auto-ontology-api.json](./docs/openapi/auto-ontology-api.json) |
