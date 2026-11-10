@@ -91,6 +91,18 @@ export const AnalysisView = () => {
 	const [sqlValidated, setSqlValidated] = useState(false);
 
 	const [deletingItem, setDeletingItem] = useState<AnalysisItem | null>(null);
+
+	// Cards start folded (title and one line of description); the one a link
+	// focuses on opens with its details.
+	const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const isExpanded = (id: string) => expandedIds.has(id) || id === focusId;
+	const toggleExpanded = (id: string) =>
+		setExpandedIds((prev) => {
+			const next = new Set(prev);
+			if (isExpanded(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
 	const [deleting, setDeleting] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -449,7 +461,7 @@ export const AnalysisView = () => {
 				)}
 
 				{!loading && items.length > 0 && (
-					<ul className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+					<ul className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
 						{items.map((a) => (
 							<li
 								key={a.id}
@@ -520,17 +532,34 @@ export const AnalysisView = () => {
 										<Text
 											as="p"
 											text={a.description}
-											lines={3}
+											// Folded cards keep to one line so a long list stays
+											// scannable; the full text comes with the details.
+											lines={isExpanded(a.id) ? undefined : 1}
 											variant={TextVariant.Body}
 										/>
 									</div>
 								)}
+								{isExpanded(a.id) && a.code.trim() !== '' && (
+									<div id={`analysis-${a.id}-details`} className="mt-4">
+										<SqlBlock sql={a.code} label={MODE_LABEL[mode]} />
+									</div>
+								)}
 								{a.code.trim() !== '' && (
-									<SqlBlock
-										sql={a.code}
-										label={MODE_LABEL[mode]}
-										className="mt-4"
-									/>
+									<button
+										type="button"
+										aria-expanded={isExpanded(a.id)}
+										aria-controls={`analysis-${a.id}-details`}
+										onClick={() => toggleExpanded(a.id)}
+										className="mt-3 inline-flex items-center gap-1.5 self-start rounded text-xs font-medium text-secondary transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none dark:text-zinc-400 dark:hover:text-primary-soft"
+									>
+										<Icon
+											name={IconName.ChevronRight}
+											className={`h-3 w-3 transition-transform ${isExpanded(a.id) ? 'rotate-90' : ''}`}
+										/>
+										{isExpanded(a.id)
+											? `Hide description and ${MODE_LABEL[mode]}`
+											: `Show description and ${MODE_LABEL[mode]}`}
+									</button>
 								)}
 							</li>
 						))}
