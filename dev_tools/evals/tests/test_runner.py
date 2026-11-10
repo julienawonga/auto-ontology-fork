@@ -6,11 +6,16 @@ import json
 
 import httpx
 
+import pytest
+
 from dev_tools.evals.cases import Case, GoldAnswer
+from dev_tools.evals.report import CaseResult, Report, Run
 from dev_tools.evals.runner import (
+    Answer,
     answer_from_events,
     ask,
     parse_sse,
+    rescore,
     rows_from_result,
     score,
 )
@@ -123,3 +128,54 @@ def test_ask_reports_http_errors() -> None:
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         answer = ask(client, "http://backend:3001", "q")
     assert answer.error is not None and answer.error.startswith("HTTP 409")
+
+
+def test_a_scored_run_keeps_the_rows_it_was_judged_on() -> None:
+    run = score(_case(), Answer(rows=[["Drama", 104.79]]))
+
+    assert run.actual == [["Drama", 104.79]]
+
+
+def test_stored_rows_are_capped() -> None:
+    rows = [[i] for i in range(500)]
+
+    assert len(score(_case(), Answer(rows=rows)).actual or []) == 50
+
+
+def _report(*runs: Run) -> Report:
+    return Report(meta={"label": "r"}, cases={"c": CaseResult("q", list(runs))})
+
+
+def test_rescore_changes_the_verdict_when_the_convention_changes() -> None:
+    """A narrower answer passes only where the case tolerates a missing column."""
+    narrow = score(_case(allow_missing_columns=True), Answer(rows=[["Drama"]]))
+    assert narrow.passed
+    report = _report(narrow)
+
+    as_declared = rescore(report, [_case(allow_missing_columns=True)])
+    strict = rescore(report, [_case(allow_missing_columns=True)], strict=True)
+
+    assert as_declared.cases["c"].pass_rate == 1.0
+    assert strict.cases["c"].pass_rate == 0.0
+    assert strict.cases["c"].runs[0].reason == "column_count"
+    assert strict.meta["rescored"] == "strict"
+
+
+def test_rescore_keeps_runs_that_failed_before_producing_rows() -> None:
+    failed = Run(False, "error", error="HTTP 500")
+
+    out = rescore(_report(failed), [_case()])
+
+    assert out.cases["c"].runs == [failed]
+
+
+def test_rescore_refuses_a_report_saved_without_rows() -> None:
+    legacy = Run(True, "match", rows=1)  # written before rows were stored
+
+    with pytest.raises(ValueError, match="without the rows"):
+        rescore(_report(legacy), [_case()])
+
+
+def test_rescore_rejects_a_case_missing_from_the_cases_file() -> None:
+    with pytest.raises(ValueError, match="not in the cases file"):
+        rescore(_report(Run(True, "match", actual=[["x"]])), [])
