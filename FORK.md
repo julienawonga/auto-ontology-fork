@@ -312,8 +312,21 @@ endpoint that rejects the extra fields every Term and ColumnAttribute was refuse
 the chat answered from the raw schema while compilation reported success. It now uses the same parameters as every other
 embedder.
 
-An ontology compiled before this fix has no semantic index: compilation only processes tables that have no Term yet. Until
-a rebuild is exposed, run `embed_all_semantic_nodes` from `auto_ontology/semantic/embed.py` in the backend container.
+## Detecting and repairing the semantic index
+
+Nothing used to notice an empty index, and nothing could rebuild it: compilation only embeds a table's Terms once, when it
+is first compiled.
+
+- **`GET /api/semantic-compilation/status`** reports, per database, the Terms and ColumnAttributes `expected` from the
+  relational store, how many are `indexed`, and how many are `missing` (matched by id, not by count).
+- **`POST /api/semantic-compilation/reindex?database_name=...`** (permission `semanticCompilation: manage`) rebuilds that
+  database's index from the stored Terms and returns `expected` and `written`. It replaces the rows it rewrites, so it can be
+  repeated. 404 for an unknown database, 409 while a compilation runs, 503 when embedding is not configured.
+- **A compilation** that leaves Terms or ColumnAttributes out of the index is recorded as failed, no longer as a success.
+- **Chat** logs a warning when retrieval finds nothing for a database whose index holds none of its Terms, instead of silently
+  answering from the raw schema.
+
+Run the reindex after any ingestion that was made while the embedding endpoint was failing, and whenever `missing` is not 0.
 
 ## Labels and ranking values in answers
 
