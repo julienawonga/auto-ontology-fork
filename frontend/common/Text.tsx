@@ -54,8 +54,8 @@ const CLAMP_CLASS = {
 const VARIANT_CLASS: Record<TextVariant, string> = {
 	[TextVariant.Inherit]: '',
 	[TextVariant.PageTitle]:
-		'text-2xl font-semibold tracking-tight text-heading dark:text-zinc-100',
-	[TextVariant.CardTitle]: 'text-base font-semibold tracking-tight text-body dark:text-zinc-100',
+		'text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50',
+	[TextVariant.CardTitle]: 'text-base font-bold tracking-tight text-glass-text dark:text-zinc-50',
 	[TextVariant.Heading]: 'text-sm font-semibold text-heading dark:text-zinc-100',
 	[TextVariant.Subheading]: 'text-sm font-medium text-heading dark:text-zinc-100',
 	[TextVariant.Body]: 'text-sm text-body dark:text-zinc-300',

@@ -185,9 +185,9 @@ const TermCard = ({
 			</div>
 
 			{/* Four-column section */}
-			<div className="mt-4 grid grid-cols-4 gap-0 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+			<div className="mt-4 grid grid-cols-4 gap-0 overflow-hidden rounded-xl border border-zinc-900/10 dark:border-white/10">
 				{/* Column Attributes */}
-				<div className="border-r border-zinc-200 dark:border-zinc-700">
+				<div className="border-r border-zinc-900/10 dark:border-white/10">
 					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
 						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
 							Column Attributes
@@ -204,7 +204,7 @@ const TermCard = ({
 				</div>
 
 				{/* SQL Attributes */}
-				<div className="border-r border-zinc-200 dark:border-zinc-700">
+				<div className="border-r border-zinc-900/10 dark:border-white/10">
 					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
 						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
 							SQL Attributes
@@ -221,7 +221,7 @@ const TermCard = ({
 				</div>
 
 				{/* Related Terms */}
-				<div className="border-r border-zinc-200 dark:border-zinc-700">
+				<div className="border-r border-zinc-900/10 dark:border-white/10">
 					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
 						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
 							Related Terms
@@ -1688,15 +1688,17 @@ export const TermsView = () => {
 
 	return (
 		<div className="flex h-full w-full flex-col">
-			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-				<Icon name={IconName.Terms} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-[28px] font-bold tracking-tight text-glass-text dark:text-zinc-50 leading-tight">
+			<header className="flex flex-col gap-1.5 px-6 pt-8 pb-2 sm:px-10">
+				<h1 className="text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">
 					Terms
 				</h1>
+				<p className="text-sm text-secondary dark:text-zinc-400">
+					Business terms compiled from your catalog, with their attributes and links.
+				</p>
 			</header>
 
 			<InfiniteScroll
-				className="flex-1 px-6 py-6"
+				className="flex-1 px-6 py-6 sm:px-10"
 				onLoadMore={loadMoreTerms}
 				isLoading={loadingMoreTerms}
 				hasMore={hasMoreTerms}
@@ -1753,7 +1755,7 @@ export const TermsView = () => {
 				)}
 
 				{!loading && terms.length > 0 && (
-					<ul className="flex flex-col gap-4">
+					<ul className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
 						{terms.map((term) => (
 							<TermCard
 								key={term.id}

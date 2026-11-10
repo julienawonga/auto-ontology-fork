@@ -345,12 +345,16 @@ export const AnalysisView = () => {
 
 	return (
 		<div className="flex h-full w-full flex-col">
-			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-				<Icon name={IconName.ChartBar} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-[28px] font-bold tracking-tight text-glass-text dark:text-zinc-50 leading-tight">
-					{isPql ? 'PQL Analyses' : 'Custom Analyses'}
-				</h1>
-				<div className="ml-4 flex items-center gap-1 rounded-full border border-white/80 bg-white/55 p-1 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06]">
+			<header className="flex flex-wrap items-end gap-4 px-6 pt-8 pb-2 sm:px-10">
+				<div className="flex min-w-0 flex-col gap-1.5">
+					<h1 className="text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">
+						{isPql ? 'PQL Analyses' : 'Custom Analyses'}
+					</h1>
+					<p className="text-sm text-secondary dark:text-zinc-400">
+						Certified queries the chat reuses when a question matches.
+					</p>
+				</div>
+				<div className="ml-auto flex items-center gap-1 rounded-full border border-white/80 bg-white/55 p-1 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06]">
 					<SelectButton
 						theme={SelectButtonTheme.Switcher}
 						selected={mode === 'sql'}
@@ -366,7 +370,7 @@ export const AnalysisView = () => {
 						PQL
 					</SelectButton>
 				</div>
-				<div className="ml-auto">
+				<div>
 					<Button
 						theme={ButtonTheme.Primary}
 						size={Size.REGULAR}
@@ -381,7 +385,7 @@ export const AnalysisView = () => {
 			</header>
 
 			<InfiniteScroll
-				className="flex-1 px-6 py-6"
+				className="flex-1 px-6 py-6 sm:px-10"
 				onLoadMore={loadMore}
 				isLoading={isLoadingMore}
 				hasMore={hasMore}
@@ -445,12 +449,12 @@ export const AnalysisView = () => {
 				)}
 
 				{!loading && items.length > 0 && (
-					<ul className="flex flex-col gap-4">
+					<ul className="grid grid-cols-1 gap-4 xl:grid-cols-2">
 						{items.map((a) => (
 							<li
 								key={a.id}
 								id={`analysis-${a.id}`}
-								className={`rounded-2xl border glass p-5 ${
+								className={`flex flex-col rounded-card border glass p-5 ${
 									a.id === focusId
 										? 'border-primary ring-2 ring-primary/30 dark:border-primary'
 										: 'border-white/70 dark:border-white/10'

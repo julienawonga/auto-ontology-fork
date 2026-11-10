@@ -23,7 +23,6 @@ import {
 	isSearchObjectType,
 	totalGlobalSearchCount,
 } from '@/common/GlobalSearchTabs';
-import { Icon, IconName } from '@/common/icons';
 import { RuleTagPopover } from '@/common/RuleTagPopover';
 import { SearchInput } from '@/common/SearchInput';
 import { DEFAULT_DISCOVERY_FILTERS } from '@/constants/discovery';
@@ -374,11 +373,13 @@ export const DiscoveryView = ({ initialQuery = '', handoverId = '' }: DiscoveryV
 
 	return (
 		<div className="flex h-full w-full flex-col">
-			<header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-				<Icon name={IconName.Discovery} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-[28px] font-bold tracking-tight text-glass-text dark:text-zinc-50 leading-tight">
+			<header className="flex shrink-0 flex-col gap-1.5 px-6 pt-8 pb-4 sm:px-10">
+				<h1 className="text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">
 					Discovery
 				</h1>
+				<p className="text-sm text-secondary dark:text-zinc-400">
+					Search every table, column, term and analysis in the ontology.
+				</p>
 			</header>
 			<div className="flex min-h-0 flex-1">
 				<BackPanelLayout
@@ -402,7 +403,7 @@ export const DiscoveryView = ({ initialQuery = '', handoverId = '' }: DiscoveryV
 								event.preventDefault();
 								runSearch();
 							}}
-							className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-6 py-3 dark:border-zinc-800"
+							className="glass mx-6 mt-1 mb-4 flex shrink-0 items-center gap-2 rounded-card border border-white/75 p-2.5 sm:mx-6 dark:border-white/10"
 						>
 							<SearchInput
 								value={query}
