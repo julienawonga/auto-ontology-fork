@@ -110,6 +110,9 @@
  * defaults (body text, code blocks) read them.
  */
 @theme {
+	/* Corner radius of glass cards and panels (`rounded-card`). */
+	--radius-card: 1.25rem;
+
 	--font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
 	--font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }

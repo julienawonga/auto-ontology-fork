@@ -25,7 +25,7 @@ export const SearchInput = ({
 	'aria-label': ariaLabel,
 }: SearchInputProps) => (
 	<div
-		className={`flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 ${className}`}
+		className={`flex items-center gap-2 rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] ${className}`}
 	>
 		<svg
 			className="h-4 w-4 shrink-0 text-secondary dark:text-zinc-400"

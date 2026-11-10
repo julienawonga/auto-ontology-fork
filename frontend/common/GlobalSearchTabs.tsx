@@ -24,7 +24,7 @@ type GlobalSearchTabsProps = {
 const tabClass = (selected: boolean) =>
 	selected
 		? 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-white'
-		: 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-body ring-zinc-200 hover:bg-primary/10 hover:text-primary-strong dark:text-zinc-200 dark:ring-zinc-700 dark:hover:bg-primary/15 rounded-2xl glass';
+		: 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-body ring-zinc-200 hover:bg-primary/10 hover:text-primary-strong dark:text-zinc-200 dark:ring-zinc-700 dark:hover:bg-primary/15 rounded-card glass';
 
 export const totalGlobalSearchCount = (counts: Record<string, number>): number =>
 	Object.values(counts).reduce((sum, value) => sum + value, 0);

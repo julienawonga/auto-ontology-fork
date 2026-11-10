@@ -28,7 +28,7 @@ const EXPIRY_OPTIONS: { label: string; days?: number }[] = [
 ];
 
 const inputClassName =
-	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-heading outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-heading outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-100';
 
 const isExpired = (token: ApiToken): boolean =>
 	token.expires_at != null && new Date(token.expires_at).getTime() <= Date.now();
@@ -201,7 +201,7 @@ export const ApiTokensView = () => {
 			<div className="w-full max-w-4xl space-y-5">
 				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0">
-						<h1 className="text-base font-semibold text-heading dark:text-zinc-100">
+						<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 							API Tokens
 						</h1>
 						<p className="mt-1 text-xs text-secondary dark:text-zinc-400">

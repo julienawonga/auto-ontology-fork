@@ -172,7 +172,7 @@ const ZoneCard = ({
 	onToggleEnabled: (zone: Zone) => void;
 }) => (
 	<div
-		className={`border p-4 transition-opacity border-white/70 dark:border-white/10 rounded-2xl glass ${zone.enabled ? '' : 'opacity-60'}`}
+		className={`border p-4 transition-opacity border-white/70 dark:border-white/10 rounded-card glass ${zone.enabled ? '' : 'opacity-60'}`}
 		style={{ borderTop: `4px solid ${zone.color ?? DEFAULT_ZONE_COLOR}` }}
 	>
 		<div className="flex items-start justify-between gap-4">
@@ -630,7 +630,7 @@ export default function ZonesSettingsPage() {
 		<main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-7 py-6 sm:px-10 sm:py-7">
 			<div className="w-full space-y-5">
 				<div className="flex items-center gap-3">
-					<h1 className="text-base font-semibold text-heading dark:text-zinc-100">
+					<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 						Zones
 					</h1>
 					<div className="ml-auto">
@@ -765,7 +765,7 @@ export default function ZonesSettingsPage() {
 									value={name}
 									onChange={(e) => setName(e.target.value)}
 									placeholder="Zone Name"
-									className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500 ${nameExists ? 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/30' : 'border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600'}`}
+									className={`w-full rounded-xl border bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500 ${nameExists ? 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/30' : 'border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600'}`}
 								/>
 								{nameExists ? (
 									<p className="mt-1 text-xs text-red-500 dark:text-red-400">
@@ -789,7 +789,7 @@ export default function ZonesSettingsPage() {
 								onChange={(e) => setDescription(e.target.value)}
 								placeholder="Optional Description"
 								rows={3}
-								className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500"
+								className="w-full resize-y rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500"
 							/>
 						</div>
 					</>

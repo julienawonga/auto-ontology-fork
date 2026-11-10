@@ -60,7 +60,7 @@ export const ConnectionInfoCard = ({
 	const ssoFederationOn = databricks?.sso_federation === true;
 
 	return (
-		<article className="flex h-fit flex-col border border-white/70 dark:border-white/10 rounded-2xl glass">
+		<article className="flex h-fit flex-col border border-white/70 dark:border-white/10 rounded-card glass">
 			<header className="flex w-full items-center justify-between gap-2 px-4 py-5">
 				<div className="flex min-w-0 items-center gap-1">
 					<Icon

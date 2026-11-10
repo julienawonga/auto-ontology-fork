@@ -16,7 +16,7 @@ export default function TermsPage() {
 							name={IconName.Terms}
 							className="h-5 w-5 text-body dark:text-zinc-300"
 						/>
-						<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
+						<h1 className="text-[28px] font-bold tracking-tight text-glass-text dark:text-zinc-50 leading-tight">
 							Terms
 						</h1>
 					</header>

@@ -12,7 +12,7 @@ import { Size, ButtonTheme } from '@/enums/button';
 import type { UpdateUserInput, User } from '@/types/auth';
 
 const inputClass =
-	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-heading outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-secondary dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:disabled:bg-zinc-800';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-heading outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-secondary dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-100 dark:disabled:bg-zinc-800';
 
 type EditUserModalProps = {
 	user: User;

@@ -71,7 +71,7 @@ const ConsentForm = () => {
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
 			<div className="space-y-2 text-center">
-				<h1 className="text-xl font-semibold text-heading dark:text-zinc-100">
+				<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 					Authorize MCP access
 				</h1>
 				<p className="text-sm text-body dark:text-zinc-400">

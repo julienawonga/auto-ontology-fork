@@ -352,7 +352,7 @@ const TagsList = () => {
 			>
 				<div className="w-full space-y-5">
 					<div className="flex items-center gap-3">
-						<h1 className="text-base font-semibold text-heading dark:text-zinc-100">
+						<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 							Tags
 						</h1>
 						{tags.length > 0 || searching ? (
@@ -405,7 +405,7 @@ const TagsList = () => {
 							rowKey={(tag) => tag.id}
 							onRowClick={(tag) => router.push(tagPath(tag.id))}
 							rowClickIsPointerShortcut
-							containerClassName="overflow-hidden border border-white/70 dark:border-white/10 rounded-2xl glass"
+							containerClassName="overflow-hidden border border-white/70 dark:border-white/10 rounded-card glass"
 							bodyClassName="divide-y divide-zinc-200/90 dark:divide-zinc-700/90"
 						/>
 					) : null}
@@ -474,7 +474,7 @@ const TagsList = () => {
 							setSubmitError(null);
 						}}
 						placeholder="Type Tag Name"
-						className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500 ${submitError == null ? 'border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600' : 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/30'}`}
+						className={`w-full rounded-xl border bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500 ${submitError == null ? 'border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600' : 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/30'}`}
 					/>
 				</div>
 
@@ -510,7 +510,9 @@ const TagsList = () => {
 export const TagsSettingsSkeleton = () => (
 	<main className={TAGS_PANEL_CLASSNAME}>
 		<div className={`w-full space-y-5 ${TAGS_PANEL_PADDING}`}>
-			<h1 className="text-base font-semibold text-heading dark:text-zinc-100">Tags</h1>
+			<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
+				Tags
+			</h1>
 			<div className="py-2" role="status" aria-label="Loading tags">
 				<SkeletonRows rows={4} />
 			</div>

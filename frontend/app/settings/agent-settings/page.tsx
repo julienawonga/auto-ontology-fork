@@ -113,11 +113,11 @@ export default function AgentSettingsPage() {
 	return (
 		<main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-7 py-6 sm:px-10 sm:py-7">
 			<div className="w-full space-y-5">
-				<h1 className="text-base font-semibold text-heading dark:text-zinc-100">
+				<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 					Agent Settings
 				</h1>
 
-				<div className="border p-4 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-4 border-white/70 dark:border-white/10 rounded-card glass">
 					<div className="flex items-center justify-between gap-4">
 						<div className="min-w-0">
 							<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
@@ -149,7 +149,7 @@ export default function AgentSettingsPage() {
 					</div>
 				</div>
 
-				<div className="border p-4 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-4 border-white/70 dark:border-white/10 rounded-card glass">
 					<div className="flex items-center justify-between gap-4">
 						<div className="min-w-0">
 							<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
@@ -171,7 +171,7 @@ export default function AgentSettingsPage() {
 					</div>
 				</div>
 
-				<div className="border p-4 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-4 border-white/70 dark:border-white/10 rounded-card glass">
 					<form
 						className="flex items-center justify-between gap-4"
 						onSubmit={(e) => {
@@ -205,7 +205,7 @@ export default function AgentSettingsPage() {
 								disabled={savingTimeout}
 								aria-invalid={!draftValid}
 								onChange={(e) => setTimeoutDraft(e.target.value)}
-								className="h-9 w-24 rounded-md border border-zinc-300 bg-white px-3 text-sm text-body outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-disabled aria-[invalid=true]:border-red-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400"
+								className="h-9 w-24 rounded-xl border border-zinc-900/15 bg-white/70 px-3 text-sm text-body outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-disabled aria-[invalid=true]:border-red-500 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400"
 							/>
 							<Button
 								theme={ButtonTheme.Primary}

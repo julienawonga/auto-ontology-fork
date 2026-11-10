@@ -134,7 +134,7 @@ const TermCard = ({
 			tabIndex={0}
 			onClick={() => onClick(term)}
 			onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick(term)}
-			className="cursor-pointer rounded-2xl border p-5 transition-shadow hover:shadow-md dark:hover:border-zinc-700 border-white/70 dark:border-white/10 glass"
+			className="cursor-pointer rounded-card border p-5 transition-shadow hover:shadow-md dark:hover:border-zinc-700 border-white/70 dark:border-white/10 glass"
 		>
 			{/* Card header */}
 			<div className="flex items-start justify-between gap-3">
@@ -286,7 +286,7 @@ const withCounts = (held: Map<string, number>, rows: TermCount[] | undefined) =>
 };
 
 const FIELD_INPUT_CLASSNAME =
-	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500';
 
 const FIELD_LABEL_CLASSNAME = 'mb-1.5 block text-sm font-medium text-heading dark:text-zinc-100';
 
@@ -1690,7 +1690,7 @@ export const TermsView = () => {
 		<div className="flex h-full w-full flex-col">
 			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
 				<Icon name={IconName.Terms} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
+				<h1 className="text-[28px] font-bold tracking-tight text-glass-text dark:text-zinc-50 leading-tight">
 					Terms
 				</h1>
 			</header>

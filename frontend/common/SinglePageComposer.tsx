@@ -286,7 +286,7 @@ const EditableTextCard = ({
 	};
 
 	return (
-		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-2xl glass">
+		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-card glass">
 			<div className="flex items-start justify-between gap-3">
 				<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 					{section.title}
@@ -298,7 +298,7 @@ const EditableTextCard = ({
 				value={value}
 				onChange={handleChange}
 				rows={4}
-				className="mt-3 w-full resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm leading-relaxed text-body outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+				className="mt-3 w-full resize-y rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm leading-relaxed text-body outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300"
 			/>
 			{section.suggestable === true && onSuggest != null && (
 				<DescriptionSuggestion onSuggest={onSuggest} onApply={handleApplySuggestion} />
@@ -345,7 +345,7 @@ const EditableTagListCard = ({
 	};
 
 	return (
-		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-2xl glass">
+		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-card glass">
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 				{section.title}
 			</h2>
@@ -382,7 +382,7 @@ const ReadOnlyTagList = ({
 	return (
 		<div
 			id={sectionId === 'sample_values' ? 'sample-values-section' : undefined}
-			className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass"
+			className="border p-5 border-white/70 dark:border-white/10 rounded-card glass"
 		>
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">{title}</h2>
 			{nonEmptyValues.length === 0 ? (
@@ -439,7 +439,7 @@ const EditableEntityTagsCard = ({
 	const unassigned = section.options.filter((tag) => !assigned.has(tag.id));
 
 	return (
-		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-2xl glass">
+		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-card glass">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 					{section.title} ({tags.length})
@@ -514,7 +514,7 @@ const OwnerSection = ({ section }: { section: ComposerOwnerSection }) => {
 	const options = useLiveOwnerOptions(section);
 	const owner = options.find((option) => option.id === section.ownerId);
 	return (
-		<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+		<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 				{section.title}
 			</h2>
@@ -535,7 +535,7 @@ const EditableOwnerCard = ({
 	const options = useLiveOwnerOptions(section);
 	const [ownerId, setOwnerId] = useState(section.ownerId ?? '');
 	return (
-		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-2xl glass">
+		<div className="border border-primary/60 p-5 ring-1 ring-primary/10 rounded-card glass">
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 				{section.title}
 			</h2>
@@ -554,7 +554,7 @@ const EditableOwnerCard = ({
 };
 
 const EntityTagsSection = ({ section }: { section: ComposerEntityTagsSection }) => (
-	<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+	<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 		<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 			{section.title} ({section.tags.length})
 		</h2>
@@ -576,7 +576,7 @@ const ZonesSection = ({ section }: { section: ComposerZonesSection }) => {
 	const displayedZones = section.zones;
 
 	return (
-		<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+		<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 				{section.title} ({displayedZones.length})
 			</h2>
@@ -614,7 +614,7 @@ function renderComposerSection(
 			return (
 				<div
 					id={section.id === 'description' ? 'description-section' : undefined}
-					className="space-y-3 border p-5 border-white/70 dark:border-white/10 rounded-2xl glass"
+					className="space-y-3 border p-5 border-white/70 dark:border-white/10 rounded-card glass"
 				>
 					<div className="flex items-start justify-between gap-3">
 						<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
@@ -643,7 +643,7 @@ function renderComposerSection(
 			);
 		case ComposerSectionKind.INFO_GRID:
 			return (
-				<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 					<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 						{section.title}
 					</h2>
@@ -668,7 +668,7 @@ function renderComposerSection(
 			const isClickable =
 				section.rowIdKey != null && onDataTableRowClick != null && section.rowIdKey !== '';
 			return (
-				<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 					<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 						{section.title}
 					</h2>
@@ -794,7 +794,7 @@ function renderComposerSection(
 		case ComposerSectionKind.LOADING_PANEL:
 			return (
 				<div
-					className="flex min-h-[min(50dvh,420px)] flex-col items-center justify-center gap-4 border px-8 py-12 border-white/70 dark:border-white/10 rounded-2xl glass"
+					className="flex min-h-[min(50dvh,420px)] flex-col items-center justify-center gap-4 border px-8 py-12 border-white/70 dark:border-white/10 rounded-card glass"
 					role="status"
 				>
 					<Spinner aria-label="Loading" />
@@ -811,7 +811,7 @@ function renderComposerSection(
 			return <OwnerSection section={section} />;
 		case ComposerSectionKind.RELATED_TERMS_CHIPS:
 			return (
-				<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 					<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 						{section.title} ({section.terms.length})
 					</h2>
@@ -835,7 +835,7 @@ function renderComposerSection(
 			);
 		case ComposerSectionKind.ENTITY_CHIPS:
 			return (
-				<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 					<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 						{section.title} ({section.entities.length})
 					</h2>
@@ -861,7 +861,7 @@ function renderComposerSection(
 			);
 		case ComposerSectionKind.SQL_BLOCK:
 			return (
-				<div className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass">
+				<div className="border p-5 border-white/70 dark:border-white/10 rounded-card glass">
 					{isEditingActive && section.editable === true && (
 						<div className="mb-3 flex justify-end">
 							<div className="flex shrink-0 items-center gap-1">
@@ -1075,7 +1075,7 @@ export const SinglePageComposer = forwardRef<HTMLDivElement, SinglePageComposerP
 			return (
 				<div
 					ref={ref}
-					className="flex min-h-[50vh] w-full flex-col gap-6 border p-8 text-heading dark:text-zinc-50 border-white/70 dark:border-white/10 rounded-2xl glass"
+					className="flex min-h-[50vh] w-full flex-col gap-6 border p-8 text-heading dark:text-zinc-50 border-white/70 dark:border-white/10 rounded-card glass"
 				>
 					<div className="border-b border-zinc-200 pb-4 dark:border-zinc-700">
 						<p className="text-xs font-medium uppercase tracking-wide text-secondary">
@@ -1210,7 +1210,7 @@ export const SinglePageComposer = forwardRef<HTMLDivElement, SinglePageComposerP
 						onChange={(e) => {
 							pendingEditsRef.current.name = e.target.value;
 						}}
-						className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-2xl font-semibold tracking-tight text-heading outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+						className="min-w-0 flex-1 rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-2xl font-semibold tracking-tight text-heading outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-100"
 						aria-label="Name"
 					/>
 				) : (
@@ -1287,7 +1287,7 @@ export const SinglePageComposer = forwardRef<HTMLDivElement, SinglePageComposerP
 										return (
 											<section
 												key={i}
-												className="border p-5 border-white/70 dark:border-white/10 rounded-2xl glass"
+												className="border p-5 border-white/70 dark:border-white/10 rounded-card glass"
 											>
 												<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 													{typeof section === 'object' &&

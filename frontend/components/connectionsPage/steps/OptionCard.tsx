@@ -25,7 +25,7 @@ export const OptionCard = ({ children, onKeyDown, ...props }: OptionCardProps) =
 			}
 			onKeyDown?.(event);
 		}}
-		className="flex h-[150px] cursor-pointer flex-col items-center justify-center gap-2 border px-4 py-6 transition-colors hover:border-primary/50 hover:bg-primary/5 dark:hover:border-primary/40 border-white/70 dark:border-white/10 rounded-2xl glass"
+		className="flex h-[150px] cursor-pointer flex-col items-center justify-center gap-2 border px-4 py-6 transition-colors hover:border-primary/50 hover:bg-primary/5 dark:hover:border-primary/40 border-white/70 dark:border-white/10 rounded-card glass"
 	>
 		{children}
 	</div>

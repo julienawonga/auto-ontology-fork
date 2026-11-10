@@ -16,7 +16,7 @@ import { Toast } from '@/common/Toast';
 const SSO_PROVIDER_ID = 'sso';
 
 const inputClass =
-	'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-disabled dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-disabled dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400';
 
 export const SsoConfigForm = ({ initialProviders }: { initialProviders: SsoProvider[] }) => {
 	// Seeded from the server (see page.tsx) so the correct view renders on first
@@ -97,7 +97,7 @@ export const SsoConfigForm = ({ initialProviders }: { initialProviders: SsoProvi
 	return (
 		<div className="h-full overflow-auto p-6">
 			<div className="mx-auto max-w-xl">
-				<h1 className="mb-1 text-lg font-semibold text-heading dark:text-zinc-100">
+				<h1 className="mb-1 text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 					Single Sign-On (OIDC)
 				</h1>
 				<p className="mb-4 text-xs text-secondary">

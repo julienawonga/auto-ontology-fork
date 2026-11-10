@@ -158,7 +158,7 @@ export const AnalyticsView = () => {
 		<div className="flex h-full w-full flex-col">
 			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
 				<Icon name={IconName.ChartLine} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
+				<h1 className="text-[28px] font-bold tracking-tight text-glass-text dark:text-zinc-50 leading-tight">
 					Analytics
 				</h1>
 				<div className="ml-auto">

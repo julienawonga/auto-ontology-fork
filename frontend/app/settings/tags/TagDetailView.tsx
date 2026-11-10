@@ -264,7 +264,7 @@ export const TagDetailView = ({ tagId }: TagDetailViewProps) => {
 						<SkeletonBlock className="h-5 w-48" />
 					) : (
 						<>
-							<h1 className="min-w-0 truncate text-base font-semibold text-heading dark:text-zinc-100">
+							<h1 className="min-w-0 truncate text-xl font-semibold text-heading dark:text-zinc-100">
 								{tag.name}
 							</h1>
 							{/* How many objects carry the tag, which a scrolled list
@@ -299,7 +299,7 @@ export const TagDetailView = ({ tagId }: TagDetailViewProps) => {
 						rows={items}
 						rowKey={(item) => `${item.type}:${item.id}`}
 						onRowClick={handleRowClick}
-						containerClassName="border border-white/70 dark:border-white/10 rounded-2xl glass"
+						containerClassName="border border-white/70 dark:border-white/10 rounded-card glass"
 					/>
 				) : null}
 
