@@ -1,0 +1,326 @@
+{
+  "dataset": "chinook_values",
+  "description": "HELD-OUT SET for value linking, on the Chinook fixture (SQLite, built from dev_tools/fixtures/sql/chinook.sql), which stores values differently from Pagila (BillingCountry holds 'USA', 'United Kingdom'; genres such as 'Hip Hop/Rap'). Written and frozen BEFORE any measurement, with countries, aliases and spellings different from the Pagila development set; do not edit a case, a gold query or an expected row after seeing a result, and report its score separately from the development set. Conventions: every question is a COUNT, so an answer is one number; a value that is not stored has the right answer 0, accepted either as a count of 0 or as no rows ('count' and 'no_rows' gold answers), and must never be 'corrected' to a similar stored value; a customer's country is Customer.Country, an invoice's is Invoice.BillingCountry; a track's genre is Genre.Name through Track.GenreId and its media type MediaType.Name. `expected` rows are a snapshot of the gold SQL (python -m dev_tools.evals snapshot --dsn sqlite:///...).",
+  "cases": [
+    {
+      "id": "chinook_values.germany_native_name",
+      "question": "How many customers are from Deutschland?",
+      "description": "The country is stored as 'Germany' in Customer.Country.",
+      "tags": [
+        "value",
+        "alias",
+        "non-english",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Customer WHERE Country = 'Germany'",
+          "expected": [
+            [
+              4
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.france_typo",
+      "question": "How many customers are from Fransce?",
+      "description": "An extra letter in 'France'.",
+      "tags": [
+        "value",
+        "typo",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Customer WHERE Country = 'France'",
+          "expected": [
+            [
+              5
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.czech_short_name",
+      "question": "How many customers are from Czechia?",
+      "description": "Stored as 'Czech Republic'.",
+      "tags": [
+        "value",
+        "alias",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Customer WHERE Country = 'Czech Republic'",
+          "expected": [
+            [
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.netherlands_nickname",
+      "question": "How many invoices were billed to Holland?",
+      "description": "Invoice.BillingCountry stores 'Netherlands'.",
+      "tags": [
+        "value",
+        "alias",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Invoice WHERE BillingCountry = 'Netherlands'",
+          "expected": [
+            [
+              7
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.usa_long_name",
+      "question": "How many customers are from the United States?",
+      "description": "The reverse direction: Customer.Country stores the abbreviation 'USA'.",
+      "tags": [
+        "value",
+        "alias",
+        "reverse",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Customer WHERE Country = 'USA'",
+          "expected": [
+            [
+              13
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.uk_long_alias",
+      "question": "How many invoices were billed to Great Britain?",
+      "description": "Invoice.BillingCountry stores 'United Kingdom'.",
+      "tags": [
+        "value",
+        "alias",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Invoice WHERE BillingCountry = 'United Kingdom'",
+          "expected": [
+            [
+              21
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.genre_punctuation",
+      "question": "How many tracks are hip hop?",
+      "description": "Genre.Name stores 'Hip Hop/Rap'.",
+      "tags": [
+        "value",
+        "partial",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Hip Hop/Rap'",
+          "expected": [
+            [
+              35
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.genre_typo",
+      "question": "How many tracks are Clasical?",
+      "description": "A missing letter in the genre 'Classical'.",
+      "tags": [
+        "value",
+        "typo",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Classical'",
+          "expected": [
+            [
+              74
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.genre_lowercase",
+      "question": "How many tracks are in the rock genre?",
+      "description": "Case only. 'Rock' is a different genre from 'Rock And Roll'.",
+      "tags": [
+        "value",
+        "case",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Rock'",
+          "expected": [
+            [
+              1297
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.genre_plural",
+      "question": "How many tracks are soundtracks?",
+      "description": "Plural of the genre stored as 'Soundtrack'.",
+      "tags": [
+        "value",
+        "plural",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Soundtrack'",
+          "expected": [
+            [
+              43
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.two_values_variants",
+      "question": "How many Jazz tracks are mpeg audio files?",
+      "description": "Two values: a genre spelled as stored and a media type in another case and a plural ('MPEG audio file').",
+      "tags": [
+        "value",
+        "two-values",
+        "plural",
+        "case",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE g.Name = 'Jazz' AND m.Name = 'MPEG audio file'",
+          "expected": [
+            [
+              127
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.absent_country",
+      "question": "How many customers are from Japan?",
+      "description": "Japan is a real country that Customer.Country does not hold. The answer is zero and must not be 'corrected' to another country.",
+      "tags": [
+        "value",
+        "absent",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "count",
+          "sql": "SELECT COUNT(*) FROM Customer WHERE Country = 'Japan'",
+          "expected": [
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "label": "no_rows",
+          "sql": "SELECT Country, COUNT(*) FROM Customer WHERE Country = 'Japan' GROUP BY Country",
+          "expected": []
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.absent_genre",
+      "question": "How many tracks are in the Polka genre?",
+      "description": "There is no Polka genre. The answer is zero and must not be 'corrected' to another genre.",
+      "tags": [
+        "value",
+        "absent",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "count",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Polka'",
+          "expected": [
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "label": "no_rows",
+          "sql": "SELECT g.Name, COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Polka' GROUP BY g.Name",
+          "expected": []
+        }
+      ]
+    },
+    {
+      "id": "chinook_values.absent_media_type",
+      "question": "How many tracks are FLAC audio files?",
+      "description": "No track has the FLAC media type. The answer is zero and must not be 'corrected' to another audio media type.",
+      "tags": [
+        "value",
+        "absent",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "count",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE m.Name = 'FLAC audio file'",
+          "expected": [
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "label": "no_rows",
+          "sql": "SELECT m.Name, COUNT(*) FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE m.Name = 'FLAC audio file' GROUP BY m.Name",
+          "expected": []
+        }
+      ]
+    }
+  ]
+}

@@ -26,9 +26,11 @@ from sqlalchemy import (
     ColumnElement,
     Text,
     and_,
+    any_,
     case,
     column,
     distinct,
+    exists,
     func,
     literal,
     select,
@@ -42,7 +44,12 @@ from auto_ontology.dal.sql_fragments import (
     column_description_expr,
     table_description_expr,
 )
-from auto_ontology.dal.tags import TARGET_COLUMN, TARGET_TABLE, fetch_tags_map
+from auto_ontology.dal.tags import (
+    PII_TAG_NAME,
+    TARGET_COLUMN,
+    TARGET_TABLE,
+    fetch_tags_map,
+)
 from auto_ontology.dal.users import resolve_accessible_catalog_ids
 from auto_ontology.semantic.constants import SQL_ATTR_SOURCE_BRIDGE
 from auto_ontology.utils.sample_values import (
@@ -1528,3 +1535,46 @@ def find_table_key_columns(
         dict.fromkeys(r["name"].lower() for r in unique_rows if r["name"])
     )
     return {"pk": pk_cols, "unique": unique_cols}
+
+
+def fetch_value_index_candidates(database_name: str) -> list[dict[str, Any]]:
+    """Every catalog column of *database_name*, with what the value index needs.
+
+    One row per column, ordered by table then column: ``schema_name``,
+    ``table_name``, ``column_name``, ``data_type``, ``is_primary_key`` (the
+    column is named in its table's ``pk``), ``pii_tagged`` (it carries the
+    ``PII`` tag, compared case-insensitively like the tag's own uniqueness) and
+    ``pii_processed`` (automatic PII classification has looked at it).
+
+    The two PII fields are separate because they mean different things: a
+    column that is not tagged is only known to be clean when it was classified,
+    which the caller decides against whether classification is switched on.
+    Selection of which columns to index is the caller's, not this read's.
+    """
+    pii_tagged = exists().where(
+        s.tag_target.c.column_id == s.catalog_column.c.id,
+        s.tag_target.c.tag_id == s.tag.c.id,
+        func.lower(func.trim(s.tag.c.name)) == PII_TAG_NAME.lower(),
+    )
+    rows = store().query_read(
+        select(
+            s.catalog_schema.c.name.label("schema_name"),
+            s.catalog_table.c.name.label("table_name"),
+            s.catalog_column.c.name.label("column_name"),
+            s.catalog_column.c.data_type,
+            (s.catalog_column.c.name == any_(s.catalog_table.c.pk)).label(
+                "is_primary_key"
+            ),
+            pii_tagged.label("pii_tagged"),
+            s.catalog_column.c.pii_processed,
+        )
+        .select_from(_catalog_join())
+        .where(s.catalog_database.c.name == database_name)
+        .order_by(
+            s.catalog_schema.c.name,
+            s.catalog_table.c.name,
+            s.catalog_column.c.ordinal_position,
+            s.catalog_column.c.name,
+        )
+    )
+    return [{**r, "is_primary_key": bool(r["is_primary_key"])} for r in rows]

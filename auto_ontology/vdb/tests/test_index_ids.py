@@ -107,3 +107,112 @@ def test_a_collection_that_does_not_exist_yet_is_empty() -> None:
 
     assert missing.ids_by_database("pagila", ["Term"]) == set()
     assert missing.delete_by_ids(["t1"], "pagila") == 0
+
+
+def test_values_are_read_back_with_where_they_live(vdb: PostgresVDB) -> None:
+    def _put(database_name: str, label: str, value: str, column: str) -> None:
+        with psycopg.connect(vdb.connection_string) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"INSERT INTO vdb.{vdb.collection_name} "
+                    "(content, database_name, label, langchain_metadata) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (
+                        value,
+                        database_name,
+                        label,
+                        json.dumps(
+                            {
+                                "id": f"{column}:{value}",
+                                "schema_name": "public",
+                                "table_name": "country",
+                                "source_column": column,
+                            }
+                        ),
+                    ),
+                )
+            conn.commit()
+
+    _put("pagila", "ColumnValue", "India", "country")
+    _put("pagila", "ColumnValue", "Peru", "country")
+    _put("pagila", "Term", "Customer", "country")
+    _put("chinook", "ColumnValue", "Brazil", "country")
+
+    assert vdb.values_by_database("pagila", "ColumnValue") == [
+        {
+            "value": value,
+            "schema_name": "public",
+            "table_name": "country",
+            "column_name": "country",
+            "aliases": [],
+        }
+        for value in ("India", "Peru")
+    ]
+
+
+def test_an_alias_lands_on_the_one_row_that_holds_the_value(vdb: PostgresVDB) -> None:
+    def _put(database_name: str, value: str, column: str) -> None:
+        with psycopg.connect(vdb.connection_string) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"INSERT INTO vdb.{vdb.collection_name} "
+                    "(content, database_name, label, langchain_metadata) "
+                    "VALUES (%s, %s, 'ColumnValue', %s)",
+                    (
+                        value,
+                        database_name,
+                        json.dumps(
+                            {
+                                "id": f"{database_name}:{column}:{value}",
+                                "table_name": "country",
+                                "source_column": column,
+                            }
+                        ),
+                    ),
+                )
+            conn.commit()
+
+    _put("pagila", "United States", "country")
+    _put("pagila", "United States", "nationality")
+    _put("chinook", "United States", "country")
+
+    def _add(database_name: str, column: str, alias: str, value: str = "United States"):
+        return vdb.add_value_alias(
+            database_name,
+            schema_name=None,
+            table_name="country",
+            column_name=column,
+            value=value,
+            alias=alias,
+        )
+
+    assert _add("pagila", "country", "the states") is True
+    assert _add("pagila", "country", "the states") is True  # idempotent
+    assert _add("pagila", "country", "yanks") is True
+    assert _add("pagila", "country", "x", value="Atlantis") is False
+
+    def _aliases(database_name: str) -> dict[str, list[str]]:
+        return {
+            r["column_name"]: r["aliases"]
+            for r in vdb.values_by_database(database_name, "ColumnValue")
+        }
+
+    assert _aliases("pagila") == {
+        "country": ["the states", "yanks"],
+        "nationality": [],
+    }
+    assert _aliases("chinook") == {"country": []}
+
+
+def test_values_of_a_collection_that_does_not_exist_yet_are_empty() -> None:
+    try:
+        psycopg.connect(get_postgres_connection_string(), connect_timeout=3).close()
+    except Exception as exc:  # noqa: BLE001 -- no database, nothing to assert
+        pytest.skip(f"postgres not reachable: {exc}")
+    missing = PostgresVDB(
+        connection_string=get_postgres_connection_string(),
+        collection_name=f"absent_{uuid.uuid4().hex[:8]}",
+        schema_name="vdb",
+    )
+
+    assert missing.values_by_database("pagila", "ColumnValue") == []

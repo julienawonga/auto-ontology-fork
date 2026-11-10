@@ -68,6 +68,7 @@ from auto_ontology.retrieval.text_to_sql.prompts import (
 )
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
+    get_original_question,
     get_question_for_processing,
     rules_to_text,
 )
@@ -75,6 +76,7 @@ from auto_ontology.retrieval.text_to_sql.value_anchors import (
     anchor_tables_missing_from_scope,
     split_schema_named_anchors,
 )
+from auto_ontology.retrieval.text_to_sql.value_linking import link_question_values
 from auto_ontology.utils.llm_invoke import invoke_with_structured_output
 
 
@@ -250,8 +252,9 @@ class CandidatePreparationAgent(BaseAgent):
     - path_state["custom_analyses_str"]: String representation for prompts
     - path_state["sql_attributes"]: Retrieved SqlAttribute details
     - path_state["sql_attributes_str"]: String representation of SqlAttributes for prompts
-    - value_anchors: Caller-supplied anchors, narrowed to those naming data
-        rather than a table/column in scope (only when anchors were supplied)
+    - value_anchors: Caller-supplied anchors, or when there are none the ones
+        found in the value index, narrowed to those naming data rather than a
+        table/column in scope (only when there were anchors to narrow)
     """
 
     def __init__(self):
@@ -576,6 +579,17 @@ class CandidatePreparationAgent(BaseAgent):
         # force-include so the relevance filter sees them as candidates: most
         # anchor tables are not wanted, and deciding that is the filter's job.
         incoming_anchors = list(state.get("value_anchors") or [])
+        if not incoming_anchors:
+            # Nobody supplied any, so look the question's phrases up in the
+            # value index (a no-op for a database without one). Anchors a
+            # caller did supply are never replaced or added to.
+            incoming_anchors = link_question_values(
+                get_original_question(state),
+                path_state.get("entities") or [],
+                target_db,
+                state.get("semantic_retriever"),
+                relevant_tables=relevant_tables,
+            )
         anchor_table_ids = [
             table_id
             for table_id in (

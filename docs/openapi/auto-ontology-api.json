@@ -6285,6 +6285,65 @@
         "x-auto-ontology-proxied": true
       }
     },
+    "/api/semantic-compilation/value-index": {
+      "post": {
+        "description": "Copy the distinct values of one database's small text columns into the\nsemantic index (?database_name=) so a question's wording can be matched to\nhow the data spells it. It moves data out of the source database into the\nvector index and runs the embedding endpoint over every value, so it sits\nbehind `manage` like the reindex. No settings page calls it yet.",
+        "operationId": "post_api_semantic_compilation_value_index",
+        "parameters": [
+          {
+            "description": "Name of the catalog database whose values to index.",
+            "in": "query",
+            "name": "database_name",
+            "required": true,
+            "schema": {
+              "description": "Name of the catalog database whose values to index.",
+              "title": "Database Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueIndexResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Value Index",
+        "tags": ["semantic-compilation"],
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/semantic-compilation/value-index/route.ts",
+        "x-auto-ontology-permissions": {
+          "semanticCompilation": ["manage"]
+        },
+        "x-auto-ontology-proxied": true
+      }
+    },
     "/api/sql-attributes": {
       "post": {
         "description": "Creating a SqlAttribute is a catalog edit and requires catalog:edit, the same\npermission PATCH /api/nodes/{node_id} uses. A viewer does not have it.",
@@ -14034,6 +14093,41 @@
         },
         "required": ["loc", "msg", "type"],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "ValueIndexResponse": {
+        "additionalProperties": true,
+        "description": "Result of building one database's value index.\n\n``written < expected`` is a partial build: the embedding endpoint did not\nreturn a vector for every row. ``columns_skipped`` counts the columns left\nout as ineligible (not text, a key, tagged PII) or over a limit.",
+        "properties": {
+          "columns_indexed": {
+            "title": "Columns Indexed",
+            "type": "integer"
+          },
+          "columns_skipped": {
+            "title": "Columns Skipped",
+            "type": "integer"
+          },
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "written": {
+            "title": "Written",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_name",
+          "expected",
+          "written",
+          "columns_indexed",
+          "columns_skipped"
+        ],
+        "title": "ValueIndexResponse",
         "type": "object"
       },
       "Zone": {

@@ -6046,6 +6046,41 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "ValueIndexResponse": {
+        "additionalProperties": true,
+        "description": "Result of building one database's value index.\n\n``written < expected`` is a partial build: the embedding endpoint did not\nreturn a vector for every row. ``columns_skipped`` counts the columns left\nout as ineligible (not text, a key, tagged PII) or over a limit.",
+        "properties": {
+          "columns_indexed": {
+            "title": "Columns Indexed",
+            "type": "integer"
+          },
+          "columns_skipped": {
+            "title": "Columns Skipped",
+            "type": "integer"
+          },
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "written": {
+            "title": "Written",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_name",
+          "expected",
+          "written",
+          "columns_indexed",
+          "columns_skipped"
+        ],
+        "title": "ValueIndexResponse",
+        "type": "object"
+      },
       "Zone": {
         "additionalProperties": true,
         "description": "A zone with its catalog data items.\n\n``items`` is absent on the list endpoint, a list of ``ZoneItem`` on the\ndetail/update endpoints, and a plain list of the ids that were linked on\ncreate.",
@@ -8922,6 +8957,51 @@
           }
         },
         "summary": "Trigger",
+        "tags": [
+          "semantic-compilation"
+        ]
+      }
+    },
+    "/api/semantic-compilation/value-index": {
+      "post": {
+        "description": "Index the stored values of one database's small text columns, so a\nquestion's wording can be matched to how the data spells it (\"USA\" to\n\"United States\", \"Indai\" to \"India\").\n\n**This copies data out of the source database into the vector index.** For\neach eligible column, every distinct value is stored as plain text next to\nits table and column name, and sent to the embedding endpoint. Eligible\nmeans a text column that is not a primary key, is not tagged ``PII``, has at\nmost ``VALUE_INDEX_MAX_DISTINCT`` (2,000) distinct values and is not free\ntext (mean length over ``VALUE_INDEX_MAX_AVG_LENGTH``, 40 characters).\nNames, emails, addresses and other high-cardinality columns therefore never\nleave the source. With PII detection on, a column not yet classified is\nleft out too. At most ``VALUE_INDEX_MAX_VALUES`` (20,000) values are stored\nper database.\n\nOpt-in and never run by ingestion. Repeatable: each value has a fixed id\nand replaces its previous row, and rows no longer wanted (a value that left\nthe data, a column since tagged PII) are deleted. Runs synchronously, one\n``SELECT DISTINCT`` per candidate column against the source plus one\nembedding call per value, so a large schema takes a while. The result says\nhow many rows were ``written`` out of those ``expected``, and how many\ncolumns were indexed or skipped.\n\n404 for a database the catalog does not hold, 409 while a compilation pass\nis running (a reset deletes the index's rows), 503 when no embedding\nendpoint is configured or no connector is configured for the database.",
+        "operationId": "build_value_index_api_semantic_compilation_value_index_post",
+        "parameters": [
+          {
+            "description": "Name of the catalog database whose values to index.",
+            "in": "query",
+            "name": "database_name",
+            "required": true,
+            "schema": {
+              "description": "Name of the catalog database whose values to index.",
+              "title": "Database Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueIndexResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Value Index",
         "tags": [
           "semantic-compilation"
         ]

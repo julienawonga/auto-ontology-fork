@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from auto_ontology.semantic.embed import SemanticIndexRebuild
 from auto_ontology.semantic.index_health import SemanticIndexHealth
+from auto_ontology.semantic.value_index import ValueIndexRebuild
 from auto_ontology.server.semantic_compilation import router
 
 
@@ -126,3 +127,97 @@ def test_status_still_answers_when_the_index_cannot_be_read(
 
     assert status["calculated"] is True
     assert status["index"] is None
+
+
+@pytest.fixture
+def value_build(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool]]:
+    """A catalog holding ``pagila``, idle, with a connector and an endpoint.
+
+    Returns the ``(database_name, reset)`` each embedder was built with.
+    """
+    built: list[tuple[str, bool]] = []
+
+    class _Connector:
+        database_name = "Pagila"
+
+    def _build(database_name: str, *, reset: bool) -> Any:
+        built.append((database_name, reset))
+        return object()
+
+    monkeypatch.setattr(router, "fetch_databases", lambda: [{"name": "pagila"}])
+    monkeypatch.setattr(router, "is_semantic_compilation_running", lambda: False)
+    monkeypatch.setattr(router, "get_connectors", lambda: [_Connector()])
+    monkeypatch.setattr(router, "build_semantic_embedder", _build)
+    monkeypatch.setattr(
+        router,
+        "embed_column_values",
+        lambda _embedder, _connector: ValueIndexRebuild(
+            expected=120, written=118, columns_indexed=6, columns_skipped=70
+        ),
+    )
+    return built
+
+
+def test_value_index_reports_what_it_wrote_and_skipped(
+    value_build: list[tuple[str, bool]],
+) -> None:
+    assert router.build_value_index("pagila") == {
+        "database_name": "pagila",
+        "expected": 120,
+        "written": 118,
+        "columns_indexed": 6,
+        "columns_skipped": 70,
+    }
+
+
+def test_value_index_never_resets_the_index(
+    value_build: list[tuple[str, bool]],
+) -> None:
+    router.build_value_index("pagila")
+
+    assert value_build == [("pagila", False)]
+
+
+def test_value_index_of_an_unknown_database_is_a_404(
+    value_build: list[tuple[str, bool]],
+) -> None:
+    with pytest.raises(HTTPException) as raised:
+        router.build_value_index("nope")
+
+    assert raised.value.status_code == 404
+    assert value_build == []
+
+
+def test_value_index_is_refused_while_compilation_is_running(
+    monkeypatch: pytest.MonkeyPatch, value_build: list[tuple[str, bool]]
+) -> None:
+    monkeypatch.setattr(router, "is_semantic_compilation_running", lambda: True)
+
+    with pytest.raises(HTTPException) as raised:
+        router.build_value_index("pagila")
+
+    assert raised.value.status_code == 409
+    assert value_build == []
+
+
+def test_value_index_without_an_embedding_endpoint_is_a_503(
+    monkeypatch: pytest.MonkeyPatch, value_build: list[tuple[str, bool]]
+) -> None:
+    monkeypatch.setattr(router, "build_semantic_embedder", lambda _db, *, reset: None)
+
+    with pytest.raises(HTTPException) as raised:
+        router.build_value_index("pagila")
+
+    assert raised.value.status_code == 503
+
+
+def test_value_index_without_a_connector_is_a_503(
+    monkeypatch: pytest.MonkeyPatch, value_build: list[tuple[str, bool]]
+) -> None:
+    monkeypatch.setattr(router, "get_connectors", lambda: [])
+
+    with pytest.raises(HTTPException) as raised:
+        router.build_value_index("pagila")
+
+    assert raised.value.status_code == 503
+    assert value_build == []

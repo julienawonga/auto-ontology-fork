@@ -39,3 +39,8 @@ REL_SEMANTIC_FK = "SEMANTIC_FK"
 # bridge (junction) tables. Sits alongside SQL_ATTR_SOURCE_MANUAL /
 # SQL_ATTR_SOURCE_SQL, which remain defined in auto_ontology.dal.sql_attributes.
 SQL_ATTR_SOURCE_BRIDGE = "bridgeTable"
+
+# One row per distinct stored value of an eligible text column, built on request
+# by `auto_ontology.semantic.value_index` so a question's wording can be matched
+# to how the data spells it. Never written by ingestion or compilation.
+LABEL_COLUMN_VALUE = "ColumnValue"

@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Literal
 
 from auto_ontology.catalog.constants import Labels
 
-from auto_ontology.semantic.constants import LABEL_SQL_ATTRIBUTE
+from auto_ontology.semantic.constants import LABEL_COLUMN_VALUE, LABEL_SQL_ATTRIBUTE
 
 if TYPE_CHECKING:
     from auto_ontology.utils.retriever import Retriever
@@ -296,6 +296,12 @@ def _hits_to_semantic_rows(
             val = meta.get(_field)
             if val is not None:
                 row[_field] = val
+        if lab_str == LABEL_COLUMN_VALUE:
+            # Where a stored value lives. Other labels' rows stay as they were:
+            # their consumers read this dict by key and some compare it whole.
+            for _field in ("table_name", "source_column"):
+                if meta.get(_field) is not None:
+                    row[_field] = meta[_field]
         rows.append(row)
     return rows
 
