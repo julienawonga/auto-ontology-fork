@@ -10,7 +10,9 @@ import type {
 	ResultEvent,
 	ChartsEvent,
 	ErrorEvent,
+	ClarificationEvent,
 } from '@/types/chat';
+import { parseClarificationEvent } from '@/lib/clarification';
 
 const getResponseErrorMessage = async (res: Response): Promise<string> => {
 	const fallback = `Server responded with ${res.status}`;
@@ -30,6 +32,8 @@ export type ChatEventCallbacks = {
 	onSql?: (event: SqlEvent) => void;
 	onResult: (event: ResultEvent) => void;
 	onCharts?: (event: ChartsEvent) => void;
+	/** The agent needs a term defined; the stream then ends normally. */
+	onClarification?: (event: ClarificationEvent) => void;
 	onError: (event: ErrorEvent) => void;
 	onDone?: () => void;
 };
@@ -60,7 +64,10 @@ export type StreamChatCallbacks = ChatEventCallbacks & {
  * know how the run ended, so this surfaces it via `onError` rather than
  * leaving the UI stuck in a loading state forever.
  */
-const consumeSseStream = async (res: Response, callbacks: ChatEventCallbacks): Promise<void> => {
+export const consumeSseStream = async (
+	res: Response,
+	callbacks: ChatEventCallbacks,
+): Promise<void> => {
 	const reader = res.body!.getReader();
 	const decoder = new TextDecoder();
 	let buffer = '';
@@ -99,6 +106,12 @@ const consumeSseStream = async (res: Response, callbacks: ChatEventCallbacks): P
 					case 'charts':
 						callbacks.onCharts?.(event);
 						break;
+					case 'clarification': {
+						// Validated here: a malformed card would be a dead end for the user.
+						const clarification = parseClarificationEvent(event);
+						if (clarification) callbacks.onClarification?.(clarification);
+						break;
+					}
 					case 'error':
 						streamCompleted = true;
 						callbacks.onError(event);
@@ -124,6 +137,19 @@ const consumeSseStream = async (res: Response, callbacks: ChatEventCallbacks): P
 	callbacks.onDone?.();
 };
 
+/** The JSON body of POST /api/chat/completions for one turn. */
+export const buildChatBody = (payload: ChatRequest): string =>
+	JSON.stringify({
+		question: payload.question,
+		conversation_id: payload.conversationId ?? undefined,
+		target_db: payload.target_db ?? undefined,
+		// Opt in: without this the backend never asks a clarification question
+		// (API and MCP callers cannot render one).
+		supports_clarification: true,
+		// Present only on the turn that answers a clarification question.
+		clarification: payload.clarification ?? undefined,
+	});
+
 /**
  * Opens an SSE connection to POST /api/chat/completions and invokes
  * callbacks as events arrive. Returns an AbortController the caller
@@ -138,11 +164,7 @@ export const streamChat = (
 	// The backend answers with the SQL/prose first (`result`), then generates
 	// and persists the chart/table bubble itself and streams it back as a
 	// separate `charts` event — no second request needed from here.
-	const body = JSON.stringify({
-		question: payload.question,
-		conversation_id: payload.conversationId ?? undefined,
-		target_db: payload.target_db ?? undefined,
-	});
+	const body = buildChatBody(payload);
 
 	(async () => {
 		try {
@@ -157,6 +179,7 @@ export const streamChat = (
 				callbacks.onError({
 					type: 'error',
 					message: await getResponseErrorMessage(res),
+					status: res.status,
 				});
 				return;
 			}
