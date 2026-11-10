@@ -19,13 +19,23 @@ export const openapi: OpenApiRoute = {
 				'`charts` event — no follow-up call needed. Reuse one `conversation_id` for ' +
 				'follow-up turns; an unknown UUID creates a conversation, while an ID owned ' +
 				'by another user returns 404. Omitting `conversation_id` runs the question ' +
-				'statelessly, with no history and no chart step.',
+				'statelessly, with no history and no chart step. A client that sets ' +
+				'`supports_clarification` may receive a `clarification` event instead of an ' +
+				'answer; it replies on the next turn with `clarification`.',
 			schema: z.object({
 				question: z.string().min(1),
 				evidence: z.string().nullish(),
 				conversation_id: z.string().uuid().nullish(),
 				target_db: z.string().nullish(),
 				prediction: z.boolean().nullish(),
+				supports_clarification: z.boolean().nullish(),
+				clarification: z
+					.object({
+						clarification_id: z.string().uuid(),
+						option_id: z.string().nullish(),
+						text: z.string().nullish(),
+					})
+					.nullish(),
 			}),
 		},
 		responses: {

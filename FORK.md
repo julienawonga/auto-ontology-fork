@@ -24,6 +24,7 @@ Every feature below is merged into `main`.
 | [Blue accent and neutral logo](#blue-accent-and-neutral-logo) | Frontend |
 | [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | Chat |
 | [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | Chat |
+| [Clarification questions](#clarification-questions) | Chat, backend |
 | [Page redesigns](#page-redesigns) | Terms, Analysis, Analytics, Discovery, Exploration |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | Planned |
 
@@ -368,3 +369,27 @@ report). Ordinary `INHERITS` children stay separate tables.
 A source ingested before this change keeps its old keys until it is ingested again.
 
 Code: `auto_ontology/connectors/postgres.py` (`get_fks`, `get_pks`).
+
+## Clarification questions
+
+Asked "How many VIP customers do we have?", the chat used to invent a definition ("spend above the average") and answer
+confidently; with the real threshold the answer was different. With the feature on, it instead ends the turn with one
+short question: 2 to 4 concrete readings of the term plus a free-text answer. The answer comes back on the next request
+and the original question is answered with it as evidence.
+
+- **Off by default.** Set the `clarification_enabled` configuration row to `true`; it is read per request. A client must
+  also send `supports_clarification: true`, and the request needs a `conversation_id`, so the MCP server, scripts and the
+  evaluation harness never receive a question.
+- **Ask rarely.** At most one question per original question; none when evidence was supplied, when a verified definition
+  (SqlAttribute, CustomAnalysis, Term) matches, when the term is a schema or value reference, or when the readings would
+  not change the SQL. Any failure falls back to answering as before.
+- **Stateless on the server.** The question is stored as an assistant message (a fenced `clarification` block, like charts)
+  and is pending while it is the conversation's last message, so a stale, foreign or answered id is refused (422).
+- The event and request contract is in [docs/conversation-api.md](docs/conversation-api.md#clarification-questions). The
+  UI card is a separate change.
+- Not built on `auto_ontology/retrieval/interactive`: that package is a multi-round benchmark loop with free-text questions
+  and an external knowledge base, so only its threshold for "this term is covered" (0.62) was reused.
+
+Code: `auto_ontology/retrieval/text_to_sql/clarification.py` (detector, option validation),
+`auto_ontology/server/chat/clarification.py` (stored form, answer matching), `auto_ontology/server/chat/router.py`,
+`auto_ontology/server/chat/worker.py`.
