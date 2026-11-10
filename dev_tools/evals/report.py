@@ -27,6 +27,10 @@ class Run:
     rows: int | None = None
     seconds: float = 0.0
     error: str | None = None
+    # The executed rows (capped), kept so a report can be re-scored under a
+    # different convention without running the questions again. Reports written
+    # before this field existed load with ``None``.
+    actual: list[list[Any]] | None = None
 
 
 @dataclass

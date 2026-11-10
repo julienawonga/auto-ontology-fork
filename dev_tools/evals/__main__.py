@@ -12,7 +12,10 @@ python -m dev_tools.evals run --label baseline --out reports/baseline.json
 # 3. patch a baseline with re-run questions (later reports win)
 python -m dev_tools.evals merge base.json rerun.json --out merged.json
 
-# 4. compare a candidate with a baseline; non-zero exit when it is rejected
+# 4. the same runs under another convention, without re-running
+python -m dev_tools.evals rescore run.json --strict --out run-strict.json
+
+# 5. compare a candidate with a baseline; non-zero exit when it is rejected
 python -m dev_tools.evals compare reports/baseline.json reports/candidate.json --margin 0.02
 """
 
@@ -25,7 +28,7 @@ from pathlib import Path
 
 from dev_tools.evals.cases import DEFAULT_CASES_DIR, Case, load_cases, snapshot_file
 from dev_tools.evals.report import Report, Run, compare_reports, merge_reports
-from dev_tools.evals.runner import run_cases
+from dev_tools.evals.runner import rescore, run_cases
 
 DEFAULT_CASES = DEFAULT_CASES_DIR / "pagila.json"
 DEFAULT_URL = "http://localhost:3001"
@@ -91,6 +94,17 @@ def _cmd_merge(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_rescore(args: argparse.Namespace) -> int:
+    report = rescore(
+        Report.load(Path(args.report)),
+        load_cases(Path(args.cases)),
+        strict=args.strict,
+    )
+    report.save(Path(args.out))
+    print(f"score {report.score:.1%} over {len(report.cases)} questions -> {args.out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m dev_tools.evals", description=__doc__
@@ -128,6 +142,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-question pass-rate drop tolerated before it counts as a regression",
     )
     cmp_.set_defaults(func=_cmd_compare)
+
+    resc = sub.add_parser(
+        "rescore", help="re-score a saved report from its stored rows"
+    )
+    resc.add_argument("report")
+    resc.add_argument("--cases", default=str(DEFAULT_CASES))
+    resc.add_argument(
+        "--strict", action="store_true", help="ignore per-case column tolerances"
+    )
+    resc.add_argument("--out", required=True)
+    resc.set_defaults(func=_cmd_rescore)
 
     merge = sub.add_parser(
         "merge", help="combine partial reports; later reports replace earlier cases"

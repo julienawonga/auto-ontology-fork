@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Iterable, Iterator
 
 import httpx
@@ -26,6 +26,8 @@ CHAT_PATH = "/api/chat/completions"
 # The pipeline retries SQL several times and each step is an LLM call, so a
 # single question can legitimately take minutes.
 DEFAULT_TIMEOUT_S = 300.0
+# Enough to re-score any case here; a report must not balloon on a wide result.
+MAX_STORED_ROWS = 50
 
 
 @dataclass
@@ -158,6 +160,7 @@ def score(case: Case, answer: Answer) -> Run:
         rows=None if answer.rows is None else len(answer.rows),
         seconds=round(answer.seconds, 2),
         error=answer.error,
+        actual=None if answer.rows is None else answer.rows[:MAX_STORED_ROWS],
     )
 
 
@@ -194,3 +197,35 @@ def run_cases(
                     on_run(case, i, run)
             report.cases[case.id] = result
     return report
+
+
+def rescore(report: Report, cases: list[Case], *, strict: bool = False) -> Report:
+    """Re-score a saved report with the stored rows, without running anything.
+
+    ``strict`` ignores every per-case tolerance (extra or missing columns), so
+    one set of runs can be reported under both conventions. Runs that were
+    saved without their rows cannot be re-scored and raise.
+    """
+    by_id = {c.id: c for c in cases}
+    out = Report(
+        meta={**report.meta, "rescored": "strict" if strict else "as-declared"}
+    )
+    for cid, result in report.cases.items():
+        case = by_id.get(cid)
+        if case is None:
+            raise ValueError(f"{cid}: not in the cases file")
+        if strict:
+            case = replace(case, allow_extra_columns=False, allow_missing_columns=False)
+        runs: list[Run] = []
+        for run in result.runs:
+            if run.error and run.actual is None:
+                runs.append(run)  # the run itself failed; nothing to re-score
+                continue
+            if run.actual is None and run.rows is not None:
+                raise ValueError(f"{cid}: report was saved without the rows")
+            answer = Answer(
+                sql=run.sql, rows=run.actual, error=run.error, seconds=run.seconds
+            )
+            runs.append(score(case, answer))
+        out.cases[cid] = CaseResult(result.question, runs)
+    return out
