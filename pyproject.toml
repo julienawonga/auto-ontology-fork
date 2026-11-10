@@ -49,11 +49,7 @@ dependencies = [
     # version nemo-gym 0.6.0 declares, so this matches the ontology-sql-eval
     # harness.
     "openai==2.44.0",
-    # Imported directly but previously only installed transitively. Declared so
-    # dropping whatever carried them cannot break an import the way pyheavydb's
-    # importlib-metadata did; langchain-nvidia-ai-endpoints arrived solely via
-    # nemo-retriever.
-    "langchain-nvidia-ai-endpoints>=1.4.3",
+    # Imported directly but previously only installed transitively.
     "langchain-core>=1.6.1",
     "sqlglot>=30.17.0",
     "numpy>=2.5.2",

@@ -33,7 +33,6 @@ build artifact — see `pyproject.toml`, `frontend/package.json`, and the
 | importlib-metadata | >=8.7.1 | Apache-2.0 | https://github.com/python/importlib_metadata |
 | kumo-relational-client (`kumo-relational-client[relational]`) | >=1.0.0,<2 | Apache-2.0 — see note below | https://github.com/NVIDIA/kumo-relational-client |
 | langchain-core | >=1.6.1 | MIT | https://github.com/langchain-ai/langchain |
-| langchain-nvidia-ai-endpoints | >=1.4.3 | MIT | https://github.com/langchain-ai/langchain-nvidia |
 | langchain-openai | >=1.3.0,<1.3.5 | MIT | https://github.com/langchain-ai/langchain |
 | langchain-postgres | >=0.0.17 | MIT | https://github.com/langchain-ai/langchain-postgres |
 | LangGraph | >=1.2.11 | MIT | https://github.com/langchain-ai/langgraph |
@@ -120,7 +119,6 @@ accompanies each upstream project at the URLs above.
 | @better-auth/mcp | 1.7.4 | MIT | https://github.com/better-auth/better-auth |
 | @better-auth/oauth-provider | 1.7.4 | MIT | https://github.com/better-auth/better-auth |
 | @better-auth/sso | 1.7.4 | MIT | https://github.com/better-auth/better-auth |
-| @nvidia/foundations-react-core (Kaizen UI) | ^0.604.1 | Apache-2.0 | https://www.npmjs.com/package/@nvidia/foundations-react-core |
 | @prisma/adapter-pg | ^7.7.0 | Apache-2.0 | https://github.com/prisma/prisma |
 | @prisma/client | ^7.7.0 | Apache-2.0 | https://github.com/prisma/prisma |
 | @sigma/node-border | ^3.0.0 | MIT | https://github.com/jacomyal/sigma.js |

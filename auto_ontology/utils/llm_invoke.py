@@ -183,18 +183,6 @@ def _is_retryable(e: Exception) -> bool:
     )
 
 
-class _TimeoutSession(_requests.Session):
-    """requests.Session that enforces a default timeout on every request."""
-
-    def __init__(self, timeout: float = LLM_INVOKE_TIMEOUT_S, **kwargs):
-        super().__init__(**kwargs)
-        self._default_timeout = timeout
-
-    def request(self, method, url, **kwargs):
-        kwargs.setdefault("timeout", self._default_timeout)
-        return super().request(method, url, **kwargs)
-
-
 T = TypeVar("T", bound=BaseModel)
 
 # Main (reasoning) model triplet. Each field falls back to DEFAULT_MODELS_<field>
@@ -211,25 +199,9 @@ _NON_REASONING_MODEL_NAME = resolve("NON_REASONING", "MODEL")
 _NON_REASONING_API_KEY = resolve("NON_REASONING", "API_KEY")
 
 
-# Chat client implementation. Every endpoint is reached through langchain's
-# OpenAI client by default. ``LLM_CLIENT=nvidia`` restores the opt-in
-# ``ChatNVIDIA`` client (langchain-nvidia-ai-endpoints) for models without an
-# ``openai/``, ``azure/`` or ``aws/`` prefix, for servers that need its
-# structured-output path.
-_LLM_CLIENTS = ("openai", "nvidia")
-
 # Model-name prefixes of OpenAI-family models, which reject an explicit
 # temperature (see below).
 _OPENAI_FAMILY_PREFIXES = ("openai/", "azure/", "aws/")
-
-
-def _llm_client_kind() -> str:
-    kind = os.environ.get("LLM_CLIENT", "").strip().lower() or "openai"
-    if kind not in _LLM_CLIENTS:
-        raise EnvironmentError(
-            f"LLM_CLIENT must be one of {', '.join(_LLM_CLIENTS)}, got {kind!r}"
-        )
-    return kind
 
 
 def _build_client(
@@ -245,23 +217,9 @@ def _build_client(
     Every model goes through ``ChatOpenAI`` against the configured
     OpenAI-compatible endpoint. OpenAI-family models (``openai/``, ``azure/``,
     ``aws/`` prefixes) get no explicit temperature; any other model gets
-    *temperature*. With ``LLM_CLIENT=nvidia`` the non-prefixed models use
-    ``ChatNVIDIA`` instead.
+    *temperature*.
     """
     openai_family = model.startswith(_OPENAI_FAMILY_PREFIXES)
-    if not openai_family and _llm_client_kind() == "nvidia":
-        from langchain_nvidia_ai_endpoints import ChatNVIDIA
-
-        client = ChatNVIDIA(
-            model=model,
-            api_key=api_key,
-            base_url=base_url,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        client._client.get_session_fn = lambda: _TimeoutSession(LLM_INVOKE_TIMEOUT_S)
-        return client
-
     from langchain_openai import ChatOpenAI
 
     # temperature omitted for OpenAI-family models: gpt-5.x/o-series reject any

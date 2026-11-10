@@ -5,7 +5,7 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google';
-import { TooltipProvider } from '@nvidia/foundations-react-core';
+import { TooltipProvider } from '@/common/Tooltip';
 import {
 	HydrationBoundary,
 	QueryClient,

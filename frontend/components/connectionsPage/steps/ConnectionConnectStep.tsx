@@ -5,7 +5,7 @@
 'use client';
 
 import type { ChangeEvent } from 'react';
-import { Spinner } from '@nvidia/foundations-react-core';
+import { Spinner } from '@/common/Spinner';
 import { Button } from '@/common/Button';
 import { Size, ButtonTheme } from '@/enums/button';
 import {

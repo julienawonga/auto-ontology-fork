@@ -5,7 +5,7 @@
 'use client';
 
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { Tooltip } from '@nvidia/foundations-react-core';
+import { Tooltip } from '@/common/Tooltip';
 import { TextVariant } from '@/enums/text';
 
 type TextElement = 'span' | 'p' | 'div' | 'h1' | 'h2' | 'h3' | 'h4';
