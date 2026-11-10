@@ -32,7 +32,8 @@ score is the mean over questions.
 ## Commands
 
 Run them from the repository root. Only `httpx` is needed for `run`,
-`rescore`, `merge` and `compare`; `snapshot` also needs `psycopg`.
+`rescore`, `merge` and `compare`; `snapshot` also needs `psycopg` for a
+Postgres source (a SQLite source uses the standard library).
 
 ```bash
 # Fill or verify the expected rows from the source database
@@ -68,6 +69,35 @@ more gold SQL queries, and a snapshot of the rows those queries return.
 
 The Pagila set needs the fixture in `dev_tools/fixtures/sql/pagila.sql` loaded
 and ingested, with the semantic layer compiled.
+
+### The Chinook set (held out)
+
+`dev_tools/evals/cases/chinook.json` holds 20 questions over the Chinook music
+store, a second database with a different shape from Pagila. It was written and
+frozen **before any measurement**, so engine changes are not fitted to it. Do
+not edit a case, a gold query or an expected row after seeing a result; if a
+case is found to be wrong, say so in the report and score every run under the
+corrected file.
+
+Load `dev_tools/fixtures/sql/chinook.sql` into a database, ingest it, compile
+the semantic layer, then point the run at it with the name it has in the
+catalog:
+
+```bash
+python -m dev_tools.evals run --cases dev_tools/evals/cases/chinook.json --target-db chinook --label main --out chinook-main.json
+```
+
+The expected rows come from the SQLite build of the fixture. To rebuild or
+verify them (a `sqlite:///` DSN is opened read-only):
+
+```bash
+python -c "import sqlite3; sqlite3.connect('chinook.sqlite').executescript(open('dev_tools/fixtures/sql/chinook.sql', encoding='utf-8-sig').read())"
+python -m dev_tools.evals snapshot --check --cases dev_tools/evals/cases/chinook.json --dsn sqlite:///chinook.sqlite
+```
+
+Conventions: a ranking question expects the item and its value; a person's
+name may be one column or two, and both are accepted as separate gold answers.
+A case `description` states what the question means where that is not obvious.
 
 ## Rules for an honest measurement
 
