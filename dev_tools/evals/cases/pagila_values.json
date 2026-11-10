@@ -1,0 +1,324 @@
+{
+  "dataset": "pagila_values",
+  "description": "DEVELOPMENT SET. Used to design value linking (these are the examples that motivated it), so it is not evidence of generalisation: report it separately from, and never instead of, the held-out chinook_values.json. Questions over the Pagila fixture where the user does not type a value the way it is stored (abbreviation, alias, typo, plural, punctuation, case), plus values that do not exist. Conventions: every question is a COUNT, so an answer is one number; a value that is not stored has the right answer 0, accepted either as a count of 0 or as no rows ('count' and 'no_rows' gold answers), and must never be 'corrected' to a similar stored value; a country means country.country through customer -> address -> city -> country; a film's category is category.name through film_category; a rating is film.rating. `expected` rows are a snapshot of the gold SQL (python -m dev_tools.evals snapshot). Do not edit a case, a gold query or an expected row after seeing a result.",
+  "cases": [
+    {
+      "id": "pagila_values.usa_abbreviation",
+      "question": "How many customers are from the USA?",
+      "description": "country.country stores 'United States'; 'USA' shares no characters with it.",
+      "tags": [
+        "value",
+        "abbreviation",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'United States'",
+          "expected": [
+            [
+              36
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.uk_abbreviation",
+      "question": "How many customers are from the UK?",
+      "description": "country.country stores 'United Kingdom'.",
+      "tags": [
+        "value",
+        "abbreviation",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'United Kingdom'",
+          "expected": [
+            [
+              9
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.america_alias",
+      "question": "How many customers are from America?",
+      "description": "'America' is a common name of the stored 'United States'.",
+      "tags": [
+        "value",
+        "alias",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'United States'",
+          "expected": [
+            [
+              36
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.us_alias",
+      "question": "How many customers are from the US?",
+      "description": "'US' is the ISO code of the stored 'United States'.",
+      "tags": [
+        "value",
+        "alias",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'United States'",
+          "expected": [
+            [
+              36
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.russia_short_name",
+      "question": "How many customers are from Russia?",
+      "description": "country.country stores 'Russian Federation'; 'Russia' is the everyday short name of 'Russian Federation'.",
+      "tags": [
+        "value",
+        "abbreviation",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'Russian Federation'",
+          "expected": [
+            [
+              28
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.india_typo",
+      "question": "How many customers live in Indai?",
+      "description": "A typo for the country India (not a city).",
+      "tags": [
+        "value",
+        "typo",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'India'",
+          "expected": [
+            [
+              60
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.brazil_spelling",
+      "question": "How many customers are from Brasil?",
+      "description": "The Portuguese spelling of the country stored as 'Brazil'.",
+      "tags": [
+        "value",
+        "typo",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'Brazil'",
+          "expected": [
+            [
+              28
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.rating_lowercase",
+      "question": "How many films are rated pg-13?",
+      "description": "Case only: film.rating stores 'PG-13'. A control; case differences already work.",
+      "tags": [
+        "value",
+        "case",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM film WHERE rating = 'PG-13'",
+          "expected": [
+            [
+              223
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.rating_punctuation",
+      "question": "How many films are rated nc 17?",
+      "description": "Punctuation: film.rating stores 'NC-17'.",
+      "tags": [
+        "value",
+        "punctuation",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM film WHERE rating = 'NC-17'",
+          "expected": [
+            [
+              210
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.category_plural",
+      "question": "How many films are comedies?",
+      "description": "Plural of the category stored as 'Comedy'.",
+      "tags": [
+        "value",
+        "plural",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM film_category fc JOIN category c ON c.category_id = fc.category_id WHERE c.name = 'Comedy'",
+          "expected": [
+            [
+              58
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.two_values",
+      "question": "How many Drama films are rated PG-13?",
+      "description": "Two values, both spelled as stored: a category and a rating.",
+      "tags": [
+        "value",
+        "two-values",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM film f JOIN film_category fc ON fc.film_id = f.film_id JOIN category c ON c.category_id = fc.category_id WHERE c.name = 'Drama' AND f.rating = 'PG-13'",
+          "expected": [
+            [
+              22
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.two_values_variants",
+      "question": "How many comedies are rated pg 13?",
+      "description": "Two values, each spelled differently from how it is stored: a plural category and a rating without its hyphen.",
+      "tags": [
+        "value",
+        "two-values",
+        "plural",
+        "punctuation",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM film f JOIN film_category fc ON fc.film_id = f.film_id JOIN category c ON c.category_id = fc.category_id WHERE c.name = 'Comedy' AND f.rating = 'PG-13'",
+          "expected": [
+            [
+              12
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.absent_country",
+      "question": "How many customers are from Norway?",
+      "description": "Norway is a real country that country.country does not hold. The answer is zero and must not be 'corrected' to a similar stored country.",
+      "tags": [
+        "value",
+        "absent",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "count",
+          "sql": "SELECT COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'Norway'",
+          "expected": [
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "label": "no_rows",
+          "sql": "SELECT co.country, COUNT(*) FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE co.country = 'Norway' GROUP BY co.country",
+          "expected": []
+        }
+      ]
+    },
+    {
+      "id": "pagila_values.absent_category",
+      "question": "How many films are in the Western category?",
+      "description": "There is no Western category. The answer is zero and must not be 'corrected' to a similar stored category.",
+      "tags": [
+        "value",
+        "absent",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "count",
+          "sql": "SELECT COUNT(*) FROM film_category fc JOIN category c ON c.category_id = fc.category_id WHERE c.name = 'Western'",
+          "expected": [
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "label": "no_rows",
+          "sql": "SELECT c.name, COUNT(*) FROM film_category fc JOIN category c ON c.category_id = fc.category_id WHERE c.name = 'Western' GROUP BY c.name",
+          "expected": []
+        }
+      ]
+    }
+  ]
+}
