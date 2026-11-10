@@ -243,7 +243,7 @@ curl -N http://localhost:3000/api/chat/completions \
 - [x] Chat with folded reasoning and SQL, copy, suggestions from certified analyses
 - [x] Docker Official Images, digest-pinned
 - [x] Foreign keys declared on partitioned tables, and composite keys (Postgres)
-- [x] Agent SQL is read-only and row-capped, enforced by the database on five engines
+- [x] Agent SQL is read-only and row-capped, enforced by the database on six engines
 - [x] Evaluation harness for the text-to-SQL engine
 - [x] Rebuild and health check of the semantic index
 - [x] Held-out evaluation set on a second database (Chinook)

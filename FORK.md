@@ -292,8 +292,8 @@ database user's grants. Details: [docs/query-safety.md](./docs/query-safety.md).
 
 - **Parse-time guard:** one read-only `SELECT` only; a write nested in a CTE, `SELECT INTO`, row locks and several
   statements are refused, and unparseable SQL is refused.
-- **Enforced by the database** on PostgreSQL, MySQL/MariaDB, SQLite, DuckDB and ClickHouse (`supports_read_only_execution`).
-  Snowflake, Databricks, Trino, Kyuubi and HeavyDB rely on the guard alone.
+- **Enforced by the database** on PostgreSQL, MySQL/MariaDB, SQLite, DuckDB, ClickHouse and Trino (`supports_read_only_execution`).
+  Snowflake, Databricks, Kyuubi and HeavyDB rely on the guard alone.
 - **Row cap:** `sql_result_max_rows` (10,000 by default). A cut result is disclosed in the answer and in
   `result_truncated_at`. PostgreSQL stops reading at the cap through a server-side cursor.
 
