@@ -1291,3 +1291,63 @@ def test_kept_table_bridges_respects_the_cap(bridged) -> None:
     )
     assert (bridge_tables, bridge_paths) == ([], [])
     assert skipped == 1
+
+
+def _film_category_world(world) -> None:
+    """film <- film_category -> category, with film_category a junction."""
+    world.table("film", pk=["film_id"])
+    world.column("film", "film_id")
+    world.table("category", pk=["category_id"])
+    world.column("category", "category_id")
+    world.column("category", "name", 2)
+    world.table("film_category")
+    world.column("film_category", "film_id", 1)
+    world.column("film_category", "category_id", 2)
+    store().query_write(
+        s.catalog_table.update()
+        .where(s.catalog_table.c.id == world.tables["film_category"])
+        .values(is_junction_table=True)
+    )
+    for source, target in (
+        ("film_category.film_id", "film.film_id"),
+        ("film_category.category_id", "category.category_id"),
+    ):
+        _link(
+            s.column__foreign_key,
+            source_column_id=world.columns[source],
+            target_column_id=world.columns[target],
+        )
+
+
+def test_far_side_of_a_kept_junction_is_the_table_it_points_away_to(world) -> None:
+    _film_category_world(world)
+
+    tables, paths = a.find_junction_far_side_tables(
+        [world.tables["film"], world.tables["film_category"]]
+    )
+
+    # film is already kept, so only category is new.
+    assert tables == [{"id": world.tables["category"], "name": "category"}]
+    assert [
+        (h["source_table"], h["source_column"], h["target_table"], h["target_column"])
+        for path in paths
+        for h in path
+    ] == [("film_category", "category_id", "category", "category_id")]
+
+
+def test_far_side_expands_every_target_of_a_lone_junction(world) -> None:
+    _film_category_world(world)
+
+    tables, _ = a.find_junction_far_side_tables([world.tables["film_category"]])
+
+    assert {t["name"] for t in tables} == {"film", "category"}
+
+
+def test_far_side_ignores_tables_that_are_not_junctions(world) -> None:
+    _film_category_world(world)
+
+    assert a.find_junction_far_side_tables([world.tables["film"]]) == ([], [])
+
+
+def test_far_side_requires_at_least_one_table() -> None:
+    assert a.find_junction_far_side_tables([]) == ([], [])

@@ -35,6 +35,7 @@ from auto_ontology.dal.attributes import (
     find_anchor_hub_siblings,
     find_connected_junction_tables,
     find_join_path,
+    find_junction_far_side_tables,
     find_kept_table_bridges,
 )
 from auto_ontology.dal.custom_analyses import (
@@ -675,6 +676,24 @@ class CandidatePreparationAgent(BaseAgent):
                 "Connected-junction expansion added %d one-hop join path(s)",
                 len(connected_junction_paths),
             )
+
+        # --- 5b'. Far side of the junctions the filter chose ---
+        # A junction table carries ids, not labels: film_category holds
+        # category_id, and the name lives in category. Without the far side the
+        # only identifier SQL generation can return is the bare id. Only
+        # junctions the filter itself kept are expanded (``kept_ids`` predates
+        # the expansion above): a junction added just to connect tables, like
+        # film_actor for a question about films, is not what was asked about.
+        far_side_tables, far_side_paths = find_junction_far_side_tables(kept_ids)
+        if far_side_tables:
+            forced_table_ids.update(t["id"] for t in far_side_tables)
+            self.logger.info(
+                "Junction far-side expansion added %d table(s): %s",
+                len(far_side_tables),
+                [t["name"] for t in far_side_tables],
+            )
+        if far_side_paths:
+            attribute_join_paths.extend({"path": hops} for hops in far_side_paths)
 
         # --- 5c. Deterministic bridge-table reconciliation ---
         # The relevance filter is unreliable at preserving join-chain bridge

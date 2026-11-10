@@ -895,19 +895,17 @@ def _name_tables(node_ids: list[str]) -> dict[str, str]:
     }
 
 
-def find_connected_junction_tables(
-    table_ids: list[str],
-) -> tuple[list[dict], list[list[dict]]]:
-    """Return junction tables with a one-hop FK into any supplied table.
+def _junction_fk_rows(
+    *,
+    target_ids: list[str] | None = None,
+    junction_ids: list[str] | None = None,
+) -> list[dict]:
+    """One row per FK hop from a junction table into another table.
 
-    Both declared ``FOREIGN_KEY`` edges and inferred ``SEMANTIC_FK`` edges
-    count. Each returned hop contains the exact source and target columns so
-    callers can safely expose the added table to SQL generation.
+    Both declared ``FOREIGN_KEY`` edges and inferred ``SEMANTIC_FK`` edges (the
+    ones selected for join paths) count. ``target_ids`` keeps hops that land in
+    those tables; ``junction_ids`` keeps hops that leave those junctions.
     """
-    kept_ids = list(dict.fromkeys(table_id for table_id in table_ids if table_id))
-    if not kept_ids:
-        return [], []
-
     junction_column = s.catalog_column.alias("connected_junction_column")
     junction_table = s.catalog_table.alias("connected_junction_table")
     junction_schema = s.catalog_schema.alias("connected_junction_schema")
@@ -915,13 +913,26 @@ def find_connected_junction_tables(
     target_table = s.catalog_table.alias("connected_target_table")
     target_schema = s.catalog_schema.alias("connected_target_schema")
 
+    conditions = [
+        junction_table.c.is_junction_table,
+        junction_table.c.id != target_table.c.id,
+        junction_schema.c.database_id == target_schema.c.database_id,
+    ]
+    if target_ids is not None:
+        conditions.append(target_table.c.id.in_(target_ids))
+    if junction_ids is not None:
+        conditions.append(junction_table.c.id.in_(junction_ids))
+
+    columns = (
+        junction_table.c.id.label("junction_table_id"),
+        junction_table.c.name.label("junction_table_name"),
+        target_table.c.id.label("target_table_id"),
+        target_table.c.name.label("target_table_name"),
+        junction_column.c.id.label("source_column_id"),
+        target_column.c.id.label("target_column_id"),
+    )
     declared = (
-        select(
-            junction_table.c.id.label("junction_table_id"),
-            junction_table.c.name.label("junction_table_name"),
-            junction_column.c.id.label("source_column_id"),
-            target_column.c.id.label("target_column_id"),
-        )
+        select(*columns)
         .select_from(
             s.column__foreign_key.join(
                 junction_column,
@@ -936,22 +947,12 @@ def find_connected_junction_tables(
             .join(target_table, target_table.c.id == target_column.c.table_id)
             .join(target_schema, target_schema.c.id == target_table.c.schema_id)
         )
-        .where(
-            junction_table.c.is_junction_table,
-            target_table.c.id.in_(kept_ids),
-            junction_table.c.id != target_table.c.id,
-            junction_schema.c.database_id == target_schema.c.database_id,
-        )
+        .where(*conditions)
     )
 
     semantic_owner = s.column__has_attribute.alias("connected_semantic_owner")
     semantic = (
-        select(
-            junction_table.c.id.label("junction_table_id"),
-            junction_table.c.name.label("junction_table_name"),
-            junction_column.c.id.label("source_column_id"),
-            target_column.c.id.label("target_column_id"),
-        )
+        select(*columns)
         .select_from(
             s.column__semantic_fk.join(
                 junction_column,
@@ -967,25 +968,10 @@ def find_connected_junction_tables(
             .join(target_table, target_table.c.id == target_column.c.table_id)
             .join(target_schema, target_schema.c.id == target_table.c.schema_id)
         )
-        .where(
-            junction_table.c.is_junction_table,
-            target_table.c.id.in_(kept_ids),
-            junction_table.c.id != target_table.c.id,
-            junction_schema.c.database_id == target_schema.c.database_id,
-            s.column__semantic_fk.c.use_in_join_paths.is_(True),
-        )
+        .where(*conditions, s.column__semantic_fk.c.use_in_join_paths.is_(True))
     )
 
-    try:
-        rows = store().query_read(declared.union(semantic))
-    except Exception:
-        logger.warning(
-            "find_connected_junction_tables: query failed for %d table(s)",
-            len(kept_ids),
-            exc_info=True,
-        )
-        return [], []
-
+    rows = store().query_read(declared.union(semantic))
     rows.sort(
         key=lambda row: (
             row["junction_table_name"] or "",
@@ -994,6 +980,11 @@ def find_connected_junction_tables(
             row["target_column_id"] or "",
         )
     )
+    return rows
+
+
+def _junction_hops(rows: list[dict]) -> list[tuple[dict, list[dict]]]:
+    """Pair each FK row with its one-hop join path, dropping unresolvable rows."""
     column_ids = list(
         dict.fromkeys(
             column_id
@@ -1003,35 +994,106 @@ def find_connected_junction_tables(
     )
     names = _name_columns(column_ids)
     contexts = fetch_col_table_contexts(column_ids)
+    hops: list[tuple[dict, list[dict]]] = []
+    for row in rows:
+        source = contexts.get(row["source_column_id"], {})
+        target = contexts.get(row["target_column_id"], {})
+        if not row["junction_table_id"] or not source or not target:
+            continue
+        hops.append(
+            (
+                row,
+                [
+                    {
+                        "source_database": source.get("database_name", ""),
+                        "source_schema": source.get("schema_name", ""),
+                        "source_table": source.get("table_name", ""),
+                        "source_column": names.get(row["source_column_id"], ""),
+                        "target_database": target.get("database_name", ""),
+                        "target_schema": target.get("schema_name", ""),
+                        "target_table": target.get("table_name", ""),
+                        "target_column": names.get(row["target_column_id"], ""),
+                    }
+                ],
+            )
+        )
+    return hops
+
+
+def find_connected_junction_tables(
+    table_ids: list[str],
+) -> tuple[list[dict], list[list[dict]]]:
+    """Return junction tables with a one-hop FK into any supplied table.
+
+    Both declared ``FOREIGN_KEY`` edges and inferred ``SEMANTIC_FK`` edges
+    count. Each returned hop contains the exact source and target columns so
+    callers can safely expose the added table to SQL generation.
+    """
+    kept_ids = list(dict.fromkeys(table_id for table_id in table_ids if table_id))
+    if not kept_ids:
+        return [], []
+
+    try:
+        rows = _junction_fk_rows(target_ids=kept_ids)
+    except Exception:
+        logger.warning(
+            "find_connected_junction_tables: query failed for %d table(s)",
+            len(kept_ids),
+            exc_info=True,
+        )
+        return [], []
+
     junctions: dict[str, dict] = {}
     paths: list[list[dict]] = []
-    for row in rows:
-        junction_id = row["junction_table_id"]
-        source_id = row["source_column_id"]
-        target_id = row["target_column_id"]
-        source = contexts.get(source_id, {})
-        target = contexts.get(target_id, {})
-        if not junction_id or not source or not target:
-            continue
+    for row, path in _junction_hops(rows):
         junctions.setdefault(
-            junction_id,
-            {"id": junction_id, "name": row["junction_table_name"] or ""},
+            row["junction_table_id"],
+            {"id": row["junction_table_id"], "name": row["junction_table_name"] or ""},
         )
-        paths.append(
-            [
-                {
-                    "source_database": source.get("database_name", ""),
-                    "source_schema": source.get("schema_name", ""),
-                    "source_table": source.get("table_name", ""),
-                    "source_column": names.get(source_id, ""),
-                    "target_database": target.get("database_name", ""),
-                    "target_schema": target.get("schema_name", ""),
-                    "target_table": target.get("table_name", ""),
-                    "target_column": names.get(target_id, ""),
-                }
-            ]
-        )
+        paths.append(path)
     return list(junctions.values()), paths
+
+
+def find_junction_far_side_tables(
+    table_ids: list[str],
+) -> tuple[list[dict], list[list[dict]]]:
+    """Return the tables on the far side of the junctions among *table_ids*.
+
+    A junction table carries keys, not labels: ``film_category`` holds a
+    ``category_id``, and the category's name lives in ``category``. When a
+    question is about a junction's subject, SQL generation needs that far-side
+    table, or the only identifier it can return is the bare id.
+
+    Only junctions in *table_ids* are expanded, and only into tables not already
+    there. Each hop carries the exact columns, like
+    :func:`find_connected_junction_tables`.
+    """
+    kept_ids = list(dict.fromkeys(table_id for table_id in table_ids if table_id))
+    if not kept_ids:
+        return [], []
+
+    try:
+        rows = _junction_fk_rows(junction_ids=kept_ids)
+    except Exception:
+        logger.warning(
+            "find_junction_far_side_tables: query failed for %d table(s)",
+            len(kept_ids),
+            exc_info=True,
+        )
+        return [], []
+
+    kept = set(kept_ids)
+    far_side: dict[str, dict] = {}
+    paths: list[list[dict]] = []
+    for row, path in _junction_hops(rows):
+        if row["target_table_id"] in kept:
+            continue
+        far_side.setdefault(
+            row["target_table_id"],
+            {"id": row["target_table_id"], "name": row["target_table_name"] or ""},
+        )
+        paths.append(path)
+    return list(far_side.values()), paths
 
 
 def find_join_path(anchor_col_id: str, dest_col_id: str) -> list[dict]:

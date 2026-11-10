@@ -728,3 +728,109 @@ def test_removal_is_declined_when_the_table_supplies_a_needed_column(
     kept = _run_filter([_table(n) for n in ("schools", "frpm", "satscores")])
 
     assert "frpm" in [t["name"] for t in kept]
+
+
+@pytest.fixture(autouse=True)
+def _no_junction_far_side(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default for every test here: no far-side tables (it would query the DB)."""
+    monkeypatch.setattr(
+        candidates_preparation,
+        "find_junction_far_side_tables",
+        lambda ids: ([], []),
+    )
+
+
+def test_a_chosen_junction_brings_in_its_far_side_label_table(monkeypatch) -> None:
+    """film_category holds category_id; the name lives in category.
+
+    Without category, the only way SQL generation can name the category is its
+    bare id, which is what the chat returned for "which category has the most
+    films".
+    """
+    film_category = {
+        "id": "film_category",
+        "name": "film_category",
+        "schema_name": "public",
+        "database_name": "db",
+        "columns": [{"name": "film_id"}, {"name": "category_id"}],
+    }
+    category = {
+        "id": "category",
+        "name": "category",
+        "schema_name": "public",
+        "database_name": "db",
+        "columns": [{"name": "category_id"}, {"name": "name"}],
+    }
+    hop = {
+        "source_schema": "public",
+        "source_table": "film_category",
+        "source_column": "category_id",
+        "target_schema": "public",
+        "target_table": "category",
+        "target_column": "category_id",
+    }
+    asked: list[list[str]] = []
+
+    def far_side(ids: list[str]) -> tuple[list[dict], list[list[dict]]]:
+        asked.append(list(ids))
+        return [{"id": "category", "name": "category"}], [[hop]]
+
+    monkeypatch.setattr(
+        CandidatePreparationAgent,
+        "_retrieve_additional_tables",
+        lambda self, retriever, question, entities, target_db: [],
+    )
+    monkeypatch.setattr(
+        CandidatePreparationAgent,
+        "_filter_tables_by_relevance",
+        lambda self, state, question, tables, custom_analyses=None, attribute_join_paths=None: (
+            tables,
+            "",
+        ),
+    )
+    monkeypatch.setattr(
+        candidates_preparation, "fetch_custom_analyses_with_sql", lambda ids: []
+    )
+    monkeypatch.setattr(
+        candidates_preparation, "fetch_tables_from_custom_analyses", lambda ids: []
+    )
+    monkeypatch.setattr(
+        candidates_preparation,
+        "get_relevant_tables_from_candidates",
+        lambda candidates: [film_category],
+    )
+    monkeypatch.setattr(
+        candidates_preparation,
+        "fetch_tables_by_ids",
+        lambda ids: [category] if ids == ["category"] else [],
+    )
+    monkeypatch.setattr(
+        candidates_preparation,
+        "find_connected_junction_tables",
+        lambda ids: ([], []),
+    )
+    monkeypatch.setattr(
+        candidates_preparation, "find_junction_far_side_tables", far_side
+    )
+
+    state = cast(
+        AgentState,
+        {
+            "initial_question": "Which film category has the most films?",
+            "data_retriever": object(),
+            "path_state": {
+                "target_db": "db",
+                "retrieved_custom_analyses": [{"id": "analysis"}],
+            },
+        },
+    )
+
+    result = CandidatePreparationAgent().execute(state)["path_state"]
+
+    # Asked about the tables the filter kept, not the ones forced in later.
+    assert asked == [["film_category"]]
+    assert [table["id"] for table in result["relevant_tables"]] == [
+        "film_category",
+        "category",
+    ]
+    assert {"path": [hop]} in result["attribute_join_paths"]
