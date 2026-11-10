@@ -4,6 +4,11 @@
 
 import { requests } from './requests';
 import type { ResponseWithError } from './types';
+import type {
+	SemanticCompilationStatus,
+	SemanticReindexOutcome,
+	SemanticReindexResult,
+} from '@/types/semanticIndex';
 
 export type Prompt = {
 	id: string;
@@ -69,13 +74,7 @@ export const acronymsApi = {
 export const semanticCompilationApi = {
 	get: () => json<{ enabled: boolean }>('/api/configurations/semantic-compilation'),
 
-	getStatus: () =>
-		json<{
-			calculated: boolean;
-			running: boolean;
-			last_success_at: string | null;
-			last_failure_at: string | null;
-		}>('/api/semantic-compilation/status'),
+	getStatus: () => json<SemanticCompilationStatus>('/api/semantic-compilation/status'),
 
 	setEnabled: (enabled: boolean) =>
 		json<{ enabled: boolean }>('/api/configurations/semantic-compilation', {
@@ -85,6 +84,26 @@ export const semanticCompilationApi = {
 		}),
 
 	reset: () => json<{ status: string }>('/api/semantic-compilation/reset', { method: 'POST' }),
+
+	// Plain fetch rather than `json`: the page explains 404/409/503 differently, so the
+	// status has to survive. Network failures still reject.
+	reindex: async (databaseName: string): Promise<SemanticReindexOutcome> => {
+		const res = await fetch(
+			`/api/semantic-compilation/reindex?database_name=${encodeURIComponent(databaseName)}`,
+			{ method: 'POST' },
+		);
+		if (res.ok) return { ok: true, result: (await res.json()) as SemanticReindexResult };
+		const body: unknown = await res.json().catch(() => null);
+		const detail =
+			body !== null && typeof body === 'object' && 'detail' in body
+				? (body as { detail: unknown }).detail
+				: null;
+		return {
+			ok: false,
+			status: res.status,
+			detail: typeof detail === 'string' ? detail : null,
+		};
+	},
 };
 
 export const distinctValueProbingApi = {

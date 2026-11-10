@@ -13,15 +13,24 @@ import { Spinner } from '@/common/Spinner';
 import { Toast } from '@/common/Toast';
 import { Toggle } from '@/common/Toggle';
 import { ToastVariant } from '@/enums/toast';
+import {
+	describeIndexEntry,
+	describeReindexResult,
+	reindexErrorMessage,
+} from '@/lib/semanticIndex';
+import type { SemanticCompilationStatus, SemanticIndexEntry } from '@/types/semanticIndex';
 
 export const SemanticCompilationForm = ({
 	initialEnabled,
 	initialProbingEnabled,
 	hasDatabases,
+	canManage,
 }: {
 	initialEnabled: boolean;
 	initialProbingEnabled: boolean;
 	hasDatabases: boolean;
+	/** Holds `semanticCompilation: manage`, which the reindex route requires. */
+	canManage: boolean;
 }) => {
 	// Seeded from the server (see page.tsx) so the correct state renders on first
 	// paint; updated optimistically and rolled back if the save fails.
@@ -35,14 +44,19 @@ export const SemanticCompilationForm = ({
 	const [running, setRunning] = useState(false);
 	const [lastSuccessAt, setLastSuccessAt] = useState<string | null>(null);
 	const [lastFailureAt, setLastFailureAt] = useState<string | null>(null);
+	// Undefined `index` (older backend) renders no index section at all.
+	const [indexEntries, setIndexEntries] = useState<SemanticIndexEntry[]>([]);
+	const [rebuilding, setRebuilding] = useState<string | null>(null);
+	const applyStatus = (result: SemanticCompilationStatus) => {
+		setRunning(result.running);
+		setLastSuccessAt(result.last_success_at);
+		setLastFailureAt(result.last_failure_at);
+		setIndexEntries(result.index ?? []);
+	};
 	useEffect(() => {
 		semanticCompilationApi
 			.getStatus()
-			.then((result) => {
-				setRunning(result.running);
-				setLastSuccessAt(result.last_success_at);
-				setLastFailureAt(result.last_failure_at);
-			})
+			.then(applyStatus)
 			.catch(() => {});
 	}, []);
 	// Only set when it's more recent than the last success (see history.py),
@@ -77,11 +91,7 @@ export const SemanticCompilationForm = ({
 				// so the section appears now instead of only on the next page load.
 				semanticCompilationApi
 					.getStatus()
-					.then((status) => {
-						setRunning(status.running);
-						setLastSuccessAt(status.last_success_at);
-						setLastFailureAt(status.last_failure_at);
-					})
+					.then(applyStatus)
 					.catch(() => {});
 			}
 		} catch {
@@ -116,6 +126,33 @@ export const SemanticCompilationForm = ({
 		} finally {
 			setSavingProbing(false);
 		}
+	};
+
+	const handleRebuild = async (databaseName: string) => {
+		if (rebuilding !== null) return;
+		setRebuilding(databaseName);
+		setError(null);
+		setMessage(null);
+
+		try {
+			const outcome = await semanticCompilationApi.reindex(databaseName);
+			if (!outcome.ok) {
+				setError(reindexErrorMessage(outcome.status, outcome.detail));
+			} else {
+				const { complete, message: text } = describeReindexResult(outcome.result);
+				// A partial rebuild is not a success: show it as an error so it is not missed.
+				if (complete) setMessage(text);
+				else setError(text);
+			}
+		} catch {
+			setError('Failed to reach the server. Please try again.');
+		}
+		// Refresh either way: a refused or partial run may still have changed the counts.
+		await semanticCompilationApi
+			.getStatus()
+			.then(applyStatus)
+			.catch(() => {});
+		setRebuilding(null);
 	};
 
 	const handleReset = () => {
@@ -193,6 +230,66 @@ export const SemanticCompilationForm = ({
 										<Icon name={IconName.Check} className="h-3 w-3" />
 									</span>
 								)}
+							</div>
+						)}
+
+						{indexEntries.length > 0 && (
+							<div className="mb-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+								<span className="text-sm font-medium text-heading dark:text-zinc-100">
+									Semantic Index
+								</span>
+								<p className="text-xs text-secondary">
+									The embeddings chat uses to find Terms and columns. Rebuild one
+									if entries are missing, for example after the embedding endpoint
+									was failing during ingestion.
+								</p>
+								<ul className="mt-2 space-y-2">
+									{indexEntries.map((entry) => {
+										const { complete, label } = describeIndexEntry(entry);
+										const busy = rebuilding === entry.database_name;
+										return (
+											<li
+												key={entry.database_name}
+												className="flex items-center justify-between gap-3"
+											>
+												<div className="flex min-w-0 flex-col">
+													<span className="truncate text-sm text-heading dark:text-zinc-100">
+														{entry.database_name}
+													</span>
+													<span
+														className={
+															complete
+																? 'text-xs text-secondary'
+																: 'text-xs font-medium text-amber-700 dark:text-amber-400'
+														}
+													>
+														{label}
+													</span>
+												</div>
+												<button
+													type="button"
+													disabled={
+														!canManage || running || rebuilding !== null
+													}
+													title={
+														canManage
+															? running
+																? 'A compilation is running'
+																: undefined
+															: 'Requires the manage permission'
+													}
+													onClick={() => {
+														void handleRebuild(entry.database_name);
+													}}
+													className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-heading transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-100 dark:hover:bg-zinc-800"
+												>
+													{busy && <Spinner className="h-3 w-3" />}
+													{busy ? 'Rebuilding…' : 'Rebuild index'}
+												</button>
+											</li>
+										);
+									})}
+								</ul>
 							</div>
 						)}
 
