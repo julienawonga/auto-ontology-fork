@@ -1,0 +1,336 @@
+{
+  "dataset": "pagila",
+  "description": "Questions over the Pagila fixture. Gold SQL is the source of truth; `expected` rows are a snapshot of it (python -m dev_tools.evals snapshot). Rentals only span 2022-05-24..28 while payments span 2022-01..07, so a payment can precede its rental.",
+  "cases": [
+    {
+      "id": "pagila.top5_films_revenue",
+      "question": "What are the top 5 films by revenue?",
+      "tags": [
+        "join",
+        "aggregate",
+        "ranking"
+      ],
+      "ordered": true,
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT f.title, SUM(p.amount) AS revenue FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film f ON f.film_id = i.film_id GROUP BY f.film_id, f.title ORDER BY revenue DESC, f.title LIMIT 5",
+          "expected": [
+            [
+              "SEATTLE EXPECATIONS",
+              22.97
+            ],
+            [
+              "WHALE BIKINI",
+              20.97
+            ],
+            [
+              "VIDEOTAPE ARSENIC",
+              19.97
+            ],
+            [
+              "WIFE TURN",
+              19.97
+            ],
+            [
+              "TEEN APOLLO",
+              17.97
+            ]
+          ]
+        }
+      ],
+      "allow_missing_columns": true
+    },
+    {
+      "id": "pagila.customer_count",
+      "question": "How many customers are there?",
+      "tags": [
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM customer",
+          "expected": [
+            [
+              599
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.customers_per_store",
+      "question": "How many customers does each store have?",
+      "tags": [
+        "count",
+        "group"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT store_id, COUNT(*) FROM customer GROUP BY store_id ORDER BY store_id",
+          "expected": [
+            [
+              1,
+              326
+            ],
+            [
+              2,
+              273
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.category_most_films",
+      "question": "Which film category has the most films, and how many?",
+      "tags": [
+        "join",
+        "ranking"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT c.name, COUNT(*) AS n FROM film_category fc JOIN category c ON c.category_id = fc.category_id GROUP BY c.name ORDER BY n DESC LIMIT 1",
+          "expected": [
+            [
+              "Sports",
+              74
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.most_rented_films",
+      "question": "Which film or films were rented the most times, and how many times?",
+      "description": "Two films tie at 4 rentals. A 'top 3' phrasing would be ambiguous because four films tie at 3.",
+      "tags": [
+        "join",
+        "ranking",
+        "tie"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT f.title, COUNT(*) AS n FROM rental r JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film f ON f.film_id = i.film_id GROUP BY f.film_id, f.title HAVING COUNT(*) = (SELECT MAX(c) FROM (SELECT COUNT(*) AS c FROM rental r2 JOIN inventory i2 ON i2.inventory_id = r2.inventory_id GROUP BY i2.film_id) t) ORDER BY f.title",
+          "expected": [
+            [
+              "PULP BEVERLY",
+              4
+            ],
+            [
+              "ROBBERS JOON",
+              4
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.total_revenue",
+      "question": "What is the total revenue?",
+      "tags": [
+        "aggregate"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT SUM(amount) FROM payment",
+          "expected": [
+            [
+              2502.01
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.revenue_per_store",
+      "question": "What is the revenue of each store, based on the store that holds the rented inventory?",
+      "tags": [
+        "join",
+        "aggregate",
+        "group"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT i.store_id, SUM(p.amount) FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id GROUP BY i.store_id ORDER BY i.store_id",
+          "expected": [
+            [
+              1,
+              1241.07
+            ],
+            [
+              2,
+              1260.94
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.top_countries_customers",
+      "question": "Which 3 countries have the most customers, and how many each?",
+      "tags": [
+        "join",
+        "ranking",
+        "multi-hop"
+      ],
+      "ordered": true,
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT co.country, COUNT(*) AS n FROM customer cu JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id GROUP BY co.country ORDER BY n DESC, co.country LIMIT 3",
+          "expected": [
+            [
+              "India",
+              60
+            ],
+            [
+              "China",
+              53
+            ],
+            [
+              "United States",
+              36
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.top_spender",
+      "question": "Who is the customer who spent the most, and how much?",
+      "tags": [
+        "join",
+        "aggregate",
+        "ranking"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT cu.first_name || ' ' || cu.last_name AS customer, SUM(p.amount) AS total FROM payment p JOIN customer cu ON cu.customer_id = p.customer_id GROUP BY cu.customer_id, cu.first_name, cu.last_name ORDER BY total DESC LIMIT 1",
+          "expected": [
+            [
+              "RUTH MARTINEZ",
+              23.95
+            ]
+          ]
+        }
+      ],
+      "allow_missing_columns": true
+    },
+    {
+      "id": "pagila.avg_film_length",
+      "question": "What is the average film length?",
+      "tags": [
+        "aggregate"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT AVG(length) FROM film",
+          "expected": [
+            [
+              115.272
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pagila.category_most_revenue",
+      "question": "Which film category generates the most revenue?",
+      "description": "A view (sales_by_film_category) answers this without the payment joins; correct, but it hides whether the payment foreign-key chain works.",
+      "tags": [
+        "join",
+        "aggregate",
+        "ranking",
+        "multi-hop"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT c.name, SUM(p.amount) AS revenue FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film_category fc ON fc.film_id = i.film_id JOIN category c ON c.category_id = fc.category_id GROUP BY c.name ORDER BY revenue DESC LIMIT 1",
+          "expected": [
+            [
+              "Action",
+              209.53
+            ]
+          ]
+        }
+      ],
+      "allow_missing_columns": true
+    },
+    {
+      "id": "pagila.store2_top_category_revenue",
+      "question": "What is the top film category by revenue in store 2?",
+      "description": "Hard: no view covers it, so it needs the payment foreign-key chain. 'Store 2' is ambiguous: the store that holds the inventory (Drama) or the store the paying customer belongs to (Documentary). Both are accepted; a future clarification card should ask which is meant.",
+      "tags": [
+        "join",
+        "aggregate",
+        "ranking",
+        "multi-hop",
+        "ambiguous"
+      ],
+      "gold": [
+        {
+          "label": "inventory_store",
+          "sql": "SELECT c.name, SUM(p.amount) AS revenue FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film_category fc ON fc.film_id = i.film_id JOIN category c ON c.category_id = fc.category_id WHERE i.store_id = 2 GROUP BY c.name ORDER BY revenue DESC LIMIT 1",
+          "expected": [
+            [
+              "Drama",
+              104.79
+            ]
+          ]
+        },
+        {
+          "label": "customer_store",
+          "sql": "SELECT c.name, SUM(p.amount) AS revenue FROM payment p JOIN customer cu ON cu.customer_id = p.customer_id JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film_category fc ON fc.film_id = i.film_id JOIN category c ON c.category_id = fc.category_id WHERE cu.store_id = 2 GROUP BY c.name ORDER BY revenue DESC LIMIT 1",
+          "expected": [
+            [
+              "Documentary",
+              103.72
+            ]
+          ]
+        }
+      ],
+      "allow_missing_columns": true
+    },
+    {
+      "id": "pagila.revenue_by_country_store1_customers",
+      "question": "For customers of store 1, what are the top 3 countries by revenue?",
+      "tags": [
+        "join",
+        "aggregate",
+        "ranking",
+        "multi-hop"
+      ],
+      "ordered": true,
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT co.country, SUM(p.amount) AS revenue FROM payment p JOIN customer cu ON cu.customer_id = p.customer_id JOIN address a ON a.address_id = cu.address_id JOIN city ci ON ci.city_id = a.city_id JOIN country co ON co.country_id = ci.country_id WHERE cu.store_id = 1 GROUP BY co.country ORDER BY revenue DESC LIMIT 3",
+          "expected": [
+            [
+              "India",
+              143.66
+            ],
+            [
+              "China",
+              123.71
+            ],
+            [
+              "Mexico",
+              94.8
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
