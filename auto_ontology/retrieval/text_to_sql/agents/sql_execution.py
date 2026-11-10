@@ -17,7 +17,10 @@ from auto_ontology.retrieval.text_to_sql.base import BaseAgent, record_thought
 from auto_ontology.retrieval.text_to_sql.connector_routing import (
     resolve_connector_from_tables,
 )
-from auto_ontology.retrieval.text_to_sql.chat_sql import execute_chat_sql
+from auto_ontology.retrieval.text_to_sql.chat_sql import (
+    TRUNCATED_AT_ATTR,
+    execute_chat_sql,
+)
 from auto_ontology.retrieval.text_to_sql.numeric_types import (
     SQL_CORRECTION_ERROR,
     cast_jsonb_numeric_projections,
@@ -67,6 +70,7 @@ class QueryResponse:
         numeric_kinds: Optional[list] = None,
         values_digest: Optional[str] = None,
         sql_correction: Optional[str] = None,
+        truncated_at: Optional[int] = None,
     ):
         # Per output column ``"float"`` / ``"decimal"`` / ``None``; lets a caller
         # that needs a predictable numeric type know what this SQL returned.
@@ -74,7 +78,11 @@ class QueryResponse:
         # Type-blind digest of the result values (see ``result_values_digest``).
         self.values_digest = values_digest
         self.result = result
+        # ``sliced`` is True when the result was cut at the row limit;
+        # ``truncated_at`` is that limit, so the answer can say how many rows
+        # it is based on.
         self.sliced = sliced
+        self.truncated_at = truncated_at
         self.error = error
         # The SQL as executed, which is not always the SQL as generated -- see
         # ``_sanitize_sql_for_dialect``. Classifying ``error`` means stripping
@@ -170,6 +178,7 @@ def _run_sql(
         dialect = getattr(connector, "dialect", "")
         sql = _sanitize_sql_for_dialect(sql, dialect)
         df = execute_chat_sql(connector, sql)
+        truncated_at = getattr(df, "attrs", {}).get(TRUNCATED_AT_ATTR)
         sql_correction = _sql_correction_for(
             original_sql, sql, dialect, df, record_numeric_kinds
         )
@@ -186,7 +195,8 @@ def _run_sql(
         return QueryResponse(result=None, sliced=False, error=str(e), statement=sql)
     return QueryResponse(
         result=[payload],
-        sliced=False,
+        sliced=truncated_at is not None,
+        truncated_at=truncated_at,
         error=None,
         statement=sql,
         numeric_kinds=numeric_kinds,
@@ -306,6 +316,9 @@ class SQLExecutionAgent(BaseAgent):
         updated_path_state = {
             **path_state,
             "sql_response_from_db": response_from_db.result,
+            # Set every time, so a cut result from an earlier attempt cannot
+            # mark the answer to a later, complete one.
+            "result_truncated_at": response_from_db.truncated_at,
         }
         if record_kinds:
             # Numeric types of what just ran, tagged with that SQL so a reader

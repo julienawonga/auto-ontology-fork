@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 import weakref
 from typing import Optional
 
@@ -20,14 +21,25 @@ from auto_ontology.connectors.base import SQLDatabase, StatementTimeout
 
 
 def _fetch_frame(
-    conn: psycopg.Connection, sql: str, parameters: Optional[list]
+    conn: psycopg.Connection,
+    sql: str,
+    parameters: Optional[list],
+    max_rows: int | None = None,
 ) -> pd.DataFrame:
-    with conn.cursor(row_factory=dict_row) as cur:
+    if max_rows is None:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(sql, parameters)
+            if cur.description is None:
+                return pd.DataFrame()
+            return pd.DataFrame(cur.fetchall())
+    # A client-side cursor receives the whole result on ``execute``, whatever
+    # ``fetchmany`` then asks for, so a capped read needs a server-side
+    # (named) cursor: the server hands over only the rows requested. That
+    # requires an open transaction, which the caller provides. One row past
+    # the cap, so the caller can tell "exactly max_rows" from "more".
+    with conn.cursor(name=f"lexis_{uuid.uuid4().hex}", row_factory=dict_row) as cur:
         cur.execute(sql, parameters)
-        if cur.description is None:
-            return pd.DataFrame()
-        rows = cur.fetchall()
-    return pd.DataFrame(rows)
+        return pd.DataFrame(cur.fetchmany(max_rows + 1))
 
 
 class PostgresDatabase(SQLDatabase):
@@ -45,6 +57,7 @@ class PostgresDatabase(SQLDatabase):
 
     supports_statement_timeout = True
     supports_read_only_execution = True
+    supports_row_limit = True
 
     def __init__(self, connection_string: str) -> None:
         self._connection_string = connection_string
@@ -95,6 +108,7 @@ class PostgresDatabase(SQLDatabase):
         *,
         timeout_s: float | None = None,
         read_only: bool = False,
+        max_rows: int | None = None,
     ) -> pd.DataFrame:
         """Run *sql*; with *timeout_s*, the server cancels it after that long.
 
@@ -107,11 +121,15 @@ class PostgresDatabase(SQLDatabase):
         autocommit mode, so the setting is scoped to this one transaction and
         never reaches the next caller of the pooled connection.
 
+        With *max_rows* at most ``max_rows + 1`` rows are read, through a
+        server-side cursor so the rest is never sent; the extra one tells the
+        caller the result was cut.
+
         Raises:
             StatementTimeout: the server cancelled the statement at the cap.
         """
         with self._pool.connection() as conn:
-            if timeout_s is None and not read_only:
+            if timeout_s is None and not read_only and max_rows is None:
                 return _fetch_frame(conn, sql, parameters)
             started = time.monotonic()
             try:
@@ -124,7 +142,7 @@ class PostgresDatabase(SQLDatabase):
                             "SELECT set_config('statement_timeout', %s, true)",
                             (f"{max(1, int(timeout_s * 1000))}ms",),
                         )
-                    return _fetch_frame(conn, sql, parameters)
+                    return _fetch_frame(conn, sql, parameters, max_rows)
             except psycopg.errors.QueryCanceled as exc:
                 # QueryCanceled also covers pg_cancel_backend(); only the
                 # timeout we set is ours to relabel.

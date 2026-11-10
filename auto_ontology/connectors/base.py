@@ -131,6 +131,12 @@ class SQLDatabase(ABC):
     #: the grants of its database user) alone.
     supports_read_only_execution: bool = False
 
+    #: ``True`` when ``execute`` accepts ``max_rows=N`` and then stops reading
+    #: after ``N + 1`` rows, so a huge result is never loaded into memory. The
+    #: extra row lets the caller tell "exactly N" from "more than N". A
+    #: connector without it returns everything and the caller trims the frame.
+    supports_row_limit: bool = False
+
     #: Optional regex allow/deny filter over relation names, set from the
     #: connection by :func:`auto_ontology.connectors.registry.create_connector`.
     #: Connectors do not read it themselves — it is enforced centrally in

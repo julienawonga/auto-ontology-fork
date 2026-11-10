@@ -70,6 +70,14 @@ class ResponseAgent(BaseAgent):
             response=response_explanation,
         )
 
+        # A cut result must not read as a complete one.
+        truncated_at = path_state.get("result_truncated_at")
+        if truncated_at:
+            formatted_response += (
+                "\n\n> **Note:** the result was limited to the first "
+                f"{truncated_at:,} rows, so the figures above may be incomplete."
+            )
+
         # --- final dict assembly ---
         sql_columns = path_state.get("sql_columns", [])
         sql_response_from_db = path_state.get("sql_response_from_db")
@@ -80,6 +88,7 @@ class ResponseAgent(BaseAgent):
             "sql_columns": sql_columns,
             "custom_analyses_used": [],
             "sql_response_from_db": sql_response_from_db,
+            "result_truncated_at": truncated_at,
         }
 
         self.logger.info("Calculation response prepared and returned")

@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run the SQL a chat turn issues: read-only, logged, and capped in time.
+"""Run the SQL a chat turn issues: read-only, logged, and capped in time and rows.
 
 These behaviours deliberately live here rather than in the connectors. A
 connector's ``execute`` is the chokepoint for *all* SQL — ingestion
@@ -23,13 +23,19 @@ from typing import Any
 
 import pandas as pd
 
-from auto_ontology.infra.feature_flags import get_sql_query_timeout_seconds
+from auto_ontology.infra.feature_flags import (
+    get_sql_query_timeout_seconds,
+    get_sql_result_max_rows,
+)
 from auto_ontology.retrieval.text_to_sql.sql_guard import (
     UnsafeSqlError,
     assert_read_only,
 )
 
 logger = logging.getLogger(__name__)
+
+#: ``DataFrame.attrs`` key set when a result was cut; holds the row limit.
+TRUNCATED_AT_ATTR = "truncated_at"
 
 # Generated SQL is normally short, but a pathological statement shouldn't flood
 # the log; keep enough to be recognisable and say how much was cut.
@@ -90,6 +96,12 @@ def execute_chat_sql(
     A connector that advertises ``supports_read_only_execution`` also runs the
     statement in a read-only transaction, so the database refuses a write even
     if it got past the guard.
+
+    The result is cut at the Agent Settings row limit. The returned frame then
+    carries the limit in ``frame.attrs[TRUNCATED_AT_ATTR]``, which callers use to
+    say the answer is partial; an uncut result has no such attribute. A
+    connector with ``supports_row_limit`` stops reading at the limit, any other
+    returns everything and is trimmed here.
     """
     try:
         assert_read_only(sql, getattr(connector, "dialect", None))
@@ -112,4 +124,17 @@ def execute_chat_sql(
         )
     if getattr(connector, "supports_read_only_execution", False):
         options["read_only"] = True
-    return connector.execute(sql, **options)
+    max_rows = get_sql_result_max_rows()
+    if getattr(connector, "supports_row_limit", False):
+        options["max_rows"] = max_rows
+    return _cut_at(connector.execute(sql, **options), max_rows)
+
+
+def _cut_at(frame: pd.DataFrame, max_rows: int) -> pd.DataFrame:
+    """Trim *frame* to *max_rows* and mark it when anything was dropped."""
+    if not isinstance(frame, pd.DataFrame) or len(frame) <= max_rows:
+        return frame
+    logger.warning("Result cut at %d rows (it had more)", max_rows)
+    cut = frame.head(max_rows).copy()
+    cut.attrs[TRUNCATED_AT_ATTR] = max_rows
+    return cut
