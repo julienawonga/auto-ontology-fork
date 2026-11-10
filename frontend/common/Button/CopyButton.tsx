@@ -69,7 +69,7 @@ export const CopyButton = ({ text, className = '', ...props }: CopyButtonProps) 
 			type="button"
 			onClick={handleCopy}
 			aria-label={copied ? 'Copied to clipboard' : 'Copy to clipboard'}
-			className={`rounded p-1 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-700 hover:text-zinc-200 focus-visible:opacity-100 disabled:cursor-not-allowed ${className}`}
+			className={`rounded p-1 text-secondary opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-900/10 hover:text-heading dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-100 focus-visible:opacity-100 disabled:cursor-not-allowed ${className}`}
 		>
 			<Icon
 				name={copied ? IconName.Check : IconName.Copy}

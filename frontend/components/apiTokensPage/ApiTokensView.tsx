@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiTokensApi, type ApiToken } from '@/api/apiTokens';
 import type { ResponseWithError } from '@/api/types';
 import { Button, CopyButton } from '@/common/Button';
+import { codeSurfaceClass, codeTextClass } from '@/common/SqlBlock';
 import { formatDate } from '@/common/date';
 import { EmptyState } from '@/common/EmptyState';
 import { Icon, IconName } from '@/common/icons';
@@ -236,8 +237,12 @@ export const ApiTokensView = () => {
 								Done
 							</Button>
 						</div>
-						<div className="group mt-3 flex items-center gap-2 rounded-md bg-zinc-900 px-3 py-2 dark:bg-zinc-950">
-							<code className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-100">
+						<div
+							className={`group mt-3 flex items-center gap-2 rounded-xl px-3 py-2 ${codeSurfaceClass}`}
+						>
+							<code
+								className={`min-w-0 flex-1 truncate font-mono text-xs ${codeTextClass}`}
+							>
 								{freshToken}
 							</code>
 							<CopyButton text={freshToken} className="opacity-100" />

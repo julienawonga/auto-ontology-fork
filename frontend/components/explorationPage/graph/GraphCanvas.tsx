@@ -110,21 +110,21 @@ class NoopNodeProgram {
 // read as colored shapes instead of glowing white blobs against a black
 // canvas.
 const NODE_TYPE_COLOR_LIGHT: Record<NodeType, string> = {
-	term: '#daf5c7',
+	term: '#d6e1ff',
 	table: '#fae3c2',
 	schema: '#f7c5e6',
 	column: '#e1caf2',
-	columnAttribute: '#caf2d4',
+	columnAttribute: '#f5e7c0',
 	sqlAttribute: '#c7cef5',
 	sql: '#f8c3c3',
 	customAnalysis: '#c5f3f7',
 };
 const NODE_TYPE_COLOR_DARK: Record<NodeType, string> = {
-	term: '#293a1d',
+	term: '#18244d',
 	table: '#3e2e19',
 	schema: '#3b1c31',
 	column: '#2d2037',
-	columnAttribute: '#203725',
+	columnAttribute: '#3a3016',
 	sqlAttribute: '#1d223a',
 	sql: '#3c1a1a',
 	customAnalysis: '#1c383b',

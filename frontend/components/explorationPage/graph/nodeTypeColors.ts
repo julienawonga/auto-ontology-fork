@@ -21,8 +21,8 @@ export type NodeType =
 // minimum gap as every other pair here.
 const SQL_OBJECT_ICON_COLOR = '#d43535'; // red
 const TABLE_OBJECT_ICON_COLOR = '#da932f'; // orange
-const TERM_OBJECT_ICON_COLOR = '#61a630'; // yellow-green
-const COLUMN_ATTRIBUTE_OBJECT_ICON_COLOR = '#3b9b53'; // green
+const TERM_OBJECT_ICON_COLOR = '#1856ff'; // the app's primary blue
+const COLUMN_ATTRIBUTE_OBJECT_ICON_COLOR = '#b8891f'; // gold
 const CUSTOM_ANALYSIS_OBJECT_ICON_COLOR = '#2eacb8'; // teal
 const SQL_ATTRIBUTE_OBJECT_ICON_COLOR = '#4d62cb'; // indigo
 const COLUMN_OBJECT_ICON_COLOR = '#9559c0'; // violet

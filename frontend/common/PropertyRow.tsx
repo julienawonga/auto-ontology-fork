@@ -5,6 +5,12 @@
 'use client';
 
 import { CopyButton } from '@/common/Button';
+import {
+	codeHeaderClass,
+	codeLabelClass,
+	codeSurfaceClass,
+	codeTextClass,
+} from '@/common/SqlBlock';
 
 export type PropertyRowProps = {
 	label: string;
@@ -15,15 +21,14 @@ export type PropertyRowProps = {
 
 export const PropertyRow = ({ label, value, monospace = false, className }: PropertyRowProps) => (
 	<div
-		className={`group relative overflow-hidden rounded-lg bg-zinc-900 dark:bg-zinc-950 ${className ?? ''}`}
+		className={`group relative overflow-hidden rounded-xl ${codeSurfaceClass} ${className ?? ''}`}
 	>
-		<div className="flex items-center justify-between border-b border-zinc-700 px-3 py-1.5">
-			{/* Dark in both themes, so the light-theme text tokens do not apply here. */}
-			<span className="text-xs font-medium text-zinc-400">{label}</span>
+		<div className={codeHeaderClass}>
+			<span className={codeLabelClass}>{label}</span>
 			{value !== '' && <CopyButton text={value} />}
 		</div>
 		<p
-			className={`p-3 text-xs leading-relaxed wrap-anywhere text-zinc-100 ${
+			className={`p-3 text-xs leading-relaxed wrap-anywhere ${codeTextClass} ${
 				monospace ? 'font-mono' : ''
 			}`}
 		>
