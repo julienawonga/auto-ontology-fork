@@ -10,8 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from auto_ontology.utils.embedding import EmbedParams, batch_embed
-from auto_ontology.utils.model_config import resolve
+from auto_ontology.utils.embedding import EmbedParams, batch_embed, get_embed_params
 from auto_ontology.utils.sample_values import stringify_sample_values
 from auto_ontology.vdb import get_semantic_vdb
 from auto_ontology.vdb.postgres import PostgresVDB
@@ -94,19 +93,19 @@ def build_semantic_embedder(
     reset: bool,
 ) -> SemanticEmbedder | None:
     """Construct an embedder bound to the semantic VDB, or None when disabled."""
-    api_key = resolve("EMBED", "API_KEY")
-    if not api_key:
+    # Built by ``get_embed_params`` like every other embedder, so the request
+    # fields and the vector width come from the environment. Spelling the
+    # parameters out here silently dropped both: the endpoint then received
+    # NVIDIA-only fields (``input_type: passage``) and rejected every Term row,
+    # leaving the semantic index empty while compilation reported success.
+    embed_params = get_embed_params()
+    if not embed_params.api_key:
         logger.warning(
             "EMBED_API_KEY / DEFAULT_MODELS_API_KEY not set — "
             "semantic VDB embedding disabled"
         )
         return None
 
-    embed_params = EmbedParams(
-        embed_invoke_url=resolve("EMBED", "ENDPOINT"),
-        model_name=resolve("EMBED", "MODEL"),
-        api_key=api_key,
-    )
     vdb = get_semantic_vdb(database_name=database_name, reset=reset)
     return SemanticEmbedder(
         database_name=database_name,
