@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import sqlite3
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -94,8 +95,28 @@ def jsonable(value: Any) -> Any:
     return str(value)
 
 
+SQLITE_PREFIX = "sqlite:///"
+
+
+def _run_sqlite(dsn: str, sql: str) -> list[list[Any]]:
+    # mode=ro makes the file read-only at the driver level, so a gold query
+    # cannot change the fixture even if it is wrong.
+    path = Path(dsn[len(SQLITE_PREFIX) :]).resolve()
+    conn = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+    try:
+        return [[jsonable(v) for v in row] for row in conn.execute(sql).fetchall()]
+    finally:
+        conn.close()
+
+
 def run_gold(dsn: str, sql: str) -> list[list[Any]]:
-    """Execute gold SQL read-only and return JSON-able rows."""
+    """Execute gold SQL read-only and return JSON-able rows.
+
+    ``sqlite:///path/to/file.sqlite`` selects SQLite; anything else is a
+    Postgres DSN.
+    """
+    if dsn.startswith(SQLITE_PREFIX):
+        return _run_sqlite(dsn, sql)
     import psycopg
 
     with psycopg.connect(dsn, autocommit=True) as conn:

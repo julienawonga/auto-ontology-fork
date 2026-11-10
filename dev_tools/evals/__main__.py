@@ -5,6 +5,8 @@
 # 1. fill (or verify) the expected rows from the source database
 python -m dev_tools.evals snapshot --dsn postgresql://postgres:postgres@localhost:5432/pagila
 python -m dev_tools.evals snapshot --check --dsn ...
+# a SQLite source works too (opened read-only)
+python -m dev_tools.evals snapshot --cases dev_tools/evals/cases/chinook.json --dsn sqlite:///path/to/chinook.sqlite
 
 # 2. score a running backend, three runs per question
 python -m dev_tools.evals run --label baseline --out reports/baseline.json
@@ -115,7 +117,9 @@ def build_parser() -> argparse.ArgumentParser:
         "snapshot", help="fill or verify expected rows from the database"
     )
     snap.add_argument("--cases", default=str(DEFAULT_CASES))
-    snap.add_argument("--dsn", help="source database DSN (or EVAL_SOURCE_DSN)")
+    snap.add_argument(
+        "--dsn", help="Postgres DSN or sqlite:///path (or EVAL_SOURCE_DSN)"
+    )
     snap.add_argument(
         "--check", action="store_true", help="verify only; exit 1 if stale"
     )

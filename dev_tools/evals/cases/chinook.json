@@ -1,0 +1,643 @@
+{
+  "dataset": "chinook",
+  "description": "Held-out questions over the Chinook fixture (SQLite, built from dev_tools/fixtures/sql/chinook.sql). Written and frozen before any measurement: do not edit a case after seeing a result. Gold SQL is the source of truth; `expected` rows are a snapshot of it (python -m dev_tools.evals snapshot --dsn sqlite:///...). Invoices span 2021-01-01..2025-12-22.",
+  "cases": [
+    {
+      "id": "chinook.customer_count",
+      "question": "How many customers do we have?",
+      "tags": [
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Customer",
+          "expected": [
+            [
+              59
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.track_count",
+      "question": "How many songs are in the catalogue?",
+      "tags": [
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track",
+          "expected": [
+            [
+              3503
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.total_revenue",
+      "question": "What is our total revenue?",
+      "description": "Revenue is the sum of invoice totals (equal to the sum of invoice line price x quantity).",
+      "tags": [
+        "sum"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT ROUND(SUM(Total), 2) FROM Invoice",
+          "expected": [
+            [
+              2328.6
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.avg_invoice",
+      "question": "What is the average invoice amount?",
+      "tags": [
+        "average"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT ROUND(AVG(Total), 4) FROM Invoice",
+          "expected": [
+            [
+              5.6519
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.sales_2023",
+      "question": "How much did we sell in 2023?",
+      "description": "Sales are invoice totals for invoices dated in calendar year 2023.",
+      "tags": [
+        "sum",
+        "date-filter"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT ROUND(SUM(Total), 2) FROM Invoice WHERE InvoiceDate >= '2023-01-01' AND InvoiceDate < '2024-01-01'",
+          "expected": [
+            [
+              469.58
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.sales_by_year",
+      "question": "Show me sales for each year.",
+      "description": "One row per calendar year: the year and the total of its invoice totals.",
+      "tags": [
+        "group-by",
+        "date-filter",
+        "sum"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT strftime('%Y', InvoiceDate) AS year, ROUND(SUM(Total), 2) AS sales FROM Invoice GROUP BY year ORDER BY year",
+          "expected": [
+            [
+              "2021",
+              449.46
+            ],
+            [
+              "2022",
+              481.45
+            ],
+            [
+              "2023",
+              469.58
+            ],
+            [
+              "2024",
+              477.53
+            ],
+            [
+              "2025",
+              450.58
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.top5_countries_sales",
+      "question": "What are our top 5 countries by sales?",
+      "description": "Country and its sales, best first. The billing country equals the customer's country on every invoice, so one reading is enough. No tie at the cut-off (5th 156.48, 6th 112.86).",
+      "tags": [
+        "ranking",
+        "group-by",
+        "sum"
+      ],
+      "ordered": true,
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT BillingCountry, ROUND(SUM(Total), 2) AS sales FROM Invoice GROUP BY BillingCountry ORDER BY sales DESC LIMIT 5",
+          "expected": [
+            [
+              "USA",
+              523.06
+            ],
+            [
+              "Canada",
+              303.96
+            ],
+            [
+              "France",
+              195.1
+            ],
+            [
+              "Brazil",
+              190.1
+            ],
+            [
+              "Germany",
+              156.48
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.top3_artists_albums",
+      "question": "Which 3 artists have released the most albums?",
+      "description": "Artist and album count. No tie at the cut-off (21, 14, 11, then 10).",
+      "tags": [
+        "ranking",
+        "join",
+        "count"
+      ],
+      "ordered": true,
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT ar.Name, COUNT(*) AS albums FROM Artist ar JOIN Album al ON al.ArtistId = ar.ArtistId GROUP BY ar.ArtistId, ar.Name ORDER BY albums DESC LIMIT 3",
+          "expected": [
+            [
+              "Iron Maiden",
+              21
+            ],
+            [
+              "Led Zeppelin",
+              14
+            ],
+            [
+              "Deep Purple",
+              11
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.top5_artists_revenue",
+      "question": "Who are our 5 best-selling artists by revenue?",
+      "description": "Revenue is invoice line unit price x quantity, joined through invoice lines -> tracks -> albums -> artists. No tie at the cut-off (5th 81.59, 6th 49.75).",
+      "tags": [
+        "ranking",
+        "multi-hop",
+        "join",
+        "sum"
+      ],
+      "ordered": true,
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT ar.Name, ROUND(SUM(il.UnitPrice * il.Quantity), 2) AS revenue FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist ar ON ar.ArtistId = al.ArtistId GROUP BY ar.ArtistId, ar.Name ORDER BY revenue DESC LIMIT 5",
+          "expected": [
+            [
+              "Iron Maiden",
+              138.6
+            ],
+            [
+              "U2",
+              105.93
+            ],
+            [
+              "Metallica",
+              90.09
+            ],
+            [
+              "Led Zeppelin",
+              86.13
+            ],
+            [
+              "Lost",
+              81.59
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.tracks_per_genre",
+      "question": "How many songs are there in each genre?",
+      "description": "Every genre has at least one track and every track has a genre, so inner and left joins give the same 25 rows.",
+      "tags": [
+        "group-by",
+        "join",
+        "count"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT g.Name, COUNT(*) AS tracks FROM Genre g JOIN Track t ON t.GenreId = g.GenreId GROUP BY g.GenreId, g.Name",
+          "expected": [
+            [
+              "Rock",
+              1297
+            ],
+            [
+              "Jazz",
+              130
+            ],
+            [
+              "Metal",
+              374
+            ],
+            [
+              "Alternative & Punk",
+              332
+            ],
+            [
+              "Rock And Roll",
+              12
+            ],
+            [
+              "Blues",
+              81
+            ],
+            [
+              "Latin",
+              579
+            ],
+            [
+              "Reggae",
+              58
+            ],
+            [
+              "Pop",
+              48
+            ],
+            [
+              "Soundtrack",
+              43
+            ],
+            [
+              "Bossa Nova",
+              15
+            ],
+            [
+              "Easy Listening",
+              24
+            ],
+            [
+              "Heavy Metal",
+              28
+            ],
+            [
+              "R&B/Soul",
+              61
+            ],
+            [
+              "Electronica/Dance",
+              30
+            ],
+            [
+              "World",
+              28
+            ],
+            [
+              "Hip Hop/Rap",
+              35
+            ],
+            [
+              "Science Fiction",
+              13
+            ],
+            [
+              "TV Shows",
+              93
+            ],
+            [
+              "Sci Fi & Fantasy",
+              26
+            ],
+            [
+              "Drama",
+              64
+            ],
+            [
+              "Comedy",
+              17
+            ],
+            [
+              "Alternative",
+              40
+            ],
+            [
+              "Classical",
+              74
+            ],
+            [
+              "Opera",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.artists_without_albums",
+      "question": "How many artists don't have any albums?",
+      "description": "Artists with no row in the album table.",
+      "tags": [
+        "count",
+        "left-join",
+        "anti-join"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Artist ar WHERE NOT EXISTS (SELECT 1 FROM Album al WHERE al.ArtistId = ar.ArtistId)",
+          "expected": [
+            [
+              71
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.unsold_tracks",
+      "question": "How many songs have never been bought?",
+      "description": "Tracks that appear on no invoice line.",
+      "tags": [
+        "count",
+        "left-join",
+        "anti-join"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t WHERE NOT EXISTS (SELECT 1 FROM InvoiceLine il WHERE il.TrackId = t.TrackId)",
+          "expected": [
+            [
+              1519
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.customers_never_purchased",
+      "question": "Which customers have never bought anything?",
+      "description": "Every customer has at least one invoice, so the correct answer is no rows. An answer that returns rows is wrong.",
+      "tags": [
+        "left-join",
+        "anti-join",
+        "empty-answer"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT c.FirstName, c.LastName FROM Customer c WHERE NOT EXISTS (SELECT 1 FROM Invoice i WHERE i.CustomerId = c.CustomerId)",
+          "expected": []
+        }
+      ]
+    },
+    {
+      "id": "chinook.customers_with_company",
+      "question": "How many of our customers belong to a company?",
+      "description": "Company is NULL for customers without one (49 of 59); none holds an empty string.",
+      "tags": [
+        "count",
+        "null"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Customer WHERE Company IS NOT NULL AND TRIM(Company) <> ''",
+          "expected": [
+            [
+              10
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.best_customer",
+      "question": "Who is our best customer?",
+      "description": "Best means highest total spend (the usual reading for a store). The other plausible reading, most orders, is a tie between customers with seven invoices each, so it is not offered. The name may be one column or two, so both are accepted. No tie on spend (49.62 against 47.62).",
+      "tags": [
+        "ranking",
+        "join",
+        "sum",
+        "ambiguous"
+      ],
+      "gold": [
+        {
+          "label": "full_name_spend",
+          "sql": "SELECT c.FirstName || ' ' || c.LastName AS customer, ROUND(SUM(i.Total), 2) AS spent FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY spent DESC LIMIT 1",
+          "expected": [
+            [
+              "Helena Hol\u00fd",
+              49.62
+            ]
+          ]
+        },
+        {
+          "label": "split_name_spend",
+          "sql": "SELECT c.FirstName, c.LastName, ROUND(SUM(i.Total), 2) AS spent FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY spent DESC LIMIT 1",
+          "expected": [
+            [
+              "Helena",
+              "Hol\u00fd",
+              49.62
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.longest_track",
+      "question": "What is the longest track?",
+      "description": "Length is stored in milliseconds; the answer may show it raw or converted to minutes. Both are accepted. No tie (5286953 ms, next 5088838).",
+      "tags": [
+        "ranking",
+        "ambiguous"
+      ],
+      "gold": [
+        {
+          "label": "milliseconds",
+          "sql": "SELECT Name, Milliseconds FROM Track ORDER BY Milliseconds DESC LIMIT 1",
+          "expected": [
+            [
+              "Occupation / Precipice",
+              5286953
+            ]
+          ]
+        },
+        {
+          "label": "minutes",
+          "sql": "SELECT Name, Milliseconds / 60000.0 AS minutes FROM Track ORDER BY Milliseconds DESC LIMIT 1",
+          "expected": [
+            [
+              "Occupation / Precipice",
+              88.11588333333333
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.playlist_most_tracks",
+      "question": "Which playlist has the most tracks?",
+      "description": "Two different playlists are both named 'Music' (ids 1 and 8) and hold 3290 tracks each, so the top is a tie. Accepted: a single row for 'Music' (LIMIT 1 over playlists), or both tied playlists listed. Grouping by name would merge the two playlists into 6580 tracks, which double counts and is not accepted.",
+      "tags": [
+        "ranking",
+        "tie",
+        "ambiguous"
+      ],
+      "gold": [
+        {
+          "label": "one_row",
+          "sql": "SELECT p.Name, COUNT(*) AS tracks FROM Playlist p JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId, p.Name ORDER BY tracks DESC LIMIT 1",
+          "expected": [
+            [
+              "Music",
+              3290
+            ]
+          ]
+        },
+        {
+          "label": "all_tied",
+          "sql": "SELECT p.Name, COUNT(*) AS tracks FROM Playlist p JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId, p.Name HAVING COUNT(*) = (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM PlaylistTrack GROUP BY PlaylistId))",
+          "expected": [
+            [
+              "Music",
+              3290
+            ],
+            [
+              "Music",
+              3290
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.nancy_reports",
+      "question": "Who works for Nancy Edwards?",
+      "description": "Works for means reports directly to her (Employee.ReportsTo), found by matching the first and last name in the employee table itself. Direct reports only; the name may be one or two columns.",
+      "tags": [
+        "self-join",
+        "name-match",
+        "ambiguous"
+      ],
+      "gold": [
+        {
+          "label": "full_name",
+          "sql": "SELECT e.FirstName || ' ' || e.LastName FROM Employee e JOIN Employee m ON m.EmployeeId = e.ReportsTo WHERE m.FirstName = 'Nancy' AND m.LastName = 'Edwards'",
+          "expected": [
+            [
+              "Jane Peacock"
+            ],
+            [
+              "Margaret Park"
+            ],
+            [
+              "Steve Johnson"
+            ]
+          ]
+        },
+        {
+          "label": "split_name",
+          "sql": "SELECT e.FirstName, e.LastName FROM Employee e JOIN Employee m ON m.EmployeeId = e.ReportsTo WHERE m.FirstName = 'Nancy' AND m.LastName = 'Edwards'",
+          "expected": [
+            [
+              "Jane",
+              "Peacock"
+            ],
+            [
+              "Margaret",
+              "Park"
+            ],
+            [
+              "Steve",
+              "Johnson"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.acdc_tracks",
+      "question": "How many songs does AC/DC have?",
+      "description": "Tracks reach the artist through their album. The artist name contains a slash.",
+      "tags": [
+        "count",
+        "join",
+        "multi-hop",
+        "name-match"
+      ],
+      "gold": [
+        {
+          "label": "primary",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Album al ON al.AlbumId = t.AlbumId JOIN Artist ar ON ar.ArtistId = al.ArtistId WHERE ar.Name = 'AC/DC'",
+          "expected": [
+            [
+              18
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chinook.rock_tracks",
+      "question": "How many rock songs are there?",
+      "description": "The genre table has 'Rock' and 'Rock And Roll'. Either the exact genre (1297) or both rock genres (1309) is accepted.",
+      "tags": [
+        "count",
+        "join",
+        "name-match",
+        "ambiguous"
+      ],
+      "gold": [
+        {
+          "label": "rock_genre",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name = 'Rock'",
+          "expected": [
+            [
+              1297
+            ]
+          ]
+        },
+        {
+          "label": "any_rock_genre",
+          "sql": "SELECT COUNT(*) FROM Track t JOIN Genre g ON g.GenreId = t.GenreId WHERE g.Name LIKE '%rock%'",
+          "expected": [
+            [
+              1309
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
