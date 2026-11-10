@@ -168,7 +168,7 @@ export const TagInput = forwardRef<TagInputHandle, TagInputProps>(function TagIn
 	return (
 		<div
 			className={[
-				'flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-md border bg-white px-2 py-1.5 text-sm transition-colors dark:bg-zinc-900',
+				'flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 text-sm transition-colors glass',
 				disabled
 					? 'cursor-not-allowed border-zinc-200 bg-zinc-50 opacity-70 dark:border-zinc-700 dark:bg-zinc-900/60'
 					: 'border-zinc-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 dark:border-zinc-600',

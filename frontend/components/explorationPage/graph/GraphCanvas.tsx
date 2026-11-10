@@ -110,21 +110,21 @@ class NoopNodeProgram {
 // read as colored shapes instead of glowing white blobs against a black
 // canvas.
 const NODE_TYPE_COLOR_LIGHT: Record<NodeType, string> = {
-	term: '#daf5c7',
+	term: '#d6e1ff',
 	table: '#fae3c2',
 	schema: '#f7c5e6',
 	column: '#e1caf2',
-	columnAttribute: '#caf2d4',
+	columnAttribute: '#f5e7c0',
 	sqlAttribute: '#c7cef5',
 	sql: '#f8c3c3',
 	customAnalysis: '#c5f3f7',
 };
 const NODE_TYPE_COLOR_DARK: Record<NodeType, string> = {
-	term: '#293a1d',
+	term: '#18244d',
 	table: '#3e2e19',
 	schema: '#3b1c31',
 	column: '#2d2037',
-	columnAttribute: '#203725',
+	columnAttribute: '#3a3016',
 	sqlAttribute: '#1d223a',
 	sql: '#3c1a1a',
 	customAnalysis: '#1c383b',
@@ -613,7 +613,16 @@ type GraphCanvasProps = {
 	onDoubleClickNode: (nodeId: string) => void;
 	onHoverNode: (hoveredNode: HoveredNode | null) => void;
 	onControllerChange: (controller: GraphController | null) => void;
+	/**
+	 * How many nodes of each kind the live graph holds, reported when it is
+	 * built and after every expansion or collapse. Expansions are grafted
+	 * straight onto the renderer, so this is the only place that knows.
+	 */
+	onNodeKindsChange?: (counts: NodeKindCounts) => void;
 };
+
+/** Node count per kind on the live graph; kinds with no node are absent. */
+export type NodeKindCounts = Partial<Record<NodeType, number>>;
 
 /** Sigma.js-backed graph canvas shared by both the semantic and data Exploration layers. */
 export const GraphCanvas = ({
@@ -626,8 +635,14 @@ export const GraphCanvas = ({
 	onDoubleClickNode,
 	onHoverNode,
 	onControllerChange,
+	onNodeKindsChange,
 }: GraphCanvasProps) => {
 	const containerRef = useRef<HTMLDivElement>(null);
+	// Read by the mount effect's controller, which outlives any one render.
+	const onNodeKindsChangeRef = useRef(onNodeKindsChange);
+	useEffect(() => {
+		onNodeKindsChangeRef.current = onNodeKindsChange;
+	});
 	const activeNodeIdRef = useRef<string | null>(activeNodeId);
 	const highlightedPathRef = useRef<{ nodeIds: Set<string>; edgeKeys: Set<string> } | null>(null);
 	// The renderer itself, mirrored out of the big mount effect below so
@@ -1669,6 +1684,15 @@ export const GraphCanvas = ({
 		});
 		resizeObserver.observe(containerRef.current);
 
+		const reportNodeKinds = () => {
+			const counts: NodeKindCounts = {};
+			graphology.forEachNode((_, attrs) => {
+				counts[attrs.kind] = (counts[attrs.kind] ?? 0) + 1;
+			});
+			onNodeKindsChangeRef.current?.(counts);
+		};
+		reportNodeKinds();
+
 		onControllerChange({
 			getCamera: () => renderer.getCamera(),
 			refresh: () => renderer.refresh(),
@@ -1677,8 +1701,15 @@ export const GraphCanvas = ({
 				renderer.refresh();
 			},
 			focusNode: (nodeId) => focusExpansionIfOffscreen([nodeId]),
-			addExpansion,
-			removeExpansion,
+			addExpansion: (originNodeId, nodes, edges) => {
+				addExpansion(originNodeId, nodes, edges);
+				reportNodeKinds();
+			},
+			removeExpansion: (originNodeId) => {
+				const dropped = removeExpansion(originNodeId);
+				reportNodeKinds();
+				return dropped;
+			},
 		});
 
 		return () => {

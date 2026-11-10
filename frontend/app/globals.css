@@ -72,10 +72,49 @@
 	--color-primary-strong: #8aa9ff;
 }
 
-/* Faces loaded by app/chat/layout.tsx; only defined inside the Chat page. */
-@theme inline {
-	--font-glass: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
-	--font-glass-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+/*
+ * Frosted-glass surfaces. Border colour stays a separate class on each element
+ * (`border-white/70 dark:border-white/10` by default), so a selected or error
+ * state can still recolour it.
+ *   glass         cards and panels that sit in the page
+ *   glass-strong  menus, dialogs and side panels that float over content,
+ *                 more opaque so what is underneath does not show through text
+ */
+@utility glass {
+	background-color: rgb(255 255 255 / 0.6);
+	-webkit-backdrop-filter: blur(24px);
+	backdrop-filter: blur(24px);
+	box-shadow: 0 8px 32px rgb(24 86 255 / 0.1);
+
+	&:where(.dark, .dark *) {
+		background-color: rgb(255 255 255 / 0.06);
+		box-shadow: 0 8px 32px rgb(0 0 0 / 0.45);
+	}
+}
+
+@utility glass-strong {
+	background-color: rgb(255 255 255 / 0.88);
+	-webkit-backdrop-filter: blur(24px);
+	backdrop-filter: blur(24px);
+	box-shadow: 0 16px 48px rgb(24 86 255 / 0.16);
+
+	&:where(.dark, .dark *) {
+		background-color: rgb(24 24 27 / 0.88);
+		box-shadow: 0 16px 48px rgb(0 0 0 / 0.5);
+	}
+}
+
+/*
+ * App typefaces, loaded by app/layout.tsx with next/font, which sets these
+ * variables on <html>. Tailwind's `font-sans` / `font-mono` and its preflight
+ * defaults (body text, code blocks) read them.
+ */
+@theme {
+	/* Corner radius of glass cards and panels (`rounded-card`). */
+	--radius-card: 1.25rem;
+
+	--font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 @keyframes progress-indeterminate {

@@ -66,6 +66,8 @@ const trailKey = (items: BreadcrumbItem[]): string =>
 
 type BreadcrumbContextValue = {
 	items: BreadcrumbItem[];
+	/** The levels the page itself added below its section (a database, a term, a tag). */
+	pageTrail: BreadcrumbItem[];
 	setTrail: (items: BreadcrumbItem[]) => void;
 	rightSlot: ReactNode;
 	setRightSlot: (node: ReactNode) => void;
@@ -73,6 +75,7 @@ type BreadcrumbContextValue = {
 
 const BreadcrumbContext = createContext<BreadcrumbContextValue>({
 	items: EMPTY_TRAIL,
+	pageTrail: EMPTY_TRAIL,
 	setTrail: () => {},
 	rightSlot: null,
 	setRightSlot: () => {},
@@ -111,8 +114,8 @@ export const BreadcrumbProvider = ({ children }: { children: ReactNode }) => {
 	);
 
 	const value = useMemo(
-		() => ({ items, setTrail, rightSlot, setRightSlot }),
-		[items, setTrail, rightSlot, setRightSlot],
+		() => ({ items, pageTrail: trail, setTrail, rightSlot, setRightSlot }),
+		[items, trail, setTrail, rightSlot, setRightSlot],
 	);
 
 	return <BreadcrumbContext.Provider value={value}>{children}</BreadcrumbContext.Provider>;

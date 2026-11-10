@@ -16,7 +16,7 @@ import { resumeAuthorizeFromApp } from '@/auth/oauth-loopback';
 import { SkeletonVariant } from '@/enums/skeleton';
 
 const inputClass =
-	'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300';
 
 const LoginLoading = () => (
 	<div
@@ -218,13 +218,23 @@ const LoginForm = () => {
 };
 
 const LoginPage = () => (
-	<div className="flex h-full w-full items-center justify-center bg-white p-6 dark:bg-zinc-950">
-		<div className="flex flex-col items-center gap-6">
-			<div className="flex items-center gap-2">
-				<Icon name={IconName.AppLogo} className="h-6 w-6 text-primary" />
-				<span className="text-lg font-semibold text-heading dark:text-zinc-100">
+	<div className="flex h-full w-full items-center justify-center overflow-y-auto p-6">
+		<div className="glass flex w-full max-w-[420px] flex-col gap-6 rounded-[28px] border border-white/80 p-9 dark:border-white/10">
+			<div className="flex items-center gap-3">
+				<span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary">
+					<Icon name={IconName.AppLogo} className="h-6 w-6 text-white" />
+				</span>
+				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">
 					Auto Ontology
 				</span>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<h1 className="text-2xl leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">
+					Sign in
+				</h1>
+				<p className="text-sm text-secondary dark:text-zinc-400">
+					Ask questions about your data in plain language.
+				</p>
 			</div>
 			<Suspense fallback={<LoginLoading />}>
 				<LoginForm />

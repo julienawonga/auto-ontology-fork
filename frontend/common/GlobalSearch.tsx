@@ -148,8 +148,7 @@ export type GlobalSearchModalProps = {
 /**
  * The search dialog on its own, opened by whoever owns `open`.
  *
- * Split from the top bar's trigger so a page can offer its own entry point
- * without a second search state or a second copy of the trigger.
+ * Opened from the sidebar's search button and its Ctrl+K / Cmd+K shortcut.
  *
  * It searches and navigates, and does nothing else with what it finds: rules
  * are built on the Discovery page, over a search whose filters are on screen
@@ -352,42 +351,11 @@ export const GlobalSearchModal = ({ open, onClose }: GlobalSearchModalProps) => 
 			<button
 				type="button"
 				onClick={handleAdvancedSearch}
-				className="flex shrink-0 cursor-pointer items-center gap-2 border-t border-zinc-200 px-4 py-2.5 text-sm text-blue-600 transition-colors hover:bg-zinc-50 hover:text-blue-700 dark:border-zinc-800 dark:text-blue-400 dark:hover:bg-zinc-900/60 dark:hover:text-blue-300"
+				className="flex shrink-0 cursor-pointer items-center gap-2 border-t border-zinc-200 px-4 py-2.5 text-sm text-primary transition-colors hover:bg-zinc-50 hover:text-primary-hover dark:border-zinc-800 dark:text-primary-soft dark:hover:bg-zinc-900/60 dark:hover:text-primary-subtle"
 			>
 				<Icon name={IconName.Filter} className="h-4 w-4 shrink-0" />
 				Advanced Search
 			</button>
 		</Modal>
-	);
-};
-
-/** The top bar's search pill and the dialog it opens. */
-export const GlobalSearch = () => {
-	const [open, setOpen] = useState(false);
-
-	return (
-		<>
-			<button
-				type="button"
-				onClick={() => setOpen(true)}
-				aria-label="Search Auto Ontology"
-				className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-blue-50 px-3 text-sm text-blue-700 transition-colors hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
-			>
-				<svg
-					className="h-4 w-4 shrink-0"
-					viewBox="0 0 20 20"
-					fill="currentColor"
-					aria-hidden
-				>
-					<path
-						fillRule="evenodd"
-						d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z"
-						clipRule="evenodd"
-					/>
-				</svg>
-				Search Auto Ontology
-			</button>
-			<GlobalSearchModal open={open} onClose={() => setOpen(false)} />
-		</>
 	);
 };

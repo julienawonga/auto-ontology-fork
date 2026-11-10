@@ -10,7 +10,13 @@ import { CopyButton } from '@/common/Button';
 import { formatDate } from '@/common/date';
 import { Icon, IconName } from '@/common/icons';
 import { parseSqlResponse, type ParsedTable } from '@/lib/parseSqlResponse';
-import { SqlBlock } from '@/common/SqlBlock';
+import {
+	SqlBlock,
+	codeHeaderClass,
+	codeLabelClass,
+	codeSurfaceClass,
+	codeTextClass,
+} from '@/common/SqlBlock';
 import { DynamicTable } from './DynamicTable';
 import { FormattedContent } from './FormattedContent';
 import { glassFocus, glassSurface } from './glass';
@@ -50,13 +56,14 @@ const QueryResultsSection = ({
 		)}
 		{sqlResponse && parsedTable && !singleCell && <DynamicTable table={parsedTable} />}
 		{sqlResponse && !parsedTable && (
-			<div className="group relative overflow-hidden rounded-lg bg-zinc-900 dark:bg-zinc-950">
-				<div className="flex items-center justify-between border-b border-zinc-700 px-3 py-1.5">
-					{/* Dark in both themes, so the light-theme text tokens do not apply here. */}
-					<span className="text-xs font-medium text-zinc-400">Raw</span>
+			<div className={`group relative overflow-hidden rounded-xl ${codeSurfaceClass}`}>
+				<div className={codeHeaderClass}>
+					<span className={codeLabelClass}>Raw</span>
 					<CopyButton text={sqlResponse} />
 				</div>
-				<pre className="overflow-x-auto p-3 text-xs leading-relaxed text-zinc-100">
+				<pre
+					className={`overflow-x-auto p-3 font-mono text-xs leading-relaxed ${codeTextClass}`}
+				>
 					<code>{sqlResponse}</code>
 				</pre>
 			</div>

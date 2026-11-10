@@ -185,7 +185,7 @@ export const GlobalSearchResultsSkeleton = () => (
 	<ul className="flex flex-col gap-2 p-3" aria-hidden>
 		{RESULT_SKELETON_TITLE_WIDTHS.map((titleWidth, index) => (
 			<li key={index}>
-				<div className="flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-900">
+				<div className="flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-2xl border px-4 py-3.5 border-white/70 dark:border-white/10 glass">
 					<div className="flex min-w-0 items-center gap-2">
 						<SkeletonBlock
 							variant={SkeletonVariant.CIRCLE}
@@ -230,7 +230,7 @@ export const GlobalSearchResults = ({
 					<Link
 						href={href}
 						onClick={onNavigate}
-						className="flex min-w-0 cursor-pointer flex-col gap-1.5 overflow-hidden rounded-xl border border-zinc-200 bg-white px-3 py-2.5 select-none [&_*]:cursor-pointer transition-colors hover:border-primary/50 hover:bg-primary/5 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-primary/40 dark:hover:bg-primary/10"
+						className="flex min-w-0 cursor-pointer flex-col gap-1.5 overflow-hidden rounded-2xl border px-4 py-3.5 select-none [&_*]:cursor-pointer transition-colors hover:border-primary/50 hover:bg-primary/5 dark:hover:border-primary/40 dark:hover:bg-primary/10 border-white/70 dark:border-white/10 glass"
 					>
 						<div className="flex min-w-0 items-center gap-2 overflow-hidden">
 							<Icon name={typeIcon} className="h-4 w-4 shrink-0 text-secondary" />
@@ -242,7 +242,7 @@ export const GlobalSearchResults = ({
 							{status != null && (
 								<CertificationBadge status={status} iconOnly focusable={false} />
 							)}
-							<span className="ml-auto shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-body dark:bg-zinc-800 dark:text-zinc-300">
+							<span className="ml-auto shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary-strong dark:bg-primary/20 dark:text-primary-soft">
 								{typeLabel}
 							</span>
 						</div>

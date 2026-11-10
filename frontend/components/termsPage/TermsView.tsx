@@ -26,7 +26,6 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { DEFAULT_PAGE_SIZE, useInfiniteList } from '@/hooks/useInfiniteList';
 import { type ComposerEditValue } from '@/common/SinglePageComposer';
 import { entitySidePanel } from '@/common/SidePanel';
-import { Label } from '@/common/Label';
 import { CertificationBadge } from '@/common/CertificationBadge';
 import { ComposerColumnType, ComposerSectionKind } from '@/enums/datasources';
 import { CertificationStatus } from '@/enums/certification';
@@ -42,15 +41,14 @@ import {
 	syncTags,
 } from '@/lib/tags';
 import { sampleValuesEditable, sampleValuesReadOnlyHint } from '@/lib/column-types';
-import { canEditEntity, changedOwnerId, entityOwnerSection, findOwner } from '@/lib/owners';
+import { canEditEntity, changedOwnerId, entityOwnerSection } from '@/lib/owners';
 import { fetchOwnerDirectory, ownerQueries } from '@/lib/queries/owners';
 import { OwnerPermission } from '@/types/owners';
 import { useSession } from '@/auth/auth-client';
 import { SinglePageView, type SinglePageFormat } from '@/common/SinglePageView';
 import { SqlEditor } from '@/common/SqlBlock';
 import { Toast } from '@/common/Toast';
-import { OwnerLabel } from '@/common/OwnerLabel';
-import type { Owner } from '@/types/owners';
+import { TermPreviewPanel } from './TermPreviewPanel';
 import type { ColumnAttribute, SqlAttribute, Term, TermCount, TermDetail } from '@/types/terms';
 
 const termFocusTrail = ({
@@ -81,16 +79,16 @@ const termFocusTrail = ({
 
 type TermCardProps = {
 	term: Term;
-	owners: Owner[];
 	columnAttributeCount: number;
 	sqlAttributeCount: number;
 	relatedCount: number;
 	certificationStatus: CertificationStatus;
-	onClick: (term: Term) => void;
+	/** Shown in the side panel. */
+	selected: boolean;
+	onSelect: (term: Term) => void;
+	/** Opens the term's full page. */
+	onOpen: (term: Term) => void;
 };
-
-/** How many tag chips a card shows before the rest collapse to a count. */
-const CARD_TAG_LIMIT = 2;
 
 type SqlAttributeDeleteTarget = {
 	id: string;
@@ -118,146 +116,55 @@ export const TermsLoadingSkeleton = () => (
 
 const TermCard = ({
 	term,
-	owners,
 	columnAttributeCount,
 	sqlAttributeCount,
 	relatedCount,
 	certificationStatus,
-	onClick,
+	selected,
+	onSelect,
+	onOpen,
 }: TermCardProps) => {
-	const tags = term.tags ?? [];
-	const shownTags = tags.slice(0, CARD_TAG_LIMIT);
-	const hiddenTagCount = tags.length - shownTags.length;
+	const counts = [
+		`${columnAttributeCount} column attribute${columnAttributeCount === 1 ? '' : 's'}`,
+		...(sqlAttributeCount > 0
+			? [`${sqlAttributeCount} SQL attribute${sqlAttributeCount === 1 ? '' : 's'}`]
+			: []),
+		`${relatedCount} related term${relatedCount === 1 ? '' : 's'}`,
+	];
 	return (
-		<li
-			role="button"
-			tabIndex={0}
-			onClick={() => onClick(term)}
-			onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick(term)}
-			className="cursor-pointer rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
-		>
-			{/* Card header */}
-			<div className="flex items-start justify-between gap-3">
-				<div className="min-w-0 space-y-0.5">
-					<div className="flex min-w-0 items-center gap-2">
-						<Icon
-							name={IconName.Terms}
-							className="h-4 w-4 shrink-0 text-body dark:text-zinc-300"
-						/>
-						<Text as="h2" text={term.name} variant={TextVariant.CardTitle} fill />
-					</div>
-					{term.synonyms && term.synonyms.length > 0 && (
-						<Text
-							as="p"
-							text={term.synonyms.join(', ')}
-							variant={TextVariant.Caption}
-						/>
-					)}
-				</div>
-				<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-					<span className="inline-flex items-center gap-1 text-sm font-semibold text-heading dark:text-zinc-100">
-						<Icon name={IconName.Tag} className="h-4 w-4" />
-						Tags
-					</span>
-					{shownTags.length === 0 ? (
-						<span className="text-sm text-[#B3B4B7]">None</span>
-					) : (
-						shownTags.map((tag) => <Label key={tag.id} label={tag.name} />)
-					)}
-					{hiddenTagCount > 0 ? (
-						<span className="text-xs text-secondary dark:text-zinc-400">
-							+{hiddenTagCount}
-						</span>
-					) : null}
-					<OwnerLabel owner={findOwner(owners, term.owner_id)} />
+		<li>
+			{/* Click selects the term for the side panel; double-click or Enter opens it. */}
+			<button
+				type="button"
+				aria-pressed={selected}
+				onClick={() => onSelect(term)}
+				onDoubleClick={() => onOpen(term)}
+				onKeyDown={(e) => {
+					if (e.key !== 'Enter') return;
+					e.preventDefault();
+					onOpen(term);
+				}}
+				className={`glass flex h-full w-full cursor-pointer flex-col gap-2.5 rounded-card border p-5 text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${
+					selected
+						? 'border-primary ring-1 ring-primary/30 dark:border-primary-soft'
+						: 'border-white/70 dark:border-white/10'
+				}`}
+			>
+				<span className="flex min-w-0 items-center justify-between gap-2">
+					<Text as="h2" text={term.name} variant={TextVariant.CardTitle} fill />
 					<CertificationBadge status={certificationStatus} />
-				</div>
-			</div>
-
-			<div className="mt-2">
+				</span>
 				{term.description != null && term.description.trim() !== '' ? (
-					<Text as="p" text={term.description} lines={3} variant={TextVariant.Body} />
+					<Text as="p" text={term.description} lines={2} variant={TextVariant.Body} />
 				) : (
-					<p className="text-sm italic text-secondary dark:text-zinc-500">
+					<span className="text-sm text-secondary italic dark:text-zinc-500">
 						No Description Available
-					</p>
+					</span>
 				)}
-			</div>
-
-			{/* Four-column section */}
-			<div className="mt-4 grid grid-cols-4 gap-0 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
-				{/* Column Attributes */}
-				<div className="border-r border-zinc-200 dark:border-zinc-700">
-					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
-						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
-							Column Attributes
-						</span>
-					</div>
-					<div className="flex items-center">
-						<span className="flex w-full items-center justify-between px-4 py-3 text-sm text-body dark:text-zinc-300">
-							<span>Column Attributes</span>
-							<span className="ml-1.5 font-medium text-heading dark:text-zinc-100">
-								{columnAttributeCount}
-							</span>
-						</span>
-					</div>
-				</div>
-
-				{/* SQL Attributes */}
-				<div className="border-r border-zinc-200 dark:border-zinc-700">
-					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
-						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
-							SQL Attributes
-						</span>
-					</div>
-					<div className="flex items-center">
-						<span className="flex w-full items-center justify-between px-4 py-3 text-sm text-body dark:text-zinc-300">
-							<span>SQL Attributes</span>
-							<span className="ml-1.5 font-medium text-heading dark:text-zinc-100">
-								{sqlAttributeCount}
-							</span>
-						</span>
-					</div>
-				</div>
-
-				{/* Related Terms */}
-				<div className="border-r border-zinc-200 dark:border-zinc-700">
-					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
-						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
-							Related Terms
-						</span>
-					</div>
-					<div className="flex items-center justify-between px-4 py-3 text-sm text-body dark:text-zinc-300">
-						<span>Related Terms</span>
-						<span className="font-medium text-heading dark:text-zinc-100">
-							{relatedCount}
-						</span>
-					</div>
-				</div>
-
-				{/* Zones */}
-				<div>
-					<div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
-						<span className="text-xs font-semibold text-secondary dark:text-zinc-400">
-							Zones
-						</span>
-					</div>
-					<div className="flex flex-wrap items-center gap-1.5 px-4 py-3">
-						{term.zones.length > 0 ? (
-							term.zones.map((zone) => (
-								<Label
-									key={zone.id}
-									label={zone.name}
-									color={zone.color}
-									muted={!zone.enabled}
-								/>
-							))
-						) : (
-							<span className="text-sm text-secondary dark:text-zinc-400">-</span>
-						)}
-					</div>
-				</div>
-			</div>
+				<span className="text-xs text-secondary dark:text-zinc-400">
+					{counts.join(' · ')}
+				</span>
+			</button>
 		</li>
 	);
 };
@@ -286,7 +193,7 @@ const withCounts = (held: Map<string, number>, rows: TermCount[] | undefined) =>
 };
 
 const FIELD_INPUT_CLASSNAME =
-	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500';
 
 const FIELD_LABEL_CLASSNAME = 'mb-1.5 block text-sm font-medium text-heading dark:text-zinc-100';
 
@@ -459,6 +366,19 @@ export const TermsView = () => {
 			router.push(`/terms?focus=${encodeURIComponent(term.id)}`);
 		},
 		[router],
+	);
+
+	// The term shown in the side panel; the first card until one is picked.
+	const [previewTermId, setPreviewTermId] = useState<string | null>(null);
+	const previewTerm = terms.find((t) => t.id === previewTermId) ?? terms[0] ?? null;
+	const handleCardSelect = useCallback(
+		(term: Term) => {
+			// The panel only shows on wide screens (`lg`); elsewhere a click opens
+			// the term, as it did before the panel existed.
+			if (window.matchMedia('(min-width: 1024px)').matches) setPreviewTermId(term.id);
+			else handleCardClick(term);
+		},
+		[handleCardClick],
 	);
 
 	const handleSqlAttrCreated = useCallback((attribute: SqlAttribute) => {
@@ -1380,7 +1300,7 @@ export const TermsView = () => {
 	if (focusId != null && sqlAttrId != null) {
 		const sqlAttrTitle = focusedSqlAttr?.name ?? sqlAttrId;
 		return (
-			<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+			<div className="flex h-full w-full flex-col">
 				<main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 					<SinglePageView
 						key={sqlAttrId}
@@ -1517,7 +1437,7 @@ export const TermsView = () => {
 	if (focusId != null && colAttrId != null) {
 		const colAttrTitle = focusedColAttr?.name ?? colAttrId;
 		return (
-			<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+			<div className="flex h-full w-full flex-col">
 				<main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 					<SinglePageView
 						key={colAttrId}
@@ -1573,7 +1493,7 @@ export const TermsView = () => {
 
 	if (focusId != null) {
 		return (
-			<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+			<div className="flex h-full w-full flex-col">
 				<main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 					<SinglePageView
 						key={focusId}
@@ -1687,16 +1607,18 @@ export const TermsView = () => {
 	}
 
 	return (
-		<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
-			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-				<Icon name={IconName.Terms} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
+		<div className="flex h-full w-full flex-col">
+			<header className="flex flex-col gap-1.5 px-6 pt-8 pb-2 sm:px-10">
+				<h1 className="text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">
 					Terms
 				</h1>
+				<p className="text-sm text-secondary dark:text-zinc-400">
+					Business terms compiled from your catalog, with their attributes and links.
+				</p>
 			</header>
 
 			<InfiniteScroll
-				className="flex-1 px-6 py-6"
+				className="flex-1 px-6 py-6 sm:px-10"
 				onLoadMore={loadMoreTerms}
 				isLoading={loadingMoreTerms}
 				hasMore={hasMoreTerms}
@@ -1718,7 +1640,7 @@ export const TermsView = () => {
 				{loading && <TermsLoadingSkeleton />}
 
 				{!loading && error != null && terms.length === 0 && (
-					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 bg-white/90 px-8 py-10 text-center shadow-xl shadow-red-100/50 dark:border-red-900/50 dark:bg-zinc-950/80 dark:shadow-none">
+					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 px-8 py-10 text-center dark:border-red-900/50 glass-strong">
 						<h2 className="text-lg font-semibold tracking-tight text-red-800 dark:text-red-300">
 							Couldn&apos;t load terms
 						</h2>
@@ -1753,22 +1675,43 @@ export const TermsView = () => {
 				)}
 
 				{!loading && terms.length > 0 && (
-					<ul className="flex flex-col gap-4">
-						{terms.map((term) => (
-							<TermCard
-								key={term.id}
-								term={term}
-								owners={owners}
-								columnAttributeCount={
-									badgeCounts.columnAttributes.get(term.id) ?? 0
-								}
-								sqlAttributeCount={badgeCounts.sqlAttributes.get(term.id) ?? 0}
-								relatedCount={badgeCounts.related.get(term.id) ?? 0}
-								certificationStatus={term.certification}
-								onClick={handleCardClick}
-							/>
-						))}
-					</ul>
+					<div className="flex items-start gap-6">
+						<ul className="grid min-w-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-2">
+							{terms.map((term) => (
+								<TermCard
+									key={term.id}
+									term={term}
+									columnAttributeCount={
+										badgeCounts.columnAttributes.get(term.id) ?? 0
+									}
+									sqlAttributeCount={badgeCounts.sqlAttributes.get(term.id) ?? 0}
+									relatedCount={badgeCounts.related.get(term.id) ?? 0}
+									certificationStatus={term.certification}
+									selected={term.id === previewTerm?.id}
+									onSelect={handleCardSelect}
+									onOpen={handleCardClick}
+								/>
+							))}
+						</ul>
+						{previewTerm ? (
+							// Beside the list on wide screens; on narrower ones a click
+							// goes straight to the full page instead.
+							<div className="sticky top-0 hidden w-[380px] shrink-0 lg:block">
+								<TermPreviewPanel
+									term={previewTerm}
+									owners={owners}
+									columnAttributeCount={
+										badgeCounts.columnAttributes.get(previewTerm.id) ?? 0
+									}
+									sqlAttributeCount={
+										badgeCounts.sqlAttributes.get(previewTerm.id) ?? 0
+									}
+									relatedCount={badgeCounts.related.get(previewTerm.id) ?? 0}
+									onOpen={handleCardClick}
+								/>
+							</div>
+						) : null}
+					</div>
 				)}
 			</InfiniteScroll>
 		</div>

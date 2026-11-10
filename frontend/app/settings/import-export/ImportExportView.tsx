@@ -208,7 +208,7 @@ export const ImportExportView = () => {
 
 	return (
 		<div className="mx-auto w-full max-w-2xl space-y-6">
-			<h1 className="text-lg font-semibold text-heading dark:text-zinc-100">
+			<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 				Import / Export
 			</h1>
 

@@ -54,8 +54,8 @@ const CLAMP_CLASS = {
 const VARIANT_CLASS: Record<TextVariant, string> = {
 	[TextVariant.Inherit]: '',
 	[TextVariant.PageTitle]:
-		'text-2xl font-semibold tracking-tight text-heading dark:text-zinc-100',
-	[TextVariant.CardTitle]: 'text-base font-semibold tracking-tight text-body dark:text-zinc-100',
+		'text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50',
+	[TextVariant.CardTitle]: 'text-base font-bold tracking-tight text-glass-text dark:text-zinc-50',
 	[TextVariant.Heading]: 'text-sm font-semibold text-heading dark:text-zinc-100',
 	[TextVariant.Subheading]: 'text-sm font-medium text-heading dark:text-zinc-100',
 	[TextVariant.Body]: 'text-sm text-body dark:text-zinc-300',
@@ -67,7 +67,7 @@ const VARIANT_CLASS: Record<TextVariant, string> = {
 		'text-xs font-semibold uppercase tracking-wide text-secondary dark:text-zinc-400',
 };
 const TOOLTIP_CLASS =
-	'z-[1000] block max-h-[60vh] max-w-[min(500px,90vw)] overflow-y-auto whitespace-pre-wrap wrap-anywhere rounded-lg border border-zinc-200 bg-white p-2 text-xs leading-5 text-body shadow-xl dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+	'z-[1000] block max-h-[60vh] max-w-[min(500px,90vw)] overflow-y-auto whitespace-pre-wrap wrap-anywhere border p-2 text-xs leading-5 text-body dark:text-zinc-300 border-white/70 dark:border-white/10 rounded-xl glass-strong';
 
 const cx = (...classes: (string | false | undefined)[]) => classes.filter(Boolean).join(' ');
 export const Text = ({

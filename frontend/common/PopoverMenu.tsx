@@ -8,6 +8,7 @@ import { type ReactNode } from 'react';
 import { SelectButton } from '@/common/Button';
 import { Popover } from '@/common/Popover';
 import { SelectButtonTheme } from '@/enums/button';
+import type { PopoverAlign } from '@/enums/popover';
 
 export type PopoverMenuItem = {
 	label: string;
@@ -31,6 +32,8 @@ type PopoverMenuProps = {
 	 * menu stays open) rather than act and close.
 	 */
 	footer?: ReactNode;
+	/** Where the panel opens relative to the trigger; under its right edge by default. */
+	align?: PopoverAlign;
 	className?: string;
 };
 
@@ -43,10 +46,12 @@ export const PopoverMenu = ({
 	trigger,
 	header,
 	footer,
+	align,
 	className = '',
 }: PopoverMenuProps) => (
 	<Popover
 		trigger={trigger}
+		align={align}
 		className={className}
 		panelClassName="w-max min-w-32 whitespace-nowrap py-1"
 	>

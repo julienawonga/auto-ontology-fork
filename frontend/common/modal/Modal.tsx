@@ -56,7 +56,7 @@ export const Modal = ({
 				aria-hidden
 			/>
 			<div
-				className={`relative rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800 ${className}`}
+				className={`relative rounded-xl border border-white/70 dark:border-white/10 glass-strong ${className}`}
 				role="dialog"
 				aria-modal="true"
 			>

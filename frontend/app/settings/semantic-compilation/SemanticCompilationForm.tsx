@@ -134,7 +134,7 @@ export const SemanticCompilationForm = ({
 	return (
 		<div className="h-full overflow-auto p-6">
 			<div className="mx-auto max-w-xl">
-				<h1 className="mb-1 text-lg font-semibold text-heading dark:text-zinc-100">
+				<h1 className="mb-1 text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 					Semantic Compilation
 				</h1>
 				<p className="mb-4 text-xs text-secondary">

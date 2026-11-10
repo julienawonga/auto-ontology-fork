@@ -39,7 +39,7 @@ type VariantStyle = {
 const variantStyles: Record<EmptyStateVariant, VariantStyle> = {
 	[EmptyStateVariant.Dashed]: {
 		container:
-			'min-h-[40dvh] rounded-2xl border border-dashed border-zinc-300/90 bg-white/60 p-12 dark:border-zinc-600 dark:bg-zinc-950/40',
+			'min-h-[40dvh] rounded-2xl border border-dashed p-12 border-zinc-400/40 bg-white/40 backdrop-blur-md dark:border-white/15 dark:bg-white/[0.03]',
 		icon: 'h-8 w-8',
 		title: 'text-sm font-medium text-body dark:text-zinc-300',
 		description: 'text-xs text-secondary dark:text-zinc-400',

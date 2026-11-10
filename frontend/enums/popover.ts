@@ -7,4 +7,9 @@ export enum PopoverAlign {
 	Right = 'right',
 	/** Panel spans the trigger's width, the way a select field's options do. */
 	Stretch = 'stretch',
+	/**
+	 * Panel opens above the trigger, left edges aligned: for a trigger at the
+	 * bottom of the screen, such as the account button in the sidebar.
+	 */
+	AboveLeft = 'above-left',
 }

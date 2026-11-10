@@ -71,7 +71,7 @@ const ConsentForm = () => {
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
 			<div className="space-y-2 text-center">
-				<h1 className="text-xl font-semibold text-heading dark:text-zinc-100">
+				<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 					Authorize MCP access
 				</h1>
 				<p className="text-sm text-body dark:text-zinc-400">
@@ -119,11 +119,13 @@ const ConsentForm = () => {
 };
 
 const ConsentPage = () => (
-	<div className="flex h-full w-full items-center justify-center bg-white p-6 dark:bg-zinc-950">
-		<div className="flex flex-col items-center gap-6">
+	<div className="flex h-full w-full items-center justify-center p-6">
+		<div className="glass flex w-full max-w-[420px] flex-col items-center gap-6 rounded-[28px] border border-white/80 p-9 dark:border-white/10">
 			<div className="flex items-center gap-2">
-				<Icon name={IconName.AppLogo} className="h-6 w-6 text-primary" />
-				<span className="text-lg font-semibold text-heading dark:text-zinc-100">
+				<span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary">
+					<Icon name={IconName.AppLogo} className="h-6 w-6 text-white" />
+				</span>
+				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">
 					Auto Ontology
 				</span>
 			</div>

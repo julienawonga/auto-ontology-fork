@@ -42,6 +42,7 @@ import type {
 	GraphController,
 	HighlightedPath,
 	HoveredNode,
+	NodeKindCounts,
 } from './graph/GraphCanvas';
 import { NODE_TYPE_ACCENT_COLOR } from './graph/nodeTypeColors';
 import type { NodeType } from './graph/nodeTypeColors';
@@ -178,6 +179,25 @@ const LegendItem = ({
 	);
 };
 
+/** Legend entries for the node kinds, in display order. */
+const LEGEND_KINDS: { kind: NodeType; icon: IconName; label: string }[] = [
+	{ kind: 'term', icon: IconName.Terms, label: 'Terms' },
+	{ kind: 'table', icon: IconName.Table, label: 'Tables' },
+	{ kind: 'columnAttribute', icon: IconName.Key, label: 'Column Attributes' },
+	{ kind: 'sqlAttribute', icon: IconName.ChartLine, label: 'SQL Attributes' },
+	{ kind: 'schema', icon: IconName.Schema, label: 'Schemas' },
+	{ kind: 'column', icon: IconName.Column, label: 'Columns' },
+	{ kind: 'sql', icon: IconName.CodeBracket, label: 'SQL' },
+	{ kind: 'customAnalysis', icon: IconName.ChartBar, label: 'Custom Analyses' },
+];
+
+/** On the Data layer, tables are broken down by relation type instead. */
+const DATA_TABLE_LEGEND = [
+	{ type: TableType.BASE_TABLE, label: 'Tables' },
+	{ type: TableType.VIEW, label: 'Views' },
+	{ type: TableType.MATERIALIZED_VIEW, label: 'Materialized' },
+];
+
 // Sigma.js touches WebGL globals at module scope, so it can only be
 // evaluated in the browser; loading it via `next/dynamic` with `ssr: false`
 // keeps Next.js from crashing while server-rendering this client component.
@@ -198,6 +218,8 @@ export const ExplorationView = () => {
 	const activeNodeIdFromUrl = layer === ExplorationLayer.Semantic ? semanticId : dataId;
 	const [semanticGraph, setSemanticGraph] = useState<ExplorationGraph>(EMPTY_GRAPH);
 	const [dataGraph, setDataGraph] = useState<ExplorationGraph>(EMPTY_GRAPH);
+	// Node kinds on the live graph, as the canvas reports them (expansions included).
+	const [nodeKindCounts, setNodeKindCounts] = useState<NodeKindCounts>({});
 	const [semanticLoading, setSemanticLoading] = useState(true);
 	const [dataLoading, setDataLoading] = useState(false);
 	const [semanticError, setSemanticError] = useState<string | null>(null);
@@ -2149,10 +2171,10 @@ export const ExplorationView = () => {
 									? 'Search terms in exploration'
 									: 'Search data objects in exploration'
 							}
-							className="h-10 bg-white shadow-md dark:bg-zinc-900"
+							className="h-10 glass-strong"
 						/>
 						{filteredNodes.length > 0 && (
-							<ul className="absolute top-12 max-h-[calc(100dvh-8.5rem)] w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+							<ul className="absolute top-12 max-h-[calc(100dvh-8.5rem)] w-full overflow-y-auto border py-1 border-white/70 dark:border-white/10 rounded-xl glass-strong">
 								{filteredNodes.map((node) => (
 									<li key={node.id}>
 										<SelectButton
@@ -2196,7 +2218,7 @@ export const ExplorationView = () => {
 
 			{!loading && error != null && (
 				<div className="flex h-full items-center justify-center px-6 text-center">
-					<div className="rounded-xl border border-red-200 bg-white px-8 py-6 text-sm text-red-700 shadow-lg dark:border-red-900/50 dark:bg-zinc-900 dark:text-red-300">
+					<div className="rounded-xl border border-red-200 px-8 py-6 text-sm text-red-700 dark:border-red-900/50 dark:text-red-300 glass-strong">
 						Couldn&apos;t load exploration: {error}
 					</div>
 				</div>
@@ -2229,6 +2251,7 @@ export const ExplorationView = () => {
 					onDoubleClickNode={handleDoubleClickNode}
 					onHoverNode={handleHoverNode}
 					onControllerChange={handleControllerChange}
+					onNodeKindsChange={setNodeKindCounts}
 				/>
 			)}
 
@@ -2300,100 +2323,44 @@ export const ExplorationView = () => {
 					/>
 				)}
 
-			<div className="absolute bottom-4 right-4 z-20 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+			{/* Only the kinds the graph shows right now, with their counts: an
+			    expansion adds kinds, a collapse removes them. */}
+			<div className="glass-strong absolute right-4 bottom-4 z-20 max-w-sm rounded-xl border border-white/70 px-3 py-2 dark:border-white/10">
 				<p className="text-xs text-secondary dark:text-zinc-400">
 					Viewing:{' '}
 					{layer === ExplorationLayer.Semantic ? 'Semantic Objects' : 'Data Objects'}
 				</p>
-				{layer === ExplorationLayer.Semantic ? (
-					<div className="mt-2 flex flex-col gap-1.5">
+				<div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5">
+					{layer === ExplorationLayer.Data &&
+						DATA_TABLE_LEGEND.filter(
+							(item) => (dataLayerTableTypeCounts?.[item.type] ?? 0) > 0,
+						).map((item) => (
+							<LegendItem
+								key={item.type}
+								kind="table"
+								icon={catalogNodeInfo[item.type].icon}
+								label={item.label}
+								count={dataLayerTableTypeCounts?.[item.type] ?? 0}
+							/>
+						))}
+					{LEGEND_KINDS.filter(
+						(item) =>
+							(nodeKindCounts[item.kind] ?? 0) > 0 &&
+							!(layer === ExplorationLayer.Data && item.kind === 'table'),
+					).map((item) => (
 						<LegendItem
-							kind="term"
-							icon={IconName.Terms}
-							label="Terms"
-							count={graph.nodes.length}
+							key={item.kind}
+							kind={item.kind}
+							icon={item.icon}
+							label={item.label}
+							count={nodeKindCounts[item.kind]}
 						/>
-						<div className="flex items-center gap-3">
-							<LegendItem
-								kind="columnAttribute"
-								icon={IconName.Key}
-								label="Column Attribute"
-							/>
-							<LegendItem
-								kind="sqlAttribute"
-								icon={IconName.ChartLine}
-								label="SQL Attribute"
-							/>
-						</div>
-						{/* A Term's own expansion (see `expandTermNode`) grafts on Data
-						objects too — its Tables directly, and (via a Table/
-						ColumnAttribute in turn) their Schema/Columns and any Sql query
-						behind a SqlAttribute (which can, in turn, graft the
-						CustomAnalysis sharing that exact Sql node — see
-						`expandSqlNode`) — so this legend covers those same five
-						Data-layer kinds here as well, same as the Data-layer section
-						below. */}
-						<div className="flex items-center gap-3">
-							<LegendItem kind="table" icon={IconName.Table} label="Table" />
-							<LegendItem kind="schema" icon={IconName.Schema} label="Schema" />
-							<LegendItem kind="column" icon={IconName.Column} label="Column" />
-						</div>
-						<div className="flex items-center gap-3">
-							<LegendItem kind="sql" icon={IconName.CodeBracket} label="SQL" />
-							<LegendItem
-								kind="customAnalysis"
-								icon={IconName.ChartBar}
-								label="Custom Analysis"
-							/>
-						</div>
-					</div>
-				) : (
-					<div className="mt-2 flex flex-col gap-1.5">
-						<div className="flex items-center gap-3">
-							{[
-								{ type: TableType.BASE_TABLE, label: 'Tables' },
-								{ type: TableType.VIEW, label: 'Views' },
-								{ type: TableType.MATERIALIZED_VIEW, label: 'Materialized' },
-							].map((item) => (
-								<LegendItem
-									key={item.type}
-									kind="table"
-									icon={catalogNodeInfo[item.type].icon}
-									label={item.label}
-									count={dataLayerTableTypeCounts?.[item.type] ?? 0}
-								/>
-							))}
-						</div>
-						<div className="flex items-center gap-3">
-							<LegendItem kind="schema" icon={IconName.Schema} label="Schema" />
-							<LegendItem kind="column" icon={IconName.Column} label="Column" />
-							<LegendItem kind="sql" icon={IconName.CodeBracket} label="SQL" />
-							<LegendItem
-								kind="customAnalysis"
-								icon={IconName.ChartBar}
-								label="Custom Analysis"
-							/>
-						</div>
-						{/* A Table's own expansion (see `expandTableNode`) grafts on
-						Semantic objects too — its linked Terms directly, and (via a
-						Term in turn) their Column/SQL Attributes — so this legend
-						covers those same three Semantic-layer kinds here as well,
-						same as the Semantic-layer section above. */}
-						<div className="flex items-center gap-3">
-							<LegendItem kind="term" icon={IconName.Terms} label="Term" />
-							<LegendItem
-								kind="columnAttribute"
-								icon={IconName.Key}
-								label="Column Attribute"
-							/>
-							<LegendItem
-								kind="sqlAttribute"
-								icon={IconName.ChartLine}
-								label="SQL Attribute"
-							/>
-						</div>
-					</div>
-				)}
+					))}
+				</div>
+				<p className="mt-2 text-[11px] text-secondary dark:text-zinc-500">
+					Double-click a {layer === ExplorationLayer.Semantic ? 'term' : 'table'} to
+					expand it.
+				</p>
 			</div>
 
 			{activeSemanticConnectionEntity != null && (

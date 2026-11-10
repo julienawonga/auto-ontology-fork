@@ -38,7 +38,7 @@ type AnalysisItem = {
 };
 
 const FIELD_INPUT_CLASSNAME =
-	'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500';
+	'w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500';
 
 const FIELD_LABEL_CLASSNAME = 'mb-1.5 block text-sm font-medium text-heading dark:text-zinc-100';
 
@@ -91,6 +91,18 @@ export const AnalysisView = () => {
 	const [sqlValidated, setSqlValidated] = useState(false);
 
 	const [deletingItem, setDeletingItem] = useState<AnalysisItem | null>(null);
+
+	// Cards start folded (title and one line of description); the one a link
+	// focuses on opens with its details.
+	const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const isExpanded = (id: string) => expandedIds.has(id) || id === focusId;
+	const toggleExpanded = (id: string) =>
+		setExpandedIds((prev) => {
+			const next = new Set(prev);
+			if (isExpanded(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
 	const [deleting, setDeleting] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -344,13 +356,17 @@ export const AnalysisView = () => {
 	};
 
 	return (
-		<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
-			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-				<Icon name={IconName.ChartBar} className="h-5 w-5 text-body dark:text-zinc-300" />
-				<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
-					{isPql ? 'PQL Analyses' : 'Custom Analyses'}
-				</h1>
-				<div className="ml-4 flex items-center gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+		<div className="flex h-full w-full flex-col">
+			<header className="flex flex-wrap items-end gap-4 px-6 pt-8 pb-2 sm:px-10">
+				<div className="flex min-w-0 flex-col gap-1.5">
+					<h1 className="text-[28px] leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">
+						{isPql ? 'PQL Analyses' : 'Custom Analyses'}
+					</h1>
+					<p className="text-sm text-secondary dark:text-zinc-400">
+						Certified queries the chat reuses when a question matches.
+					</p>
+				</div>
+				<div className="ml-auto flex items-center gap-1 rounded-full border border-white/80 bg-white/55 p-1 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06]">
 					<SelectButton
 						theme={SelectButtonTheme.Switcher}
 						selected={mode === 'sql'}
@@ -366,7 +382,7 @@ export const AnalysisView = () => {
 						PQL
 					</SelectButton>
 				</div>
-				<div className="ml-auto">
+				<div>
 					<Button
 						theme={ButtonTheme.Primary}
 						size={Size.REGULAR}
@@ -381,7 +397,7 @@ export const AnalysisView = () => {
 			</header>
 
 			<InfiniteScroll
-				className="flex-1 px-6 py-6"
+				className="flex-1 px-6 py-6 sm:px-10"
 				onLoadMore={loadMore}
 				isLoading={isLoadingMore}
 				hasMore={hasMore}
@@ -410,7 +426,7 @@ export const AnalysisView = () => {
 				)}
 
 				{!loading && error != null && items.length === 0 && (
-					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 bg-white/90 px-8 py-10 text-center shadow-xl shadow-red-100/50 dark:border-red-900/50 dark:bg-zinc-950/80 dark:shadow-none">
+					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 px-8 py-10 text-center dark:border-red-900/50 glass-strong">
 						<h2 className="text-lg font-semibold tracking-tight text-red-800 dark:text-red-300">
 							Couldn&apos;t load {MODE_LABEL[mode]} analyses
 						</h2>
@@ -445,15 +461,15 @@ export const AnalysisView = () => {
 				)}
 
 				{!loading && items.length > 0 && (
-					<ul className="flex flex-col gap-4">
+					<ul className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
 						{items.map((a) => (
 							<li
 								key={a.id}
 								id={`analysis-${a.id}`}
-								className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-zinc-900 ${
+								className={`flex flex-col rounded-card border glass p-5 ${
 									a.id === focusId
 										? 'border-primary ring-2 ring-primary/30 dark:border-primary'
-										: 'border-zinc-200 dark:border-zinc-800'
+										: 'border-white/70 dark:border-white/10'
 								}`}
 							>
 								<div className="flex items-start justify-between gap-3">
@@ -516,17 +532,34 @@ export const AnalysisView = () => {
 										<Text
 											as="p"
 											text={a.description}
-											lines={3}
+											// Folded cards keep to one line so a long list stays
+											// scannable; the full text comes with the details.
+											lines={isExpanded(a.id) ? undefined : 1}
 											variant={TextVariant.Body}
 										/>
 									</div>
 								)}
+								{isExpanded(a.id) && a.code.trim() !== '' && (
+									<div id={`analysis-${a.id}-details`} className="mt-4">
+										<SqlBlock sql={a.code} label={MODE_LABEL[mode]} />
+									</div>
+								)}
 								{a.code.trim() !== '' && (
-									<SqlBlock
-										sql={a.code}
-										label={MODE_LABEL[mode]}
-										className="mt-4"
-									/>
+									<button
+										type="button"
+										aria-expanded={isExpanded(a.id)}
+										aria-controls={`analysis-${a.id}-details`}
+										onClick={() => toggleExpanded(a.id)}
+										className="mt-3 inline-flex items-center gap-1.5 self-start rounded text-xs font-medium text-secondary transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none dark:text-zinc-400 dark:hover:text-primary-soft"
+									>
+										<Icon
+											name={IconName.ChevronRight}
+											className={`h-3 w-3 transition-transform ${isExpanded(a.id) ? 'rotate-90' : ''}`}
+										/>
+										{isExpanded(a.id)
+											? `Hide description and ${MODE_LABEL[mode]}`
+											: `Show description and ${MODE_LABEL[mode]}`}
+									</button>
 								)}
 							</li>
 						))}

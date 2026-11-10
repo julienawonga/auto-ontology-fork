@@ -200,7 +200,7 @@ export default function RulesSettingsPage() {
 	};
 
 	return (
-		<main className="flex min-h-0 min-w-0 flex-1 flex-col bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,0.6)_100%)] dark:bg-[linear-gradient(180deg,rgba(9,9,11,1)_0%,rgba(24,24,27,0.5)_100%)]">
+		<main className="flex min-h-0 min-w-0 flex-1 flex-col">
 			<InfiniteScroll
 				className="flex-1 px-7 py-6 sm:px-10 sm:py-7"
 				onLoadMore={loadMore}
@@ -211,7 +211,7 @@ export default function RulesSettingsPage() {
 				error={rules.length > 0 ? error : null}
 			>
 				<div className="w-full space-y-5">
-					<h1 className="text-base font-semibold text-heading dark:text-zinc-100">
+					<h1 className="text-[28px] font-bold text-glass-text dark:text-zinc-50 leading-tight tracking-tight">
 						Rules
 					</h1>
 
@@ -273,7 +273,7 @@ export default function RulesSettingsPage() {
 							{rules.map((rule) => (
 								<li
 									key={rule.id}
-									className="rounded-lg border border-zinc-200/90 bg-white/90 shadow-sm ring-1 ring-zinc-950/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/50 dark:ring-white/[0.06]"
+									className="border border-white/70 dark:border-white/10 rounded-card glass"
 								>
 									<div className="flex items-center gap-2 px-4 py-3">
 										<Icon
@@ -395,7 +395,7 @@ export default function RulesSettingsPage() {
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 						placeholder="Type Rule Name"
-						className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:placeholder:text-zinc-500"
+						className="w-full rounded-xl border border-zinc-900/15 bg-white/70 px-3 py-2 text-sm text-body outline-none transition-colors placeholder:text-secondary focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-300 dark:placeholder:text-zinc-500"
 					/>
 					{/* The tags and the search are on the information card, and are not
 					    editable — worth saying inside the dialog that changes the one
