@@ -940,7 +940,7 @@
         "x-auto-ontology-upstream": "/api/chat/completions",
         "requestBody": {
           "required": true,
-          "description": "SQL plus a formatted answer, streamed as SSE. When the answer has an executed result, the backend also generates and persists a chart (or fallback table) and streams it back on this same connection as its own `charts` event — no follow-up call needed. Reuse one `conversation_id` for follow-up turns; an unknown UUID creates a conversation, while an ID owned by another user returns 404. Omitting `conversation_id` runs the question statelessly, with no history and no chart step.",
+          "description": "SQL plus a formatted answer, streamed as SSE. When the answer has an executed result, the backend also generates and persists a chart (or fallback table) and streams it back on this same connection as its own `charts` event — no follow-up call needed. Reuse one `conversation_id` for follow-up turns; an unknown UUID creates a conversation, while an ID owned by another user returns 404. Omitting `conversation_id` runs the question statelessly, with no history and no chart step. A client that sets `supports_clarification` may receive a `clarification` event instead of an answer; it replies on the next turn with `clarification`.",
           "content": {
             "application/json": {
               "schema": {
@@ -986,6 +986,54 @@
                     "anyOf": [
                       {
                         "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "supports_clarification": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "clarification": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "clarification_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "option_id": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "text": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["clarification_id"]
                       },
                       {
                         "type": "null"

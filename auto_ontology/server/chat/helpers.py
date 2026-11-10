@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 # summary in ``stream_agent_response`` — without the retrieval layer having
 # to depend on the server layer.
 from auto_ontology.retrieval.text_to_sql.node_labels import NODE_LABELS
+from auto_ontology.server.chat.clarification import ClarificationAnswer
 
 __all__ = [
     "NODE_LABELS",
@@ -61,6 +62,25 @@ class ChatRequest(BaseModel):
         default=None,
         description=(
             "Catalog database UUID or database name used to scope retrieval and SQL."
+        ),
+    )
+    supports_clarification: bool = Field(
+        default=False,
+        description=(
+            "Set by a client that can show a `clarification` event and send the "
+            "answer back. Only then, and only with a `conversation_id` and the "
+            "feature enabled, may the run end with a clarification question "
+            "instead of an answer. Other clients never receive one."
+        ),
+    )
+    clarification: ClarificationAnswer | None = Field(
+        default=None,
+        description=(
+            "The answer to the clarification question that ended the previous "
+            "turn: its `clarification_id` and either an `option_id` or free "
+            "`text`. Requires a `conversation_id`; a stale or foreign id is "
+            "rejected with 422. Put the option label (or the text) in "
+            "`question` so the conversation shows what was answered."
         ),
     )
 

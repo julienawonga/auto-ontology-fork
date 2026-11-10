@@ -80,6 +80,9 @@ def _worker_loop(
             stream_agent_response,
         )
         from auto_ontology.retrieval.text_to_sql.follow_up import resolve_follow_up
+        from auto_ontology.retrieval.text_to_sql.clarification import (
+            detect_clarification as detect_clarification_fn,
+        )
 
         from auto_ontology.connectors import get_connectors
         from auto_ontology.utils.llm_invoke import (
@@ -141,7 +144,10 @@ def _worker_loop(
             subject_token,
             conversation_history,
             evidence,
+            *optional,
         ) = payload
+        # Appended after the original six, so a sender that omits it stays valid.
+        detect_clarification = bool(optional and optional[0])
         try:
             # Connections are resolved once at worker init. If that
             # lookup came back empty — the store not yet reachable when this
@@ -181,6 +187,20 @@ def _worker_loop(
                 is_follow_up,
                 processing_question,
             )
+            if detect_clarification:
+                decision = detect_clarification_fn(
+                    question=processing_question,
+                    evidence=evidence or "",
+                    llm=follow_up_llm,
+                    semantic_retriever=semantic_retriever,
+                    target_db=target_db,
+                    history=conversation_history,
+                )
+                if decision.clarification is not None:
+                    # The turn ends with the question; ``finally`` sends DONE,
+                    # so the stream closes like a finished answer.
+                    out_q.put((_TAG_EVENT, decision.clarification.event()))
+                    continue
             custom_prompts = fetch_custom_prompts()
 
             agent_payload = {
@@ -246,6 +266,7 @@ class PrewarmedWorker:
         subject_token: str | None = None,
         conversation_history: list[dict[str, str | None]] | None = None,
         evidence: str | None = None,
+        detect_clarification: bool = False,
     ) -> None:
         """Ask *question*, optionally forcing the prediction/SQL branch.
 
@@ -257,20 +278,22 @@ class PrewarmedWorker:
         ones, so SQL executes under that user's own Databricks grants.
         *evidence* is optional authoritative evidence kept separate from
         the question.
+        *detect_clarification* lets the run end with a clarification question
+        (a ``clarification`` event) instead of an answer.
         """
-        self._in_q.put(
-            (
-                _MSG_ASK,
-                (
-                    question,
-                    prediction,
-                    target_db,
-                    subject_token,
-                    conversation_history or [],
-                    evidence,
-                ),
-            )
+        payload = (
+            question,
+            prediction,
+            target_db,
+            subject_token,
+            conversation_history or [],
+            evidence,
         )
+        if detect_clarification:
+            # Only appended when on, so with the feature off the message is the
+            # six-field one it always was.
+            payload += (True,)
+        self._in_q.put((_MSG_ASK, payload))
 
     def events(self) -> Generator[dict[str, Any] | None, None, None]:
         """Yield agent events for the current question.

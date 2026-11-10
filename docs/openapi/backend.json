@@ -36,6 +36,17 @@
       "ChatRequest": {
         "description": "Payload sent by the frontend to start a chat completion.",
         "properties": {
+          "clarification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClarificationAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The answer to the clarification question that ended the previous turn: its `clarification_id` and either an `option_id` or free `text`. Requires a `conversation_id`; a stale or foreign id is rejected with 422. Put the option label (or the text) in `question` so the conversation shows what was answered."
+          },
           "conversation_id": {
             "anyOf": [
               {
@@ -77,6 +88,12 @@
             "title": "Question",
             "type": "string"
           },
+          "supports_clarification": {
+            "default": false,
+            "description": "Set by a client that can show a `clarification` event and send the answer back. Only then, and only with a `conversation_id` and the feature enabled, may the run end with a clarification question instead of an answer. Other clients never receive one.",
+            "title": "Supports Clarification",
+            "type": "boolean"
+          },
           "target_db": {
             "anyOf": [
               {
@@ -94,6 +111,43 @@
           "question"
         ],
         "title": "ChatRequest",
+        "type": "object"
+      },
+      "ClarificationAnswer": {
+        "description": "The user's answer, sent on the request that follows a clarification.",
+        "properties": {
+          "clarification_id": {
+            "format": "uuid",
+            "title": "Clarification Id",
+            "type": "string"
+          },
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "clarification_id"
+        ],
+        "title": "ClarificationAnswer",
         "type": "object"
       },
       "ColumnAttribute": {
