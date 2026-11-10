@@ -70,3 +70,33 @@ def test_metadata_errors_are_returned_as_query_errors(
 
     assert response.error == "metadata failed"
     assert response.result is None
+
+
+def test_a_cut_result_is_reported_as_sliced(monkeypatch: pytest.MonkeyPatch) -> None:
+    frame = pd.DataFrame({"n": [1, 2]})
+    frame.attrs["truncated_at"] = 2
+    monkeypatch.setattr(
+        sql_execution, "execute_chat_sql", lambda _connector, _sql: frame
+    )
+
+    response = sql_execution._run_sql(
+        "SELECT n FROM t", SimpleNamespace(dialect="postgres")
+    )
+
+    assert response.error is None
+    assert response.sliced is True
+    assert response.truncated_at == 2
+
+
+def test_a_complete_result_is_not_sliced(monkeypatch: pytest.MonkeyPatch) -> None:
+    frame = pd.DataFrame({"n": [1, 2]})
+    monkeypatch.setattr(
+        sql_execution, "execute_chat_sql", lambda _connector, _sql: frame
+    )
+
+    response = sql_execution._run_sql(
+        "SELECT n FROM t", SimpleNamespace(dialect="postgres")
+    )
+
+    assert response.sliced is False
+    assert response.truncated_at is None

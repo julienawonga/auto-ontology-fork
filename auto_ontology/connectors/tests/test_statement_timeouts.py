@@ -200,6 +200,7 @@ def test_timeout_message_names_the_limit_that_fired(
 class _PgConnection:
     def __init__(self) -> None:
         self.log: list[Any] = []
+        self.cursor_kwargs: list[dict[str, Any]] = []
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -211,6 +212,7 @@ class _PgConnection:
         self.log.append((sql, params))
 
     def cursor(self, **kwargs: Any) -> "_PgCursor":
+        self.cursor_kwargs.append(kwargs)
         return _PgCursor(self)
 
 
@@ -231,6 +233,10 @@ class _PgCursor:
 
     def fetchall(self) -> list[dict[str, int]]:
         return [{"v": 1}]
+
+    def fetchmany(self, size: int) -> list[dict[str, int]]:
+        self._conn.log.append(("fetchmany", size))
+        return [{"v": i} for i in range(10)][:size]
 
 
 class _PgPool:
@@ -297,11 +303,48 @@ def test_postgres_read_only_and_timeout_share_one_transaction() -> None:
     ]
 
 
+def test_postgres_reads_one_row_past_the_cap() -> None:
+    """``max_rows + 1`` rows, so the caller can tell "exactly N" from "more"."""
+    database, conn = _fake_postgres()
+
+    frame = database.execute("SELECT v", max_rows=3)
+
+    assert ("fetchmany", 4) in conn.log
+    assert len(frame) == 4
+
+
+def test_postgres_capped_read_uses_a_server_side_cursor_in_a_transaction() -> None:
+    """A client-side cursor would load the whole result before ``fetchmany``.
+
+    Only a named cursor makes the server send just the rows asked for, and a
+    named cursor needs a transaction (the pool is in autocommit mode).
+    """
+    database, conn = _fake_postgres()
+
+    database.execute("SELECT v", max_rows=3)
+
+    assert conn.log[0] == "BEGIN"
+    assert conn.cursor_kwargs[-1]["name"].startswith("lexis_")
+
+
+def test_postgres_without_a_cap_reads_everything() -> None:
+    database, conn = _fake_postgres()
+
+    database.execute("SELECT v")
+
+    assert ("fetchmany", 4) not in conn.log
+    assert "name" not in conn.cursor_kwargs[-1]
+
+
+def test_postgres_advertises_row_limit() -> None:
+    assert PostgresDatabase.supports_row_limit is True
+
+
 def test_postgres_advertises_read_only_execution() -> None:
     assert PostgresDatabase.supports_read_only_execution is True
 
 
-def test_live_postgres_refuses_a_write_in_a_read_only_transaction() -> None:
+def _live_postgres_or_skip() -> PostgresDatabase:
     if not os.environ.get("POSTGRES_USER"):
         pytest.skip("POSTGRES_* not set")
     host = os.environ.get("POSTGRES_HOST", "localhost")
@@ -309,11 +352,15 @@ def test_live_postgres_refuses_a_write_in_a_read_only_transaction() -> None:
     user = os.environ["POSTGRES_USER"]
     password = os.environ["POSTGRES_PASSWORD"]
     try:
-        database = PostgresDatabase(
+        return PostgresDatabase(
             f"postgresql://{user}:{password}@{host}:{port}/postgres"
         )
     except Exception as exc:  # noqa: BLE001 — any failure means "no fixture DB"
         pytest.skip(f"postgres not reachable: {exc}")
+
+
+def test_live_postgres_refuses_a_write_in_a_read_only_transaction() -> None:
+    database = _live_postgres_or_skip()
     try:
         with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
             database.execute("CREATE TABLE read_only_probe (v int)", read_only=True)
@@ -321,6 +368,25 @@ def test_live_postgres_refuses_a_write_in_a_read_only_transaction() -> None:
         assert database.execute("SHOW transaction_read_only").iloc[0, 0] == "off"
     finally:
         database.execute("DROP TABLE IF EXISTS read_only_probe")
+        database.close()
+
+
+def test_live_postgres_capped_read_does_not_load_the_whole_result() -> None:
+    """Billions of rows would take minutes and gigabytes through a client cursor.
+
+    A cross join is produced row by row, unlike ``generate_series`` in ``FROM``,
+    which Postgres materialises in full before returning anything.
+    """
+    database = _live_postgres_or_skip()
+    try:
+        started = time.monotonic()
+        frame = database.execute(
+            "SELECT a.oid FROM pg_class a, pg_class b, pg_class c, pg_class d",
+            max_rows=5,
+        )
+        assert len(frame) == 6  # the cap plus the row that shows it was cut
+        assert time.monotonic() - started < 5
+    finally:
         database.close()
 
 

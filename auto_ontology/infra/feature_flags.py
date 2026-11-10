@@ -44,6 +44,15 @@ DEFAULT_SQL_QUERY_TIMEOUT_SECONDS = 30
 MIN_SQL_QUERY_TIMEOUT_SECONDS = 1
 MAX_SQL_QUERY_TIMEOUT_SECONDS = 3600
 
+# How many rows one agent-issued statement may return. A question is answered
+# from a handful of rows, so reading millions of them only costs memory, time
+# and prompt size. A result cut at this limit is reported as such, never
+# presented as complete. An instance that never sets the row uses the default.
+SQL_RESULT_MAX_ROWS_KEY = "sql_result_max_rows"
+DEFAULT_SQL_RESULT_MAX_ROWS = 10_000
+MIN_SQL_RESULT_MAX_ROWS = 1
+MAX_SQL_RESULT_MAX_ROWS = 1_000_000
+
 
 def _read_configuration_row(key: str) -> tuple[object, ...] | None:
     """Return the ``(value,)`` row for *key*, or ``None`` if it is absent."""
@@ -160,4 +169,18 @@ def get_sql_query_timeout_seconds() -> int:
         default=DEFAULT_SQL_QUERY_TIMEOUT_SECONDS,
         minimum=MIN_SQL_QUERY_TIMEOUT_SECONDS,
         maximum=MAX_SQL_QUERY_TIMEOUT_SECONDS,
+    )
+
+
+def get_sql_result_max_rows() -> int:
+    """How many rows one agent-issued SQL statement may return.
+
+    Read per statement, like :func:`get_sql_query_timeout_seconds`, and falls
+    back to :data:`DEFAULT_SQL_RESULT_MAX_ROWS` in the same cases.
+    """
+    return read_configuration_int(
+        SQL_RESULT_MAX_ROWS_KEY,
+        default=DEFAULT_SQL_RESULT_MAX_ROWS,
+        minimum=MIN_SQL_RESULT_MAX_ROWS,
+        maximum=MAX_SQL_RESULT_MAX_ROWS,
     )

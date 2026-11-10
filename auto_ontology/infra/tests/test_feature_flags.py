@@ -14,6 +14,7 @@ import pytest
 from auto_ontology.infra import feature_flags
 from auto_ontology.infra.feature_flags import (
     get_sql_query_timeout_seconds,
+    get_sql_result_max_rows,
     is_distinct_value_probing_enabled,
     is_pii_detection_enabled,
     read_configuration_flag,
@@ -199,3 +200,29 @@ def test_sql_query_timeout_defaults_to_30_seconds(
     """An instance running without the frontend never writes the row."""
     with _patched(monkeypatch, None):
         assert get_sql_query_timeout_seconds() == 30
+
+
+def test_sql_result_max_rows_defaults_to_ten_thousand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _patched(monkeypatch, None):
+        assert get_sql_result_max_rows() == 10_000
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"), [("500", 500), (" 25 ", 25), ("1000000", 1_000_000)]
+)
+def test_sql_result_max_rows_honours_a_stored_value(
+    monkeypatch: pytest.MonkeyPatch, stored: str, expected: int
+) -> None:
+    with _patched(monkeypatch, (stored,)) as cursor:
+        assert get_sql_result_max_rows() == expected
+    assert cursor.executed[0][1] == ("sql_result_max_rows",)
+
+
+@pytest.mark.parametrize("stored", ["", "many", "0", "-1", "1000001"])
+def test_sql_result_max_rows_ignores_unusable_values(
+    monkeypatch: pytest.MonkeyPatch, stored: str
+) -> None:
+    with _patched(monkeypatch, (stored,)):
+        assert get_sql_result_max_rows() == 10_000

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from pytest import LogCaptureFixture
 
@@ -17,6 +18,7 @@ from auto_ontology.infra.feature_flags import DEFAULT_SQL_QUERY_TIMEOUT_SECONDS
 from auto_ontology.retrieval.text_to_sql import chat_sql
 from auto_ontology.retrieval.text_to_sql.chat_sql import (
     _MAX_LOGGED_SQL_CHARS,
+    TRUNCATED_AT_ATTR,
     execute_chat_sql,
     log_chat_sql,
     truncate_sql,
@@ -24,6 +26,14 @@ from auto_ontology.retrieval.text_to_sql.chat_sql import (
 from auto_ontology.retrieval.text_to_sql.sql_guard import UnsafeSqlError
 
 _LOGGER = "auto_ontology.retrieval.text_to_sql.chat_sql"
+
+
+@pytest.fixture(autouse=True)
+def row_limit(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Stub the row-limit read (it would hit the database); append to change it."""
+    stored = [10_000]
+    monkeypatch.setattr(chat_sql, "get_sql_result_max_rows", lambda: stored[-1])
+    return stored
 
 
 @pytest.fixture
@@ -235,3 +245,55 @@ def test_read_only_execution_is_not_forced_on_connectors_without_it() -> None:
     execute_chat_sql(connector, "SELECT 1")
 
     assert connector.calls == [("SELECT 1", {})]
+
+
+class _FrameConnector:
+    """Connector stub returning a frame of *rows* rows."""
+
+    def __init__(self, rows: int, *, supports_row_limit: bool = False) -> None:
+        self.supports_row_limit = supports_row_limit
+        self._rows = rows
+        self.calls: list[dict] = []
+
+    def execute(self, sql: str, **kwargs: object) -> pd.DataFrame:
+        self.calls.append(kwargs)
+        return pd.DataFrame({"n": range(self._rows)})
+
+
+def test_a_result_over_the_limit_is_cut_and_marked(row_limit: list[int]) -> None:
+    row_limit.append(5)
+
+    frame = execute_chat_sql(_FrameConnector(8), "SELECT n FROM t")
+
+    assert len(frame) == 5
+    assert frame.attrs[TRUNCATED_AT_ATTR] == 5
+    assert list(frame["n"]) == [0, 1, 2, 3, 4]
+
+
+def test_a_result_at_the_limit_is_not_marked(row_limit: list[int]) -> None:
+    """Exactly ``limit`` rows is a complete answer, not a cut one."""
+    row_limit.append(5)
+
+    frame = execute_chat_sql(_FrameConnector(5), "SELECT n FROM t")
+
+    assert len(frame) == 5
+    assert TRUNCATED_AT_ATTR not in frame.attrs
+
+
+def test_a_connector_with_a_row_limit_is_told_the_limit(row_limit: list[int]) -> None:
+    row_limit.append(5)
+    connector = _FrameConnector(6, supports_row_limit=True)
+
+    frame = execute_chat_sql(connector, "SELECT n FROM t")
+
+    assert connector.calls == [{"max_rows": 5}]
+    # It returns limit + 1 rows so the cut is detectable; we trim and mark.
+    assert len(frame) == 5 and frame.attrs[TRUNCATED_AT_ATTR] == 5
+
+
+def test_a_connector_without_a_row_limit_is_not_given_one() -> None:
+    connector = _FrameConnector(3)
+
+    execute_chat_sql(connector, "SELECT n FROM t")
+
+    assert connector.calls == [{}]
