@@ -8,7 +8,7 @@ services:
     container_name: postgres
     restart: unless-stopped
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -26,7 +26,7 @@ services:
     container_name: pgadmin
     restart: unless-stopped
     ports:
-      - "5050:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:5050:80"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
@@ -44,7 +44,7 @@ services:
     container_name: auto-ontology
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "${BIND_ADDRESS:-127.0.0.1}:3001:3001"
     env_file:
       - .env
     environment:
@@ -73,7 +73,7 @@ services:
     restart: unless-stopped
     command: ["ingestion_service"]
     ports:
-      - "3002:3002"
+      - "${BIND_ADDRESS:-127.0.0.1}:3002:3002"
     # The image healthcheck targets the backend (:3001/api/health/live); the
     # ingestion service serves its own on :3002. Liveness, not /health — that
     # one probes Postgres, and a container healthcheck gated on a dependency

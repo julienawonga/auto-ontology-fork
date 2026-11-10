@@ -33,6 +33,9 @@ Security fixes go to the `main` branch. Run a recent `main` to get them.
 
 - Keep ports 3001 (API) and 3002 (ingestion service) on a private network. The API trusts
   the user identity forwarded by the web app, and the ingestion service has no
-  authentication of its own; clients go through the web app on port 3000.
+  authentication of its own; clients go through the web app on port 3000. Docker Compose
+  publishes the API, the ingestion service, PostgreSQL and pgAdmin on `127.0.0.1` only;
+  `BIND_ADDRESS` in `.env` changes that, and exposing those ports lets anyone who can reach
+  them bypass every permission the web app enforces.
 - Set a long random `AUTH_SECRET` (for example `openssl rand -base64 32`) and replace every
   default password in `.env` before exposing the stack.
