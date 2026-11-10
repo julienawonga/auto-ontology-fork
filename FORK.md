@@ -328,6 +328,26 @@ is first compiled.
 
 Run the reindex after any ingestion that was made while the embedding endpoint was failing, and whenever `missing` is not 0.
 
+## Matching question wording to stored values
+
+A question that does not spell a value the way the data does ("USA" for `United States`, "Indai" for `India`) filtered on
+a literal that does not exist and answered 0. The chat already consumed `value_anchors` but nothing produced them.
+
+- **`POST /api/semantic-compilation/value-index?database_name=...`** (permission `semanticCompilation: manage`) copies the
+  distinct values of small text columns into the semantic index. Opt-in, never run by ingestion. It excludes primary keys,
+  columns tagged `PII`, free text and columns with more than 2,000 distinct values, so names and emails never leave the
+  source. Returns `expected`, `written`, `columns_indexed`, `columns_skipped`.
+- **Chat** looks the question's phrases up (exact after normalisation, then embedding plus character similarity) and adds
+  the matches as verified values. A database with no index, or any failure, changes nothing.
+- **Aliases**: ISO 3166 countries (codes and common names) and US state postal codes are resolved deterministically, only to
+  values that are stored, so "USA", "U.S." and "America" reach `United States` without trusting an embedding model.
+- **Eval cases**: `pagila_values.json` is a development set (it motivated the feature); `chinook_values.json` is the frozen
+  held-out set, with values that do not exist. Report them separately.
+
+Abbreviations outside the alias table rely on the embedding model and were not measured. Details and thresholds: [docs/value-linking.md](./docs/value-linking.md).
+
+Code: `auto_ontology/semantic/value_index.py`, `auto_ontology/retrieval/text_to_sql/value_linking.py`.
+
 ## Labels and ranking values in answers
 
 - **Far side of a junction:** when the relevance filter keeps a junction table (`film_category`), the table on its other
