@@ -1,49 +1,66 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Contributing to Auto-Ontology
+# Contributing to Auto Ontology
 
-**This project does not accept external pull requests.** Code changes
-are made by the Auto-Ontology maintainer team. Integration requests and bug
-reports are welcome as GitHub issues; to integrate a platform, application, or
-storage provider, use the
-[integration request](https://github.com/NVIDIA/auto-ontology/issues/new?template=integration.yml)
-template. This matches the [Integrate with us](README.md#integrate-with-us)
-section of the README.
+Thanks for your interest! Contributions of every size are welcome: bug reports, docs,
+new connectors, UI improvements, tests.
 
-**Do not report security vulnerabilities through GitHub issues.** See
-[SECURITY.md](SECURITY.md) for NVIDIA's coordinated disclosure process.
+- **Found a bug or have an idea?** Open an
+  [issue](https://github.com/julienawonga/auto-ontology-fork/issues/new/choose) with the
+  matching template.
+- **Want to change code?** Open a pull request; for anything larger than a small fix,
+  start with an issue so we can agree on the approach first.
+- **Security issue?** Do not open a public issue; follow [SECURITY.md](SECURITY.md).
 
-The rest of this file is for the Auto-Ontology maintainers.
+## Development setup
 
-## Development Setup
+The fastest way to a working stack is Docker Compose; see the
+[quick start](README.md#-quick-start). For local development:
 
-Auto-Ontology uses [uv](https://docs.astral.sh/uv/) for Python dependency management:
+| Part | Tooling | Run it |
+|---|---|---|
+| Backend (`auto_ontology/`) | Python 3.12, [uv](https://docs.astral.sh/uv/) | `uv sync`, then `uv run uvicorn auto_ontology.server.__main__:create_app --factory --reload --port 3001` |
+| Ingestion service | same | `uv run python -m auto_ontology.ingestion_service` |
+| Frontend (`frontend/`) | Node.js 22, [pnpm](https://pnpm.io/) | `pnpm install`, then `pnpm dev` |
+| MCP server (`mcp/`) | uv | `cd mcp && uv sync && uv run auto-ontology-mcp` |
 
-```bash
-uv sync                # install dependencies
-uv run pytest          # run the test suite
-uv run ruff check .    # lint
-```
+See the `Makefile` (`make help`) for build and migration targets.
 
-See the `Makefile` (`make help`) for build and migration targets, and
-`docker-compose.yml` for running the local development stack.
+## Before you open a pull request
 
-## Pull Requests
+Run the same checks as CI:
 
-1. Create your branch from `main`.
-2. Add tests for new functionality and make sure the full test suite passes.
-3. Keep pull requests focused — one logical change per PR.
-4. Pull requests targeting `main` require **an approving review from a code
-   owner** before they can be merged. Code owners (see `.github/CODEOWNERS`)
-   are automatically requested for review. Because a code owner cannot
-   approve their own pull request, one of the other owners must review it.
-5. New files carry the NVIDIA copyright and SPDX license header used across
-   the repository.
+| Check | Command |
+|---|---|
+| Backend lint and format | `uv run ruff check auto_ontology/ && uv run ruff format --check auto_ontology/` |
+| Backend tests | `uv run pytest auto_ontology dev_tools -q` |
+| OpenAPI spec | `uv run python -m dev_tools.generate_backend_openapi` (commit the result if it changed) |
+| Frontend | `cd frontend && npx prettier --check . && pnpm lint && pnpm build` |
+
+If you change a route or its docstring, regenerate the committed OpenAPI specs: the
+backend command above, and `pnpm openapi` in `frontend/` for the public API.
+
+## Pull request guidelines
+
+1. Branch from `main` and keep each pull request focused on one change.
+2. Add or update tests for the behaviour you change.
+3. Write commit messages in the imperative mood ("Add a Trino connector").
+4. Describe what changed and how you tested it; include screenshots for UI changes.
+5. New files carry an SPDX header with your name and the license:
+
+   ```text
+   SPDX-FileCopyrightText: Copyright (c) 2026, Your Name.
+   SPDX-License-Identifier: Apache-2.0
+   ```
+
+   Files that came from the original project keep their existing copyright line.
+
+All checks must pass before a pull request is merged.
 
 ## License
 
-Auto-Ontology is licensed under the [Apache License 2.0](LICENSE).
+By contributing, you agree that your contributions are licensed under the
+[Apache License 2.0](LICENSE).
