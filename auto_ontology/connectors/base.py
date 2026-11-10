@@ -122,13 +122,16 @@ class SQLDatabase(ABC):
     #: statement, which during ingestion costs far more than the cap saves.
     supports_statement_timeout: bool = False
 
-    #: ``True`` when ``execute`` accepts ``read_only=True`` and then runs the
-    #: statement in a read-only transaction, so the database itself refuses a
-    #: write. The agent passes it for every statement it issues, as a second
-    #: layer behind the parse-time guard in
+    #: ``True`` when ``execute`` accepts ``read_only=True`` and then makes the
+    #: database itself refuse a write, for that one statement only: a read-only
+    #: transaction, session or per-request setting, whichever the engine has.
+    #: The agent passes it for every statement it issues, as a second layer
+    #: behind the parse-time guard in
     #: :mod:`auto_ontology.retrieval.text_to_sql.sql_guard`. A connector that
     #: does not set this is called without it and relies on the guard (and on
-    #: the grants of its database user) alone.
+    #: the grants of its database user) alone. Set it only where the engine
+    #: enforces it: Snowflake, Databricks, Trino, Kyuubi and HeavyDB have no
+    #: per-statement read-only mode this could switch on, so they do not.
     supports_read_only_execution: bool = False
 
     #: ``True`` when ``execute`` accepts ``max_rows=N`` and then stops reading

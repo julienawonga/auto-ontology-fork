@@ -63,6 +63,7 @@ class MySQLDatabase(SQLDatabase):
     """Concrete :class:`SQLDatabase` backed by ``mysql-connector-python``."""
 
     supports_statement_timeout = True
+    supports_read_only_execution = True
 
     def __init__(self, connection_string: str) -> None:
         self._connection_string = connection_string
@@ -119,12 +120,18 @@ class MySQLDatabase(SQLDatabase):
         parameters: Optional[list] = None,
         *,
         timeout_s: float | None = None,
+        read_only: bool = False,
     ) -> pd.DataFrame:
         """Run *sql*; with *timeout_s*, the server stops it after that long.
 
         The cap is a session variable, and each call owns its connection, so it
         never outlives the statement. MySQL applies ``max_execution_time`` to
         read-only ``SELECT`` only, which is all the agent issues.
+
+        With *read_only* the session is made read-only first, so MySQL and
+        MariaDB refuse any change to a table (error 1792) whatever the
+        statement looked like to the parser. Like the cap it ends with this
+        call's connection and never reaches another caller.
 
         Raises:
             StatementTimeout: the server stopped the statement at the cap.
@@ -134,6 +141,13 @@ class MySQLDatabase(SQLDatabase):
             cursor = connection.cursor(dictionary=True)
             started = time.monotonic()
             try:
+                if read_only:
+                    # The session form, not ``START TRANSACTION READ ONLY``:
+                    # DDL commits implicitly, which ends a read-only
+                    # transaction and then runs. The session access mode
+                    # covers every transaction that follows.
+                    # https://dev.mysql.com/doc/refman/8.4/en/set-transaction.html
+                    cursor.execute("SET SESSION TRANSACTION READ ONLY")
                 if timeout_s is not None:
                     self._set_statement_timeout(cursor, timeout_s)
                 cursor.execute(sql, parameters)

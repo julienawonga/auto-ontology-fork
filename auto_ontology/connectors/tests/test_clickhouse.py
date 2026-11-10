@@ -272,6 +272,77 @@ def test_execute_passes_a_statement_timeout_to_the_server() -> None:
     assert server.params[0]["max_execution_time"] == ["5"]
 
 
+def test_read_only_sends_readonly_with_the_other_settings() -> None:
+    db, server = _database()
+    server.queue_rows([("x", "UInt8")], [[1]])
+
+    db.execute("SELECT 1 AS x", timeout_s=5, read_only=True)
+
+    params = server.params[0]
+    assert params["readonly"] == ["1"]
+    assert params["max_execution_time"] == ["5"]
+    assert "max_result_rows" in params
+
+
+def test_readonly_is_sent_only_when_asked() -> None:
+    """Ingestion shares the connector; nothing may carry over to its calls."""
+    db, server = _database()
+
+    db.execute("SELECT 1 AS x", read_only=True)
+    db.execute("SELECT 1 AS x")
+    db.get_tables()
+
+    assert [params.get("readonly") for params in server.params] == [["1"], None, None]
+
+
+def test_read_only_falls_back_to_level_2_for_an_already_read_only_account() -> None:
+    """A ``readonly=2`` profile refuses any change to the setting, even to 1."""
+    db, server = _database()
+    server.queue_error(
+        500,
+        "Code: 164. DB::Exception: Cannot modify 'readonly' setting in "
+        "readonly mode. (READONLY)",
+    )
+    server.queue_rows([("x", "UInt8")], [[1]])
+
+    frame = db.execute("SELECT 1 AS x", read_only=True)
+
+    assert frame["x"].tolist() == [1]
+    assert [params["readonly"] for params in server.params] == [["1"], ["2"]]
+
+
+def test_read_only_does_not_retry_a_refused_write() -> None:
+    db, server = _database()
+    server.queue_error(
+        500,
+        "Code: 164. DB::Exception: default: Cannot execute query in readonly "
+        "mode. (READONLY)",
+    )
+
+    with pytest.raises(ClickHouseError, match="Cannot execute query in readonly"):
+        db.execute("INSERT INTO t VALUES (1)", read_only=True)
+    assert len(server.statements) == 1
+
+
+def test_read_only_never_runs_without_the_setting() -> None:
+    """Refused at both levels (``SETTINGS readonly = 0`` in the query): give up."""
+    db, server = _database()
+    refusal = (
+        "Code: 164. DB::Exception: Cannot modify 'readonly' setting in "
+        "readonly mode. (READONLY)"
+    )
+    server.queue_error(500, refusal)
+    server.queue_error(500, refusal)
+
+    with pytest.raises(ClickHouseError):
+        db.execute("SELECT 1 SETTINGS readonly = 0", read_only=True)
+    assert [params["readonly"] for params in server.params] == [["1"], ["2"]]
+
+
+def test_supports_read_only_execution_is_advertised() -> None:
+    assert ClickHouseDatabase.supports_read_only_execution is True
+
+
 def test_supports_statement_timeout_is_advertised() -> None:
     """Profiling only passes a cap to connectors that claim to honour one."""
     assert ClickHouseDatabase.supports_statement_timeout is True

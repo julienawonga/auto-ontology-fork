@@ -94,8 +94,9 @@ def execute_chat_sql(
     so the cap never breaks a connector with no way to honour it.
 
     A connector that advertises ``supports_read_only_execution`` also runs the
-    statement in a read-only transaction, so the database refuses a write even
-    if it got past the guard.
+    statement read-only (a read-only transaction, session or request setting,
+    as the engine allows), so the database refuses a write even if it got past
+    the guard.
 
     The result is cut at the Agent Settings row limit. The returned frame then
     carries the limit in ``frame.attrs[TRUNCATED_AT_ATTR]``, which callers use to

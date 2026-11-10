@@ -4,6 +4,10 @@
 
 """Every connector honours ``execute(..., timeout_s=...)``.
 
+Those that advertise ``supports_read_only_execution`` are checked here too for
+``read_only=True``: a real refused write on SQLite and DuckDB, the statement
+sent on Postgres and MySQL. ClickHouse's are in ``test_clickhouse.py``.
+
 The text-to-SQL agent caps each statement at the SQL Query Timeout from Agent
 Settings, but only on connectors advertising ``supports_statement_timeout``.
 SQLite and DuckDB run in-process, so they are exercised against a real slow
@@ -22,6 +26,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterator
 
+import duckdb
 import httpx
 import mysql.connector
 import pandas as pd
@@ -59,6 +64,26 @@ def test_every_registered_connector_supports_a_timeout() -> None:
         if getattr(cls, "supports_statement_timeout", False) is not True
     ]
     assert missing == []
+
+
+def test_only_engines_that_can_refuse_a_write_advertise_read_only_execution() -> None:
+    """Advertising it without enforcing it would be a false sense of safety.
+
+    Snowflake, Databricks, Trino, Kyuubi and HeavyDB have no per-statement
+    read-only mode; they rely on the parse-time guard and their grants.
+    """
+    advertised = {
+        cls.__name__
+        for cls in CONNECTOR_REGISTRY.values()
+        if getattr(cls, "supports_read_only_execution", False)
+    }
+    assert advertised == {
+        "PostgresDatabase",
+        "MySQLDatabase",
+        "SQLiteDatabase",
+        "DuckDBDatabase",
+        "ClickHouseDatabase",
+    }
 
 
 def test_timeout_message_is_not_mistaken_for_a_dead_connection() -> None:
@@ -108,6 +133,59 @@ def test_sqlite_handler_does_not_outlive_the_statement(
 
 def test_sqlite_fast_query_is_unaffected(sqlite_db: SQLiteDatabase) -> None:
     assert sqlite_db.execute("SELECT 1 AS v", timeout_s=5)["v"].iloc[0] == 1
+
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        "INSERT INTO keep VALUES (2)",
+        "UPDATE keep SET v = 3",
+        "DELETE FROM keep",
+        "DROP TABLE keep",
+        "CREATE TABLE other (v INTEGER)",
+    ],
+)
+def test_sqlite_refuses_a_write_when_read_only(
+    sqlite_db: SQLiteDatabase, write: str
+) -> None:
+    sqlite_db.execute("CREATE TABLE keep (v INTEGER)")
+    sqlite_db.execute("INSERT INTO keep VALUES (1)")
+
+    with pytest.raises(sqlite3.OperationalError, match="readonly database"):
+        sqlite_db.execute(write, read_only=True, timeout_s=5)
+
+    assert sqlite_db.execute("SELECT v FROM keep")["v"].tolist() == [1]
+    assert sqlite_db.get_tables()["table_name"].tolist() == ["keep"]
+
+
+def test_sqlite_read_only_does_not_outlive_the_statement(
+    sqlite_db: SQLiteDatabase,
+) -> None:
+    """Ingestion shares the connector: its next call must be free to write."""
+    sqlite_db.execute("CREATE TABLE keep (v INTEGER)")
+
+    with pytest.raises(sqlite3.OperationalError):
+        sqlite_db.execute("INSERT INTO keep VALUES (1)", read_only=True)
+    assert sqlite_db.execute("SELECT 1 AS v", read_only=True)["v"].iloc[0] == 1
+
+    conn = sqlite_db._conn  # noqa: SLF001 - the state under test lives on it
+    assert conn.execute("PRAGMA query_only").fetchone()[0] == 0
+    # The refused write must not leave the transaction ``sqlite3`` opened for it.
+    assert conn.in_transaction is False
+    sqlite_db.execute("INSERT INTO keep VALUES (2)")
+    assert sqlite_db.execute("SELECT v FROM keep")["v"].tolist() == [2]
+
+
+def test_sqlite_read_only_is_lifted_after_a_timeout(
+    sqlite_db: SQLiteDatabase,
+) -> None:
+    sqlite_db.execute("CREATE TABLE keep (v INTEGER)")
+
+    with pytest.raises(StatementTimeout):
+        sqlite_db.execute(_ENDLESS_SQL, timeout_s=0.1, read_only=True)
+
+    sqlite_db.execute("INSERT INTO keep VALUES (1)")
+    assert sqlite_db.execute("SELECT v FROM keep")["v"].tolist() == [1]
 
 
 @pytest.fixture
@@ -162,6 +240,73 @@ def test_duckdb_timeout_only_stops_its_own_statement(
 
     assert "error" not in outcome, outcome.get("error")
     assert len(outcome["frame"]) == 1
+
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        "INSERT INTO keep VALUES (2)",
+        "UPDATE keep SET v = 3",
+        "DELETE FROM keep",
+        "DROP TABLE keep",
+        "CREATE TABLE other (v INTEGER)",
+        "CREATE VIEW other AS SELECT 1",
+    ],
+)
+def test_duckdb_refuses_a_write_when_read_only(
+    duckdb_db: DuckDBDatabase, write: str
+) -> None:
+    """Opened writable, so only the read-only transaction stands in the way."""
+    duckdb_db.execute("CREATE TABLE keep (v INTEGER)")
+    duckdb_db.execute("INSERT INTO keep VALUES (1)")
+
+    with pytest.raises(duckdb.TransactionException, match="read-only"):
+        duckdb_db.execute(write, read_only=True, timeout_s=5)
+
+    assert duckdb_db.execute("SELECT v FROM keep")["v"].tolist() == [1]
+    assert duckdb_db.get_tables()["table_name"].tolist() == ["keep"]
+
+
+def test_duckdb_read_only_does_not_outlive_the_statement(
+    duckdb_db: DuckDBDatabase,
+) -> None:
+    """Ingestion shares the connector: its next call must be free to write."""
+    duckdb_db.execute("CREATE TABLE keep (v INTEGER)")
+
+    with pytest.raises(duckdb.TransactionException):
+        duckdb_db.execute("INSERT INTO keep VALUES (1)", read_only=True)
+    assert duckdb_db.execute("SELECT 42 AS v", read_only=True)["v"].iloc[0] == 42
+
+    duckdb_db.execute("INSERT INTO keep VALUES (2)")
+    assert duckdb_db.execute("SELECT v FROM keep")["v"].tolist() == [2]
+
+
+def test_duckdb_read_only_is_lifted_after_a_timeout(
+    duckdb_db: DuckDBDatabase,
+) -> None:
+    duckdb_db.execute("CREATE TABLE keep (v INTEGER)")
+
+    with pytest.raises(StatementTimeout):
+        duckdb_db.execute(_ENDLESS_SQL, timeout_s=0.1, read_only=True)
+
+    duckdb_db.execute("INSERT INTO keep VALUES (1)")
+    assert duckdb_db.execute("SELECT v FROM keep")["v"].tolist() == [1]
+
+
+def test_duckdb_read_only_works_on_a_file_opened_read_only(tmp_path: Path) -> None:
+    """The default way the connector opens a database file."""
+    path = tmp_path / "t.duckdb"
+    with duckdb.connect(str(path)) as setup:
+        setup.execute("CREATE TABLE keep AS SELECT 1 AS v")
+    database = DuckDBDatabase(str(path))
+    try:
+        frame = database.execute("SELECT v FROM keep", read_only=True)
+        with pytest.raises(duckdb.Error):
+            database.execute("INSERT INTO keep VALUES (2)", read_only=True)
+    finally:
+        database.close()
+
+    assert frame["v"].tolist() == [1]
 
 
 def test_kyuubi_timeouts_are_statement_timeouts() -> None:
@@ -526,6 +671,57 @@ def test_mysql_without_timeout_sends_no_setting(monkeypatch: MonkeyPatch) -> Non
     database.execute("SELECT 1")
 
     assert cursor.executed == [("SELECT 1", None)]
+
+
+def test_mysql_read_only_makes_the_session_read_only_first(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    database, cursor = _fake_mysql(monkeypatch)
+
+    database.execute("SELECT 1", timeout_s=1.5, read_only=True)
+
+    assert cursor.executed == [
+        ("SET SESSION TRANSACTION READ ONLY", None),
+        ("SET SESSION max_execution_time = %s", (1500,)),
+        ("SELECT 1", None),
+    ]
+
+
+def test_mysql_read_only_is_sent_only_when_asked(monkeypatch: MonkeyPatch) -> None:
+    """Each call opens its own session, so asking once must not carry over."""
+    database, cursor = _fake_mysql(monkeypatch)
+
+    database.execute("SELECT 1", read_only=True)
+    database.execute("SELECT 2")
+
+    assert cursor.executed == [
+        ("SET SESSION TRANSACTION READ ONLY", None),
+        ("SELECT 1", None),
+        ("SELECT 2", None),
+    ]
+
+
+def test_mysql_runs_nothing_when_the_session_cannot_be_made_read_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A server too old for the statement must fail, not run unprotected."""
+    database, cursor = _fake_mysql(monkeypatch)
+    attempted: list[str] = []
+    refused = mysql.connector.Error(msg="You have an error in your SQL", errno=1064)
+
+    def _refuse(sql: str, params: Any = None) -> None:
+        attempted.append(sql)
+        raise refused
+
+    monkeypatch.setattr(cursor, "execute", _refuse)
+
+    with pytest.raises(mysql.connector.Error):
+        database.execute("SELECT 1", read_only=True)
+    assert attempted == ["SET SESSION TRANSACTION READ ONLY"]
+
+
+def test_mysql_advertises_read_only_execution() -> None:
+    assert MySQLDatabase.supports_read_only_execution is True
 
 
 # ----------------------------------------------------------------------

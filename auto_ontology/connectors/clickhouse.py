@@ -239,6 +239,15 @@ def _is_timeout_exceeded(response: httpx.Response, message: str) -> bool:
     return "(TIMEOUT_EXCEEDED)" in message
 
 
+def _is_already_read_only(error: Exception) -> bool:
+    """Whether the server refused to change ``readonly`` itself.
+
+    ``Cannot modify 'readonly' setting in readonly mode`` -- as opposed to
+    ``Cannot execute query in readonly mode``, which is a refused write.
+    """
+    return "Cannot modify 'readonly' setting" in str(error)
+
+
 def _error_message(response: httpx.Response) -> str:
     """Render an error response as the server's own diagnosis.
 
@@ -330,6 +339,7 @@ class ClickHouseDatabase(SQLDatabase):
     #: applying it costs nothing extra -- there is no session to rebuild --
     #: so profiling probes get to cap a server that has stopped answering.
     supports_statement_timeout: bool = True
+    supports_read_only_execution: bool = True
 
     def __init__(self, connection_string: str) -> None:
         self._settings = _parse_connection_string(connection_string)
@@ -385,6 +395,7 @@ class ClickHouseDatabase(SQLDatabase):
         sql: str,
         timeout_s: float | None = None,
         cap_rows: bool = True,
+        readonly: int | None = None,
     ) -> dict[str, Any]:
         """Run *sql* over the HTTP interface and return the decoded JSON body.
 
@@ -414,6 +425,8 @@ class ClickHouseDatabase(SQLDatabase):
             params["result_overflow_mode"] = "break"
         if timeout_s is not None:
             params["max_execution_time"] = str(max(1, int(timeout_s)))
+        if readonly is not None:
+            params["readonly"] = str(readonly)
 
         timeout = (
             DEFAULT_HTTP_TIMEOUT_S
@@ -490,6 +503,8 @@ class ClickHouseDatabase(SQLDatabase):
         sql: str,
         parameters: Optional[list] = None,
         timeout_s: float | None = None,
+        *,
+        read_only: bool = False,
     ) -> pd.DataFrame:
         """Run *sql* and return the result as a DataFrame.
 
@@ -511,6 +526,10 @@ class ClickHouseDatabase(SQLDatabase):
             silently interpolating them into the statement.
         timeout_s:
             Optional cap on how long the server may spend on the statement.
+        read_only:
+            Send the ``readonly`` setting with this request, so the server
+            refuses a write (``Cannot execute query in readonly mode``). It is
+            a parameter of the one request and never reaches another.
 
         Raises:
             ValueError: *parameters* was supplied.
@@ -522,13 +541,30 @@ class ClickHouseDatabase(SQLDatabase):
                 "ClickHouse's HTTP interface has no positional parameter binding; "
                 "inline the values into the statement instead"
             )
-        return self._query(sql, timeout_s=timeout_s, cap_rows=True)
+        if not read_only:
+            return self._query(sql, timeout_s=timeout_s, cap_rows=True)
+        # ``readonly=1`` allows reads only. ``2`` also allows settings changes,
+        # temporary tables and table functions, so under it ``INSERT INTO
+        # FUNCTION file(...)`` still writes; hence ``1``. The other settings of
+        # this request are applied together with it and are accepted. The one
+        # case ``1`` is refused is an account already restricted to
+        # ``readonly=2`` by its profile, since the setting may not change in
+        # read-only mode; that request ran nothing, and repeating it under
+        # ``2`` asks for exactly what the server enforces anyway.
+        # https://clickhouse.com/docs/operations/settings/permissions-for-queries
+        try:
+            return self._query(sql, timeout_s=timeout_s, cap_rows=True, readonly=1)
+        except ClickHouseError as error:
+            if not _is_already_read_only(error):
+                raise
+            return self._query(sql, timeout_s=timeout_s, cap_rows=True, readonly=2)
 
     def _query(
         self,
         sql: str,
         timeout_s: float | None = None,
         cap_rows: bool = True,
+        readonly: int | None = None,
     ) -> pd.DataFrame:
         """Run *sql* and decode the JSONCompact body into a DataFrame.
 
@@ -539,7 +575,9 @@ class ClickHouseDatabase(SQLDatabase):
         the catalog would then be ingested with whole tables missing their
         columns, behind nothing louder than a warning.
         """
-        body = self._post(sql, timeout_s=timeout_s, cap_rows=cap_rows)
+        body = self._post(
+            sql, timeout_s=timeout_s, cap_rows=cap_rows, readonly=readonly
+        )
         meta = body.get("meta") or []
         if not meta:
             return pd.DataFrame()
