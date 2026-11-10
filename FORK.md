@@ -277,7 +277,7 @@ No model, registry or credential is tied to a single vendor any more.
 
 - **Models:** no built-in defaults. A missing model setting fails with an error naming the environment variables to set
   (`DEFAULT_MODELS_*` or the per-role ones). `NVIDIA_API_KEY` is no longer read; `EMBED_EXTRA_FIELDS` replaces
-  `EMBED_NIM_FIELDS` (the old name is still accepted). All chat goes through `ChatOpenAI`; `LLM_CLIENT=nvidia` is opt-in.
+  `EMBED_NIM_FIELDS` (the old name is still accepted). All chat goes through `ChatOpenAI`.
 - **Vault:** `VAULT_AUTH_MOUNT` defaults to `approle`.
 - **Skills:** renamed `skills/ontology-*`; the vendor signatures were removed.
 - **Releases:** one `release.yml` publishes `ghcr.io/<owner>/auto-ontology`, `-frontend` and `-mcp` (plus the OCI Helm

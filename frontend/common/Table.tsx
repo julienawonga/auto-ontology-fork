@@ -4,14 +4,7 @@
 
 'use client';
 
-import {
-	PaginationArrowButton,
-	PaginationItemRangeText,
-	PaginationNavigationGroup,
-	PaginationPageList,
-	PaginationRoot,
-} from '@nvidia/foundations-react-core';
-
+import { Pagination } from '@/common/Pagination';
 import { EmptyState } from '@/common/EmptyState';
 import { Text } from '@/common/Text';
 import { EmptyStateVariant } from '@/enums/emptyState';
@@ -169,22 +162,14 @@ export const Table = <T,>({
 		<div className={cx(containerClassName ?? DEFAULT_CONTAINER, className)}>
 			{scrollClassName ? <div className={scrollClassName}>{tableElement}</div> : tableElement}
 			{pagination && (
-				<PaginationRoot
+				<Pagination
 					totalItems={pagination.totalItems}
 					pageSize={pagination.pageSize}
 					page={pagination.page}
 					onPageChange={pagination.onPageChange}
+					rangeTextFormatFn={pagination.rangeTextFormatFn ?? defaultRangeText}
 					className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800"
-				>
-					<PaginationNavigationGroup withTabs>
-						<PaginationArrowButton direction="previous" />
-						<PaginationPageList />
-						<PaginationArrowButton direction="next" />
-					</PaginationNavigationGroup>
-					<PaginationItemRangeText
-						rangeTextFormatFn={pagination.rangeTextFormatFn ?? defaultRangeText}
-					/>
-				</PaginationRoot>
+				/>
 			)}
 		</div>
 	);

@@ -7,7 +7,7 @@
 import { forwardRef, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Spinner } from '@nvidia/foundations-react-core';
+import { Spinner } from '@/common/Spinner';
 import type { Breadcrumb } from '@/types/breadcrumbs';
 import { ComposerColumnType, ComposerSectionKind } from '@/enums/datasources';
 import {

@@ -5,7 +5,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Spinner } from '@nvidia/foundations-react-core';
+import { Spinner } from '@/common/Spinner';
 import { CertificationBadge, CERTIFICATION_LABEL } from '@/common/CertificationBadge';
 import { PopoverMenu } from '@/common/PopoverMenu';
 import { Icon, IconName } from '@/common/icons';

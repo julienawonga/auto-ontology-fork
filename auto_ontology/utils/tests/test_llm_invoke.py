@@ -516,8 +516,6 @@ def _client(model: str) -> Any:
 def test_every_model_uses_the_openai_compatible_client(monkeypatch: Any) -> None:
     from langchain_openai import ChatOpenAI
 
-    monkeypatch.delenv("LLM_CLIENT", raising=False)
-
     for model in ("openai/gpt-4o", "meta/llama-3.3-70b-instruct", "gpt-4o"):
         client = _client(model)
         assert isinstance(client, ChatOpenAI)
@@ -526,17 +524,8 @@ def test_every_model_uses_the_openai_compatible_client(monkeypatch: Any) -> None
 
 def test_only_non_openai_family_models_get_a_temperature(monkeypatch: Any) -> None:
     """gpt-5.x/o-series reject an explicit temperature; others keep the one asked for."""
-    monkeypatch.delenv("LLM_CLIENT", raising=False)
-
     assert _client("openai/gpt-5").temperature is None
     assert _client("meta/llama-3.3-70b-instruct").temperature == 0.0
-
-
-def test_an_unknown_llm_client_is_refused(monkeypatch: Any) -> None:
-    monkeypatch.setenv("LLM_CLIENT", "bogus")
-
-    with pytest.raises(EnvironmentError, match="LLM_CLIENT"):
-        _client("meta/llama-3.3-70b-instruct")
 
 
 @pytest.mark.parametrize(

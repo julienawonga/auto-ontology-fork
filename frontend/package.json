@@ -23,7 +23,6 @@
 		"@better-auth/mcp": "1.7.4",
 		"@better-auth/oauth-provider": "1.7.4",
 		"@better-auth/sso": "1.7.4",
-		"@nvidia/foundations-react-core": "^0.604.1",
 		"@prisma/adapter-pg": "^7.7.0",
 		"@prisma/client": "^7.7.0",
 		"@sigma/node-border": "^3.0.0",

@@ -16,7 +16,6 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 const nextConfig: NextConfig = {
 	output: process.env.NEXT_OUTPUT === 'standalone' ? 'standalone' : undefined,
 	outputFileTracingRoot: path.resolve(__dirname, '..'),
-	transpilePackages: ['@nvidia/foundations-react-core'],
 	turbopack: {
 		rules: {
 			'*.svg': {

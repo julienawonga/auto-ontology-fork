@@ -5,15 +5,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-	PaginationArrowButton,
-	PaginationItemRangeText,
-	PaginationNavigationGroup,
-	PaginationPageList,
-	PaginationRoot,
-} from '@nvidia/foundations-react-core';
-
 import { Button } from '@/common/Button';
+import { Pagination } from '@/common/Pagination';
 import { EmptyState } from '@/common/EmptyState';
 import { Size, ButtonTheme } from '@/enums/button';
 import { ToastVariant } from '@/enums/toast';
@@ -266,20 +259,14 @@ export const AnalyticsView = () => {
 								<AnalyticsCard key={row.id} row={row} />
 							))}
 						</ul>
-						<PaginationRoot
+						<Pagination
 							totalItems={pagination.totalItems}
 							pageSize={pagination.pageSize}
 							page={pagination.page}
 							onPageChange={pagination.onPageChange}
+							rangeTextFormatFn={rangeText}
 							className="glass rounded-card border border-white/70 px-4 py-3 dark:border-white/10"
-						>
-							<PaginationNavigationGroup withTabs>
-								<PaginationArrowButton direction="previous" />
-								<PaginationPageList />
-								<PaginationArrowButton direction="next" />
-							</PaginationNavigationGroup>
-							<PaginationItemRangeText rangeTextFormatFn={rangeText} />
-						</PaginationRoot>
+						/>
 					</div>
 				)}
 			</div>
