@@ -38,7 +38,7 @@ SERVER_NAME = "auto-ontology"
 # Shipped in the package and inlined as a data URI rather than linked, so it
 # needs no network and no reachable Auto Ontology to display — a client may well draw its
 # server list before anything is connected.
-ICON_PATH = Path(__file__).resolve().parent / "nvidia-mark.svg"
+ICON_PATH = Path(__file__).resolve().parent / "app-mark.svg"
 ICON_MIME_TYPE = "image/svg+xml"
 
 # Advertised to the host at initialize. Tool descriptions say what each tool

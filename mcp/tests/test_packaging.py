@@ -65,7 +65,7 @@ def test_both_assets_are_forced_into_the_wheel() -> None:
     forced = _pyproject()["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
 
     assert "auto_ontology_mcp/auto-ontology-api.json" in forced
-    assert "auto_ontology_mcp/nvidia-mark.svg" in forced
+    assert "auto_ontology_mcp/app-mark.svg" in forced
 
 
 def test_console_script_is_declared() -> None:

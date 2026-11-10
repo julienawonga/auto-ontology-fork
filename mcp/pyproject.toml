@@ -38,7 +38,7 @@ packages = ["auto_ontology_mcp"]
 # `pnpm openapi`, which writes both copies, and enforced by CI.
 [tool.hatch.build.targets.wheel.force-include]
 "auto_ontology_mcp/auto-ontology-api.json" = "auto_ontology_mcp/auto-ontology-api.json"
-"auto_ontology_mcp/nvidia-mark.svg" = "auto_ontology_mcp/nvidia-mark.svg"
+"auto_ontology_mcp/app-mark.svg" = "auto_ontology_mcp/app-mark.svg"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
