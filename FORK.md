@@ -244,7 +244,7 @@ What changed:
   whole app is now a one-line edit.
 - Every hard-coded green (`#76b900` and its lighter and darker shades, about
   250 uses in 63 files) now uses those tokens.
-- A neutral logo (three linked nodes) replaces the NVIDIA logo in the sidebar,
+- A neutral logo (a magnifier framing a node, for Lexis) replaces the NVIDIA logo in the sidebar,
   the chat, the login and invite pages, the browser tab icon and the MCP
   server's icon.
 
