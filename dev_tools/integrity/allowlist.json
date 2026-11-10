@@ -1,0 +1,30 @@
+{
+  "entries": [
+    {
+      "value": "Action",
+      "reason": "Common English word (Pagila category, expected answer of pagila.category_most_revenue). Reviewed 2026-11-10: the 125 hits are ordinary identifiers and prose (permissions, agent prompts, router names), none a copied answer. Applies to every shipped file: the word is too common for a path scope (the frontend and the MCP spec use it too), so a copy of this one word is NOT detectable."
+    },
+    {
+      "value": "Alternative",
+      "reason": "Common English word (Chinook genre, expected answer of chinook.tracks_per_genre). Reviewed 2026-11-10: hits are prose such as 'alternative' candidates in prompts and entity resolution, none a copied answer. Applies to every shipped file: the word is too common for a path scope (the frontend and the MCP spec use it too), so a copy of this one word is NOT detectable."
+    },
+    {
+      "value": "Lost",
+      "reason": "Common English word (Chinook artist, expected answer of chinook.top5_artists_revenue). Reviewed 2026-11-10: hits are prose such as 'lost connection' and 'lost rows', none a copied answer. Applies to every shipped file: the word is too common for a path scope (the frontend and the MCP spec use it too), so a copy of this one word is NOT detectable."
+    },
+    {
+      "value": "World",
+      "reason": "Common English word (Chinook genre, expected answer of chinook.tracks_per_genre). Reviewed 2026-11-10: hits are the phrase 'real-world' in comments of the database probes, none a copied answer. Applies to every shipped file: the word is too common for a path scope (the frontend and the MCP spec use it too), so a copy of this one word is NOT detectable."
+    },
+    {
+      "value": "Rock",
+      "path": "frontend/components/explorationPage/graph/GraphCanvas.tsx",
+      "reason": "Chinook genre (expected answer and gold literal). Reviewed 2026-11-10: the only hit is the comment 'keeps the canvas's scale/pan rock steady' in the graph canvas, unrelated to the evaluation."
+    },
+    {
+      "value": "Latin",
+      "path": "frontend/app/layout.tsx",
+      "reason": "Chinook genre (expected answer of chinook.tracks_per_genre). Reviewed 2026-11-10: the only hits are the Next.js font option subsets: ['latin'] in the root layout, unrelated to the evaluation."
+    }
+  ]
+}
