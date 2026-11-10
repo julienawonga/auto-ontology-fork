@@ -15,6 +15,7 @@ from auto_ontology.infra import feature_flags
 from auto_ontology.infra.feature_flags import (
     get_sql_query_timeout_seconds,
     get_sql_result_max_rows,
+    is_clarification_enabled,
     is_distinct_value_probing_enabled,
     is_pii_detection_enabled,
     read_configuration_flag,
@@ -226,3 +227,19 @@ def test_sql_result_max_rows_ignores_unusable_values(
 ) -> None:
     with _patched(monkeypatch, (stored,)):
         assert get_sql_result_max_rows() == 10_000
+
+
+def test_clarification_defaults_to_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Opt-in: until the row says so, the chat answers exactly as it did before."""
+    with _patched(monkeypatch, None) as cursor:
+        assert is_clarification_enabled() is False
+    assert cursor.executed[0][1] == ("clarification_enabled",)
+
+
+def test_clarification_honours_an_explicit_true(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _patched(monkeypatch, ("true",)):
+        assert is_clarification_enabled() is True

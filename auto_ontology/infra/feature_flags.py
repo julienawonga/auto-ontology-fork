@@ -34,6 +34,11 @@ DISTINCT_VALUE_PROBING_ENABLED_KEY = "distinct_value_probing_enabled"
 # until an admin turns the toggle on.
 PII_DETECTION_ENABLED_KEY = "pii_detection_enabled"
 
+# Lets the chat ask one short clarification question when a business term is
+# genuinely undefined (see ``retrieval/text_to_sql/clarification.py``). Opt-in:
+# there is no settings control yet, so it is switched on by writing the row.
+CLARIFICATION_ENABLED_KEY = "clarification_enabled"
+
 # Written by the SQL Query Timeout field on Settings > Agent Settings: how long
 # a statement the text-to-SQL agent issues may run before it is cancelled. An
 # instance without the frontend never writes the row and gets the default.
@@ -122,6 +127,15 @@ def is_pii_detection_enabled() -> bool:
     without a restart.
     """
     return read_configuration_flag(PII_DETECTION_ENABLED_KEY, default=False)
+
+
+def is_clarification_enabled() -> bool:
+    """Whether the chat may end a turn with a clarification question.
+
+    Opt-in, read per request: a missing row or any DB error means off, so the
+    chat answers exactly as it did before the feature existed.
+    """
+    return read_configuration_flag(CLARIFICATION_ENABLED_KEY, default=False)
 
 
 def read_configuration_int(
