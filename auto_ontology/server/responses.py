@@ -105,6 +105,8 @@ __all__ = [
     "RuleResponse",
     "SchemasPayload",
     "SemanticExplorationGraphResponse",
+    "SemanticIndexStatus",
+    "SemanticReindexResponse",
     "SemanticRunningResponse",
     "SemanticStatusResponse",
     "SqlAttributeExplorationDetailsResponse",
@@ -200,11 +202,40 @@ class HealthResponse(_Payload):
     migrations: dict[str, str]
 
 
+class SemanticIndexStatus(_Payload):
+    """One database's ontology against its rows in the semantic vector index.
+
+    ``expected`` counts the Terms and ColumnAttributes the relational store
+    holds, ``indexed`` how many of them have an embedding row, and ``missing``
+    the difference. Anything but ``missing == 0`` means chat retrieval cannot
+    see part of the semantic layer.
+    """
+
+    database_name: str
+    expected: int
+    indexed: int
+    missing: int
+
+
 class SemanticStatusResponse(_Payload):
     calculated: bool
     running: bool
     last_success_at: str | None
     last_failure_at: str | None
+    #: Per database; ``None`` when the comparison could not be made.
+    index: list[SemanticIndexStatus] | None = None
+
+
+class SemanticReindexResponse(_Payload):
+    """Result of rebuilding one database's semantic index.
+
+    ``written < expected`` is a partial rebuild: the embedding endpoint did not
+    return a vector for every row.
+    """
+
+    database_name: str
+    expected: int
+    written: int
 
 
 class SemanticRunningResponse(_Payload):

@@ -35,6 +35,10 @@ from auto_ontology.semantic.constants import (
 )
 
 from auto_ontology.dal.custom_analyses import custom_analysis_exists
+from auto_ontology.semantic.index_health import (
+    check_semantic_index,
+    check_semantic_indexes,
+)
 from auto_ontology.retrieval.data_access.semantic_search import search_semantic_index
 from auto_ontology.utils.llm_invoke import invoke_with_structured_output
 from auto_ontology.retrieval.text_to_sql.base import BaseAgent
@@ -191,6 +195,36 @@ def _covered_entities(column_hits: list[dict]) -> set[str]:
         for hit in column_hits
         if str(hit.get("query_entity") or "").strip()
     }
+
+
+def _warn_if_semantic_index_empty(database_name: str | None) -> None:
+    """Say so when retrieval came back empty because nothing was ever indexed.
+
+    Finding no candidate is normal for some questions and the chat then answers
+    from the raw schema. It is not normal when the database has Terms and its
+    index holds none of them -- that is a broken index, and it once went
+    unnoticed for every question asked because the fallback is silent. Called
+    only on an empty retrieval, so a healthy chat never pays for the check.
+    """
+    try:
+        indexes = (
+            [check_semantic_index(database_name)]
+            if database_name
+            else check_semantic_indexes()
+        )
+    except Exception:
+        # Diagnostics only: the question is still answerable without them.
+        logger.debug("Could not check the semantic index", exc_info=True)
+        return
+    for index in indexes:
+        if index.expected and not index.indexed:
+            logger.warning(
+                "Semantic index is empty for database %r although it has %d "
+                "Term/ColumnAttribute(s) — chat is falling back to the raw "
+                "schema. Rebuild it with POST /api/semantic-compilation/reindex",
+                index.database_name,
+                index.expected,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -727,5 +761,7 @@ class CandidateRetrievalAgent(BaseAgent):
             len(entities),
             subject,
         )
+        if semantic_retriever is not None and not deduped_col_attr and not subject_term:
+            _warn_if_semantic_index_empty(target_db)
 
         return {"path_state": path_state}

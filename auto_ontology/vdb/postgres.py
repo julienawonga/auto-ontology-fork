@@ -512,6 +512,67 @@ class PostgresVDB:
         )
         return deleted
 
+    def delete_by_ids(self, node_ids: list[str], database_name: str) -> int:
+        """Delete *database_name*'s rows whose metadata ``id`` is in *node_ids*.
+
+        The bulk form of :meth:`delete_by_id`, for replacing many rows in one
+        statement. Scoped to the database because a Term represented in two
+        databases has one row per database under the same ``id``, and
+        re-embedding one database must leave the other's row alone.
+
+        Returns the number of rows deleted (``0`` when the collection table
+        doesn't exist yet or nothing matched).
+        """
+        if not node_ids or not self._table_exists():
+            return 0
+
+        with psycopg.connect(self.connection_string) as conn:
+            with conn.cursor() as cur:
+                # Identifiers are internal config, as in `delete_by_id`.
+                cur.execute(
+                    sql.SQL(
+                        """
+                        DELETE FROM {table}
+                        WHERE database_name = %s
+                          AND langchain_metadata ->> 'id' = ANY(%s)
+                        """
+                    ).format(
+                        table=sql.Identifier(self.schema_name, self.collection_name)
+                    ),
+                    (database_name, list(node_ids)),
+                )
+                return cur.rowcount
+
+    def ids_by_database(self, database_name: str, labels: list[str]) -> set[str]:
+        """Metadata ``id`` of every *labels* row stored for *database_name*.
+
+        What the collection actually holds, for comparing against what the
+        relational store says it should. Distinct ids rather than a row count,
+        so duplicate rows cannot hide a missing one. Empty when the collection
+        table doesn't exist yet.
+        """
+        if not self._table_exists():
+            return set()
+
+        with psycopg.connect(self.connection_string) as conn:
+            with conn.cursor() as cur:
+                # Identifiers are internal config, as in `delete_by_id`.
+                cur.execute(
+                    sql.SQL(
+                        """
+                        SELECT DISTINCT langchain_metadata ->> 'id'
+                        FROM {table}
+                        WHERE database_name = %s
+                          AND label = ANY(%s)
+                          AND langchain_metadata ->> 'id' IS NOT NULL
+                        """
+                    ).format(
+                        table=sql.Identifier(self.schema_name, self.collection_name)
+                    ),
+                    (database_name, list(labels)),
+                )
+                return {row[0] for row in cur.fetchall()}
+
     def retrieval(
         self,
         queries: list,

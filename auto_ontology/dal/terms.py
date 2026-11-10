@@ -646,9 +646,11 @@ def fetch_all_terms_and_attributes(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Every Term and every ColumnAttribute, for a one-shot bulk re-embed.
 
-    Only ``embed_all_semantic_nodes`` wants this. The second scan is global and
-    expensive; callers that need Term rows alone — the ``/terms`` list, the
-    Exploration graph — should call :func:`fetch_all_terms` and skip it.
+    The second scan is global and expensive; callers that need Term rows alone
+    — the ``/terms`` list, the Exploration graph — should call
+    :func:`fetch_all_terms` and skip it. Rebuilding the semantic index does not
+    use this: embeddings are tagged with one database, so it reads
+    :func:`fetch_terms_and_attributes_for_database` instead.
     """
     terms = fetch_all_terms(zone_ids=zone_ids)
 
@@ -1053,6 +1055,126 @@ def fetch_terms_and_attributes_for_table(
     )
     attrs = store().query_read(_embedding_attrs_for_table(table_id))
     return [dict(r) for r in terms], [dict(r) for r in attrs]
+
+
+# ---------------------------------------------------------------------------
+# One database's semantic index
+# ---------------------------------------------------------------------------
+#
+# Rows in the semantic vector index are tagged with a database, while Terms are
+# global, so "what should the index hold for this database" needs its own
+# definition. Rebuilding the index and measuring its drift both read it from the
+# two scopes below: a rebuild that embedded a different set than the health
+# check expects would report a gap it can never close.
+
+
+def _database_terms(database_name: str) -> tuple[Any, list[Any]]:
+    """FROM and WHERE for the semantic Terms a database's tables represent."""
+    from_clause = (
+        s.table__term.join(s.term, s.term.c.id == s.table__term.c.term_id)
+        .join(s.catalog_table, s.catalog_table.c.id == s.table__term.c.table_id)
+        .join(s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id)
+        .join(
+            s.catalog_database,
+            s.catalog_database.c.id == s.catalog_schema.c.database_id,
+        )
+    )
+    return from_clause, [
+        s.catalog_database.c.name == database_name,
+        s.term.c.source == SEMANTIC_SOURCE,
+    ]
+
+
+def _database_column_attributes(database_name: str) -> tuple[Any, list[Any]]:
+    """FROM and WHERE for the semantic ColumnAttributes on a database's columns."""
+    from_clause = (
+        s.column_attribute.join(
+            s.column__has_attribute,
+            s.column__has_attribute.c.attribute_id == s.column_attribute.c.id,
+        )
+        .join(
+            s.catalog_column,
+            s.catalog_column.c.id == s.column__has_attribute.c.column_id,
+        )
+        .join(s.catalog_table, s.catalog_table.c.id == s.catalog_column.c.table_id)
+        .join(s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id)
+        .join(
+            s.catalog_database,
+            s.catalog_database.c.id == s.catalog_schema.c.database_id,
+        )
+    )
+    return from_clause, [
+        s.catalog_database.c.name == database_name,
+        s.column_attribute.c.source == SEMANTIC_SOURCE,
+    ]
+
+
+def fetch_terms_and_attributes_for_database(
+    database_name: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """``(terms, attrs)`` of one database — the input of a semantic index rebuild.
+
+    The database-wide counterpart of :func:`fetch_terms_and_attributes_for_table`,
+    which feeds the inline embed of a single table during compilation.
+    """
+    term_from, term_where = _database_terms(database_name)
+    terms = store().query_read(
+        select(
+            s.term.c.name,
+            s.term.c.description,
+            s.term.c.synonyms,
+            s.term.c.id,
+            func.array_agg(func.distinct(s.catalog_schema.c.name)).label(
+                "schema_names"
+            ),
+        )
+        .select_from(term_from)
+        .where(*term_where)
+        .group_by(s.term.c.id)
+        .order_by(s.term.c.id)
+    )
+    attr_from, attr_where = _database_column_attributes(database_name)
+    attrs = store().query_read(
+        select(
+            s.column_attribute.c.name,
+            s.column_attribute.c.description,
+            s.column_attribute.c.term_name,
+            s.column_attribute.c.source_column,
+            s.catalog_column.c.sample_values,
+            s.catalog_column.c.is_unique,
+            s.catalog_table.c.id.label("table_id"),
+            s.catalog_table.c.name.label("table_name"),
+            s.column_attribute.c.id,
+            s.catalog_schema.c.name.label("schema_name"),
+            s.column_attribute.c.datatype,
+        )
+        .select_from(attr_from)
+        .where(*attr_where)
+        .order_by(s.column_attribute.c.id)
+    )
+    return [dict(r) for r in terms], [dict(r) for r in attrs]
+
+
+def fetch_semantic_node_ids_for_database(
+    database_name: str,
+) -> tuple[set[str], set[str]]:
+    """``(term_ids, column_attribute_ids)`` the semantic index should hold.
+
+    Ids only, so a drift check costs two narrow scans rather than the
+    descriptions and sample values a rebuild has to read.
+    """
+    term_from, term_where = _database_terms(database_name)
+    terms = store().query_read(
+        select(s.term.c.id).select_from(term_from).where(*term_where).distinct()
+    )
+    attr_from, attr_where = _database_column_attributes(database_name)
+    attrs = store().query_read(
+        select(s.column_attribute.c.id)
+        .select_from(attr_from)
+        .where(*attr_where)
+        .distinct()
+    )
+    return {r["id"] for r in terms}, {r["id"] for r in attrs}
 
 
 def fetch_term_and_column_attributes_for_embedding(
