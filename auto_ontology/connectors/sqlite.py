@@ -50,6 +50,7 @@ class SQLiteDatabase(SQLDatabase):
     """
 
     supports_statement_timeout = True
+    supports_read_only_execution = True
 
     def __init__(self, connection_string: str) -> None:
         db_path = _sqlite_path_from_connection_string(connection_string)
@@ -102,13 +103,39 @@ class SQLiteDatabase(SQLDatabase):
         parameters: Optional[list] = None,
         *,
         timeout_s: float | None = None,
+        read_only: bool = False,
     ) -> pd.DataFrame:
         """Run *sql*; with *timeout_s*, abort it and raise :class:`StatementTimeout`.
 
         SQLite has no statement timeout, so a progress handler checks the clock
         every few thousand VM instructions and aborts once the deadline passes.
         Connections are per thread, so the handler only ever sees this call.
+
+        With *read_only* the statement runs under ``PRAGMA query_only``, which
+        makes SQLite refuse any change to a database file (``attempt to write a
+        readonly database``). The pragma is switched off again before
+        returning, so later calls on this thread's connection are unaffected.
+        https://www.sqlite.org/pragma.html#pragma_query_only
         """
+        if not read_only:
+            return self._execute_capped(sql, parameters, timeout_s)
+
+        conn = self._conn
+        was_in_transaction = conn.in_transaction
+        conn.execute("PRAGMA query_only = ON")
+        try:
+            return self._execute_capped(sql, parameters, timeout_s)
+        finally:
+            conn.execute("PRAGMA query_only = OFF")
+            # ``sqlite3`` opens a transaction before it sends a write, so a
+            # refused one leaves it open, and every later read on this
+            # connection would then keep its shared lock on the file.
+            if conn.in_transaction and not was_in_transaction:
+                conn.rollback()
+
+    def _execute_capped(
+        self, sql: str, parameters: Optional[list], timeout_s: float | None
+    ) -> pd.DataFrame:
         if timeout_s is None:
             return self._execute(sql, parameters)
 

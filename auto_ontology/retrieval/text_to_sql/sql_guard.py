@@ -11,8 +11,8 @@ user happens to be granted. This is the first of two layers:
    tree, not on keywords, so ``REPLACE(name, ...)`` or a ``'copy'`` literal is
    fine while ``WITH x AS (DELETE ... RETURNING *) SELECT ...`` is not -- the
    root of that one is a ``SELECT``, the write is nested.
-2. **The connector** runs the statement in a read-only transaction when it can
-   (see ``supports_read_only_execution``), so the database itself refuses a
+2. **The connector** runs the statement read-only when the engine has a way
+   to (see ``supports_read_only_execution``), so the database itself refuses a
    write that slips past the parser.
 
 Neither replaces a least-privilege database user; both exist so that a mistake

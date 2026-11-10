@@ -50,6 +50,33 @@ def _execute(
     return rel.df()
 
 
+def _execute_capped(
+    cursor: duckdb.DuckDBPyConnection,
+    sql: str,
+    parameters: Optional[list],
+    timeout_s: float,
+) -> pd.DataFrame:
+    """Run *sql* on *cursor*, interrupting it after *timeout_s* seconds."""
+    fired = threading.Event()
+
+    def _interrupt() -> None:
+        fired.set()
+        cursor.interrupt()
+
+    timer = threading.Timer(timeout_s, _interrupt)
+    timer.daemon = True
+    timer.start()
+    try:
+        return _execute(cursor, sql, parameters)
+    except duckdb.InterruptException as exc:
+        if fired.is_set():
+            raise StatementTimeout(timeout_s) from exc
+        raise
+    finally:
+        timer.cancel()
+        timer.join()
+
+
 class DuckDBDatabase(SQLDatabase):
     """In-process DuckDB connection with convenience helpers.
 
@@ -65,6 +92,7 @@ class DuckDBDatabase(SQLDatabase):
     """
 
     supports_statement_timeout = True
+    supports_read_only_execution = True
 
     def __init__(self, connection_string: str, *, read_only: bool = True) -> None:
         db_path = connection_string
@@ -106,6 +134,7 @@ class DuckDBDatabase(SQLDatabase):
         parameters: Optional[list] = None,
         *,
         timeout_s: float | None = None,
+        read_only: bool = False,
     ) -> pd.DataFrame:
         """Execute a SQL statement and return a pandas DataFrame.
 
@@ -119,34 +148,37 @@ class DuckDBDatabase(SQLDatabase):
             Interrupt the statement after this many seconds and raise
             :class:`StatementTimeout`. DuckDB has no server-side cap, so a
             timer thread calls ``interrupt()``.
+        read_only:
+            Run the statement in a read-only transaction, in which DuckDB
+            refuses to write to any attached database. The connector opens
+            its file read-only by default, which already refuses writes; this
+            also covers one opened with ``read_only=False`` and in-memory
+            databases, which cannot be opened read-only at all. It protects
+            the databases only: ``COPY ... TO`` a file and ``ATTACH`` still
+            run in such a transaction and are left to the parse-time guard.
         """
         logger.debug("DuckDB executing (→ DataFrame): %s", sql[:200])
-        if timeout_s is None:
+        if timeout_s is None and not read_only:
             return _execute(self.conn, sql, parameters)
 
         # ``interrupt()`` stops whatever is running on the connection it is
         # called on, and profiling runs tables in parallel. A cursor of its own
         # (same database, separate client context) means the timer can only
-        # ever stop this statement.
+        # ever stop this statement, and a read-only transaction only ever
+        # holds this statement.
         cursor = self.conn.cursor()
-        fired = threading.Event()
-
-        def _interrupt() -> None:
-            fired.set()
-            cursor.interrupt()
-
-        timer = threading.Timer(timeout_s, _interrupt)
-        timer.daemon = True
-        timer.start()
         try:
-            return _execute(cursor, sql, parameters)
-        except duckdb.InterruptException as exc:
-            if fired.is_set():
-                raise StatementTimeout(timeout_s) from exc
-            raise
+            if read_only:
+                # Absent from DuckDB's user documentation, but in its grammar
+                # and its own suite
+                # (test/sql/transactions/test_read_only_transactions.test), and
+                # exercised against the real engine in ours. Closing the cursor
+                # discards the transaction.
+                cursor.execute("BEGIN TRANSACTION READ ONLY")
+            if timeout_s is None:
+                return _execute(cursor, sql, parameters)
+            return _execute_capped(cursor, sql, parameters, timeout_s)
         finally:
-            timer.cancel()
-            timer.join()
             cursor.close()
 
     # ------------------------------------------------------------------
