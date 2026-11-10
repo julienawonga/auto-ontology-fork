@@ -307,6 +307,7 @@ If Lexis is useful to you, **a ⭐ on the repository helps others find it.**
 | Safety of agent-issued SQL | [docs/query-safety.md](./docs/query-safety.md) |
 | Evaluating the text-to-SQL engine | [docs/evaluation.md](./docs/evaluation.md) |
 | Matching question wording to stored values | [docs/value-linking.md](./docs/value-linking.md) |
+| What is verified for real, and what is not | [docs/verification-status.md](./docs/verification-status.md) |
 | MCP server | [docs/mcp.md](./docs/mcp.md) |
 | Kubernetes with Helm | [DEPLOYMENT.md](./DEPLOYMENT.md) |
 | REST API (OpenAPI) | [docs/openapi/auto-ontology-api.json](./docs/openapi/auto-ontology-api.json) |

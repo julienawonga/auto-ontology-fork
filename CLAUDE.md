@@ -80,7 +80,15 @@ python -m dev_tools.evals compare baseline.json candidate.json --margin 0.02
 the cases before measuring, score both sides with the same cases file, report
 strict and tolerant scores, and check the backend is not logging
 `Retrieved 0 ColumnAttributes` for every question (an empty semantic index
-means the run measured the raw schema, not the ontology).
+means the run measured the raw schema, not the ontology). `run` now refuses an
+empty index and `compare` refuses reports taken under different conditions.
+
+Update the row for what you changed in
+[`docs/verification-status.md`](./docs/verification-status.md) and claim only the
+level you reached (tests with fakes are `FAKES`, not verified). Never put an eval
+question, expected value or gold literal into prompts, resources or code, and
+never edit a frozen case file without re-freezing it on purpose:
+`python -m dev_tools.integrity` checks both and runs in CI.
 
 Agent-issued SQL must stay read-only and row-capped: see
 [`docs/query-safety.md`](./docs/query-safety.md) before touching
