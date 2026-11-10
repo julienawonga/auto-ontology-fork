@@ -5,7 +5,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useSession } from '@/auth/auth-client';
 import { userCan } from '@/auth/permissions';
 import type { Conversation } from '@/types/chat';
@@ -206,16 +205,7 @@ export const ChatSidebar = ({
 					isOpen ? 'translate-x-0' : '-translate-x-full'
 				}`}
 			>
-				<div className="flex h-[65px] w-full shrink-0 items-center border-b border-white/70 px-4 dark:border-white/10">
-					<Link href="/" className="flex items-center gap-3">
-						<Icon name={IconName.AppLogo} className="h-6 w-auto text-primary" />
-						<span className="text-sm font-semibold tracking-wide text-black dark:text-zinc-100">
-							Auto Ontology
-						</span>
-					</Link>
-				</div>
-
-				<div className="px-3 py-3">
+				<div className="px-3 pt-4 pb-3">
 					<Button
 						theme={ButtonTheme.Secondary}
 						size={Size.REGULAR}
