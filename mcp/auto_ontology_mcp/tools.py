@@ -12,7 +12,7 @@ allow-list and everything else is excluded.
 
 The allow-list is deliberately about *meaning* rather than storage. Nothing
 here walks the physical catalog database by database: consumers should reach
-the data through the semantic layer, which is the point of Auto Ontology, and a tool that
+the data through the semantic layer, which is the point of Lexis, and a tool that
 lists schemas or columns invites an agent to bypass it and reason about raw
 tables instead. ``describe_table`` is the exception, because what it returns is
 the terms and SQL attributes a table participates in.
@@ -64,7 +64,7 @@ CURATED: tuple[ToolSpec, ...] = (
         name="search_terms",
         description=(
             "Search the business glossary. Terms are the human-meaningful "
-            "concepts Auto Ontology has compiled over the connected databases — "
+            "concepts Lexis has compiled over the connected databases — "
             '"Customer", "Open Order", "Net Revenue" — each mapped to real '
             "columns and SQL expressions. Use this first to learn what a "
             "business word actually means in this deployment before asking a "
@@ -127,7 +127,7 @@ CURATED: tuple[ToolSpec, ...] = (
         description=(
             "Grade how well the semantic layer covers the entities in a "
             "question, without running the full agent. A cheap pre-flight: "
-            "use it to decide whether Auto Ontology can answer something before paying "
+            "use it to decide whether Lexis can answer something before paying "
             "for ask_question, which is far slower and more expensive."
         ),
     ),

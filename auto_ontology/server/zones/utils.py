@@ -27,7 +27,7 @@ _AUTO_ONTOLOGY_LABEL_TO_API_NAME: dict[str, str] = {
 
 
 def _resolve_api_name(auto_ontology_label: str) -> str:
-    """Map a Auto Ontology graph label to its API-facing name."""
+    """Map a Lexis graph label to its API-facing name."""
     return _AUTO_ONTOLOGY_LABEL_TO_API_NAME.get(
         auto_ontology_label, auto_ontology_label.lower()
     )

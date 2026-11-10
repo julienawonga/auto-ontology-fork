@@ -4,14 +4,14 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# AGENTS.md — Auto-Ontology agent entry point
+# AGENTS.md — Lexis agent entry point
 
-Skills that teach an agent how to **set up** the current Auto-Ontology implementation and
+Skills that teach an agent how to **set up** the current Lexis implementation and
 **use** its ontology layer. They live in **`skills/`** (repo root), one directory
 per skill, under the `ontology-*` namespace.
 
-This file is for developers bringing Auto-Ontology up and partners embedding it in an
-agent harness. Auto-Ontology **maintainers** (build, test, schema, frontend conventions)
+This file is for developers bringing Lexis up and partners embedding it in an
+agent harness. Lexis **maintainers** (build, test, schema, frontend conventions)
 stay on [`CLAUDE.md`](./CLAUDE.md). Do not fold those conventions into these
 skills.
 
@@ -19,15 +19,15 @@ skills.
 
 - [`skills/ontology-setup/`](./skills/ontology-setup/) — Helm (the official
   install), local Compose, developer `--dev` / `--ds`, MCP against an
-  already-running instance, and troubleshooting. Start here when Auto-Ontology is not up yet or something failed
+  already-running instance, and troubleshooting. Start here when Lexis is not up yet or something failed
   during bring-up.
 - [`skills/ontology-management/`](./skills/ontology-management/) — inspect, model,
   **modify**, and safely publish through glossary terms, SQL attributes,
   semantic relationships, model YAML import/export, and governed result
   definitions. MCP cannot write; this skill covers the approved write paths.
 - [`skills/ontology-query/`](./skills/ontology-query/) — how an
-  agent calls Auto-Ontology (MCP first, REST fallback), discovers meaning through the
-  semantic layer, and validates SQL, rows, and answers. Start here when Auto-Ontology is
+  agent calls Lexis (MCP first, REST fallback), discovers meaning through the
+  semantic layer, and validates SQL, rows, and answers. Start here when Lexis is
   already deployed.
 
 ## Workflow ownership and handoffs
@@ -76,5 +76,5 @@ Each skill directory holds:
 Change the skill name in all of these together if you ever rename a skill.
 
 Skills must stay free of staging hostnames, cluster names, Vault paths, and
-credentials — they are public even when an Auto-Ontology deployment is
+credentials — they are public even when an Lexis deployment is
 access-restricted.

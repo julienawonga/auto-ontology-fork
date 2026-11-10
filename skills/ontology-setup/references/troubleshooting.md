@@ -4,7 +4,7 @@ All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Auto Ontology setup troubleshooting
+# Lexis setup troubleshooting
 
 Read this before searching the web. Redact secrets before sharing command
 output.
@@ -41,7 +41,7 @@ ingestion service and the backend.
 
 ## Connections: UI vs `CONNECTION_STRINGS` vs Vault
 
-Auto Ontology resolves source databases from two places:
+Lexis resolves source databases from two places:
 
 1. Connections added in the UI. Credentials are stored in plaintext on the
    catalog row unless Vault is fully configured.
@@ -82,7 +82,7 @@ leave `AUTO_ONTOLOGY_MCP_HOST` unset.
 
 ## "This request carried no signed-in session"
 
-The grant expired or was revoked in Auto Ontology. Sign in again from the MCP client.
+The grant expired or was revoked in Lexis. Sign in again from the MCP client.
 There is no server-side token to paste; do not try to configure one.
 
 ## `ask_question` returned an empty answer, with no SQL and no error
@@ -96,7 +96,7 @@ credential.
 If the deployment is ready, the question's vocabulary is the problem —
 `search_terms` for the nouns in it.
 
-## "Auto Ontology cannot answer right now"
+## "Lexis cannot answer right now"
 
 Usually the semantic layer was never compiled; confirm with
 `check_readiness` or `GET /api/semantic-compilation/status`. It also appears

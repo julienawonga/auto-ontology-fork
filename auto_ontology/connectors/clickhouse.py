@@ -2,11 +2,11 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""ClickHouse connector implementing Auto Ontology's SQLDatabase ABC.
+"""ClickHouse connector implementing Lexis's SQLDatabase ABC.
 
 ClickHouse is a column-oriented OLAP engine. It is reached here over its HTTP
 interface with ``httpx`` rather than through ``clickhouse-connect`` or the
-native TCP protocol: the whole surface used by Auto Ontology is "POST a statement, read
+native TCP protocol: the whole surface used by Lexis is "POST a statement, read
 back JSON", the HTTP endpoint is enabled on every deployment including
 ClickHouse Cloud, and it keeps the dependency out of the image.
 
@@ -507,7 +507,7 @@ class ClickHouseDatabase(SQLDatabase):
             has neither names nor types to supply, and inventing them would
             mean guessing a type per value -- binding a numeric id as a string
             turns an index lookup into a full scan, or a type error. Nothing in
-            Auto Ontology passes parameters to a connector, so this raises rather than
+            Lexis passes parameters to a connector, so this raises rather than
             silently interpolating them into the statement.
         timeout_s:
             Optional cap on how long the server may spend on the statement.

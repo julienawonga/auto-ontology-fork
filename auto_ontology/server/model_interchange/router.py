@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""HTTP routes for native Auto Ontology and Apache Ossie model YAML export/import."""
+"""HTTP routes for native Lexis and Apache Ossie model YAML export/import."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ class YamlResponse(Response):
                 "application/zip": {"schema": {"type": "string", "format": "binary"}},
             },
             "description": (
-                "Auto Ontology model YAML, or with include_ontology a zip of the "
+                "Lexis model YAML, or with include_ontology a zip of the "
                 "Apache Ossie semantic model, ontology and mapping, sent as a file "
                 "attachment"
             ),
@@ -80,7 +80,7 @@ async def import_model(
     replace: bool = Query(default=True),
     embed: bool = Query(default=True),
 ) -> dict:
-    """Import a native Auto Ontology or Apache Ossie model YAML file or raw YAML body."""
+    """Import a native Lexis or Apache Ossie model YAML file or raw YAML body."""
     if file is not None:
         raw = await file.read()
     else:

@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Relational prediction pipeline (Auto Ontology entry point).
+"""Relational prediction pipeline (Lexis entry point).
 
 Wires the ingested-catalog data into the ported text-to-PQL pipeline:
   1. Load a bounded sample of each ingested-catalog table into DataFrames.
@@ -849,7 +849,7 @@ def _build_context_within_budget(
     kumo_model = KumoModel(client.relational(graph), graph)
     entity_ids = _entity_ids(graph, frames)
 
-    # Entity-selection SQL runs against the live Auto Ontology database connection (the
+    # Entity-selection SQL runs against the live Lexis database connection (the
     # first configured connector — the source of the catalog tables). ``table_names``
     # maps bare graph table names to their schema-qualified form so the SQL resolves.
     return PredictionContext(

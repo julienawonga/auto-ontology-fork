@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Auto Ontology-owned catalog layer — the data catalog's vocabulary and write path.
+"""Lexis-owned catalog layer — the data catalog's vocabulary and write path.
 
 The public surface is deliberately four entry points:
 

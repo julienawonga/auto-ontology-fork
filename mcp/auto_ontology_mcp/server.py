@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Assemble the Auto Ontology MCP server from the published OpenAPI spec."""
+"""Assemble the Lexis MCP server from the published OpenAPI spec."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 SERVER_NAME = "auto-ontology"
 
 # Shipped in the package and inlined as a data URI rather than linked, so it
-# needs no network and no reachable Auto Ontology to display — a client may well draw its
+# needs no network and no reachable Lexis to display — a client may well draw its
 # server list before anything is connected.
 ICON_PATH = Path(__file__).resolve().parent / "app-mark.svg"
 ICON_MIME_TYPE = "image/svg+xml"
@@ -46,7 +46,7 @@ ICON_MIME_TYPE = "image/svg+xml"
 # has to infer from names — and infers badly, usually by reaching straight for
 # the expensive one.
 INSTRUCTIONS = """\
-Auto Ontology answers questions about an organisation's
+Lexis answers questions about an organisation's
 structured data. It holds a compiled semantic layer — a glossary of business
 terms mapped onto real database columns and reviewed SQL expressions — over the
 databases this deployment is connected to.
@@ -107,7 +107,7 @@ def load_spec(settings: Settings) -> dict[str, Any]:
 
 
 def load_icons() -> list[Icon]:
-    """The Auto-Ontology mark, for clients that show an icon beside each server.
+    """The Lexis mark, for clients that show an icon beside each server.
 
     Purely cosmetic, so a missing or unreadable file degrades to no icon rather
     than stopping a working server from starting.
@@ -131,7 +131,7 @@ def load_icons() -> list[Icon]:
 BEARER_HEADER = "authorization"
 
 # Not a credential this server accepts — one it refuses. FastMCP copies the
-# incoming request's headers onto the outbound call, and Auto Ontology resolves an API key
+# incoming request's headers onto the outbound call, and Lexis resolves an API key
 # ahead of a bearer token, so a caller who sent one would be acting as its owner
 # rather than as whoever they signed in as. It is stripped on the way out.
 API_KEY_HEADER = "x-api-key"
@@ -141,8 +141,8 @@ class CallerAuth(httpx.Auth):
     """Authenticate every outbound call as the caller who triggered it.
 
     This server holds no credential, and there is no setting that would give it
-    one. Identity comes from the sign-in the caller completed against Auto Ontology, and
-    the access token Auto Ontology issued for it is forwarded upstream unchanged: Auto Ontology is
+    one. Identity comes from the sign-in the caller completed against Lexis, and
+    the access token Lexis issued for it is forwarded upstream unchanged: Lexis is
     both the authorization server and the resource server here, so there is
     nothing to exchange and no id token to unwrap.
 
@@ -157,7 +157,7 @@ class CallerAuth(httpx.Auth):
         if not token:
             raise ToolError(
                 "This request carried no signed-in session. Sign in again "
-                "through the Auto Ontology deployment this server is pointed at."
+                "through the Lexis deployment this server is pointed at."
             )
 
         # A request must never carry two identities, whichever slot the
@@ -170,7 +170,7 @@ class CallerAuth(httpx.Auth):
 
 
 def build_client(settings: Settings) -> httpx.AsyncClient:
-    """HTTP client for the public Auto Ontology API.
+    """HTTP client for the public Lexis API.
 
     The credential is not set here: :class:`CallerAuth` resolves one per
     request, so a single client can serve callers with different identities.
@@ -201,7 +201,7 @@ def build_server(settings: Settings) -> tuple[FastMCP, httpx.AsyncClient]:
         mcp_names=names_by_operation_id(spec),
         mcp_component_fn=apply_description,
         # Forwarded to the FastMCP constructor. Without an explicit version the
-        # handshake advertises FastMCP's own, which reads as a Auto Ontology version to
+        # handshake advertises FastMCP's own, which reads as a Lexis version to
         # anyone looking at the client's server list.
         instructions=INSTRUCTIONS,
         version=get_version(),
@@ -213,8 +213,8 @@ def build_server(settings: Settings) -> tuple[FastMCP, httpx.AsyncClient]:
     readiness.register(mcp, settings, client)
 
     logger.info(
-        "Auto Ontology MCP server built against %s (spec: %s). Callers sign in against "
-        "that Auto Ontology deployment; this server holds no credentials.",
+        "Lexis MCP server built against %s (spec: %s). Callers sign in against "
+        "that Lexis deployment; this server holds no credentials.",
         settings.api_url,
         settings.spec_path,
     )

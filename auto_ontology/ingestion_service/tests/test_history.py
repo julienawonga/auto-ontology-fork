@@ -5,7 +5,7 @@
 """Semantic compilation history.
 
 The table is declared in :mod:`auto_ontology.dal.schema` and created by a migration, like
-every other Auto Ontology table. It used to create itself at service startup instead,
+every other Lexis table. It used to create itself at service startup instead,
 which is worth remembering only because this module must not go back to it: a
 `public` table the schema does not declare reads as drift to Alembic, and
 autogenerate proposes ``drop_table`` for it (see ``include_object`` in

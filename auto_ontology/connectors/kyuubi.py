@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Apache Kyuubi connector implementing Auto Ontology's SQLDatabase ABC.
+"""Apache Kyuubi connector implementing Lexis's SQLDatabase ABC.
 
 Kyuubi fronts a Spark SQL engine over the HiveServer2 Thrift protocol, so it is
 reached with a Hive client rather than a REST driver. A typical data-platform

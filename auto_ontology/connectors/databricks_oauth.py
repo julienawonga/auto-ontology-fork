@@ -6,7 +6,7 @@
 
 When SSO is configured, chat queries run as the *end user* rather than under the
 connection's stored personal access token. The SSO JWT itself is not a Databricks
-credential — it was minted for Auto Ontology's (or AI-Q's) OAuth client, so its audience is
+credential — it was minted for Lexis's (or AI-Q's) OAuth client, so its audience is
 wrong. Databricks identity federation provides the bridge: the workspace token
 endpoint accepts the external JWT as a ``subject_token`` and returns a short-lived
 Databricks access token carrying the user's own Unity Catalog privileges.

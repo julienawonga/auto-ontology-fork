@@ -27,7 +27,7 @@
       "justMyCode": false
     },
     {
-      "name": "Debug Auto Ontology Server",
+      "name": "Debug Lexis Server",
       "type": "debugpy",
       "request": "launch",
       "module": "auto_ontology.server",

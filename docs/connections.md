@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Connections and credential storage
 
-Auto-Ontology reads source databases from two places: connections added in the
+Lexis reads source databases from two places: connections added in the
 UI, and the `CONNECTION_STRINGS` environment variable. Use one per deployment,
 because the two code paths order them differently:
 

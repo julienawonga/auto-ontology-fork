@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Accumulate and flush VDB embed rows during Auto Ontology model import."""
+"""Accumulate and flush VDB embed rows during Lexis model import."""
 
 from __future__ import annotations
 

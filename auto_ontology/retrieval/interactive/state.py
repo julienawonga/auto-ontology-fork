@@ -25,7 +25,7 @@ class InteractiveSessionState:
     prior_round_sql: Optional[str] = None
     prior_round_question: Optional[str] = None  # working_question at round-1 submit
     latest_feedback: Optional[str] = None  # message from the external submit service
-    path_state: dict = field(default_factory=dict)  # durable across Auto Ontology calls
+    path_state: dict = field(default_factory=dict)  # durable across Lexis calls
     _pending_question: Optional[str] = (
         None  # last AskUserAction (for apply_user_answer)
     )

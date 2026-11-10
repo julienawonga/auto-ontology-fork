@@ -5,17 +5,17 @@ SPDX-License-Identifier: Apache-2.0
 -->
 
 ## Description: <br>
-Model and publish semantic definitions in Auto Ontology, covering terms, relationships, measures, imports, and governed results (not deployment or querying). <br>
+Model and publish semantic definitions in Lexis, covering terms, relationships, measures, imports, and governed results (not deployment or querying). <br>
 
 This skill is ready for commercial/non-commercial use. <br>
 
 ## Owner
-Auto-Ontology contributors <br>
+Lexis contributors <br>
 
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and data engineers use this skill to have an agent inspect and change the Auto Ontology semantic layer: editing terms and SQL attributes, defining source-grounded concepts, relationships, and measures, importing or exporting models with exact readback, and publishing governed definitions or results. <br>
+Developers and data engineers use this skill to have an agent inspect and change the Lexis semantic layer: editing terms and SQL attributes, defining source-grounded concepts, relationships, and measures, importing or exporting models with exact readback, and publishing governed definitions or results. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>

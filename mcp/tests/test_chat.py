@@ -244,7 +244,7 @@ def test_reports_an_unreachable_deployment() -> None:
         raise httpx.ConnectError("connection refused")
 
     with pytest.raises(
-        ToolError, match="Could not reach Auto Ontology at http://auto_ontology.test"
+        ToolError, match="Could not reach Lexis at http://auto_ontology.test"
     ):
         _call(_server(handler), {"question": "q"})
 

@@ -317,7 +317,7 @@ export const GlobalSearchModal = ({ open, onClose }: GlobalSearchModalProps) => 
 						value={query}
 						onChange={handleQueryChange}
 						placeholder="Search…"
-						aria-label="Search Auto Ontology"
+						aria-label="Search Lexis"
 						autoFocus
 						className="h-9 w-full"
 					/>

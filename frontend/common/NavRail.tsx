@@ -79,7 +79,7 @@ export const NavRail = ({ isAdmin = false, version }: { isAdmin?: boolean; versi
 				<div className="flex h-10 items-center gap-2.5 pr-1 pl-2">
 					<Icon name={IconName.AppLogo} className="h-5.5 w-5.5 shrink-0 text-primary" />
 					<span className="flex-1 truncate text-sm font-bold text-heading dark:text-zinc-100">
-						Auto Ontology
+						Lexis
 					</span>
 					<button
 						type="button"

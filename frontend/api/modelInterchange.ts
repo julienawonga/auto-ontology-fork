@@ -30,7 +30,7 @@ export const modelInterchangeApi = {
 		}),
 
 	/**
-	 * Import a native Auto Ontology or Apache Ossie model YAML file, applying it and
+	 * Import a native Lexis or Apache Ossie model YAML file, applying it and
 	 * optionally refreshing VDB embeddings. The backend detects the format from the file.
 	 */
 	importModel: (

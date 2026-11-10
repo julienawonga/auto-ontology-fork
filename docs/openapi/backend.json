@@ -6264,7 +6264,7 @@
     }
   },
   "info": {
-    "title": "Auto Ontology API",
+    "title": "Lexis API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -7947,7 +7947,7 @@
                 }
               }
             },
-            "description": "Auto Ontology model YAML, or with include_ontology a zip of the Apache Ossie semantic model, ontology and mapping, sent as a file attachment"
+            "description": "Lexis model YAML, or with include_ontology a zip of the Apache Ossie semantic model, ontology and mapping, sent as a file attachment"
           },
           "422": {
             "content": {
@@ -7968,7 +7968,7 @@
     },
     "/api/model/import": {
       "post": {
-        "description": "Import a native Auto Ontology or Apache Ossie model YAML file or raw YAML body.",
+        "description": "Import a native Lexis or Apache Ossie model YAML file or raw YAML body.",
         "operationId": "import_model_api_model_import_post",
         "parameters": [
           {

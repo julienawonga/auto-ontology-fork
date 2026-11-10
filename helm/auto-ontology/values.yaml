@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Default values for the Auto Ontology Helm chart.
+# Default values for the Lexis Helm chart.
 
 # Global image pull policy. With minikube + locally-built images,
 # IfNotPresent prevents the cluster from trying to pull from a remote registry.
@@ -28,7 +28,7 @@ podAnnotations: {}
 
 # ------------------------------------------------------------------
 # Shared credentials — populate a single k8s Secret (<release>-secrets)
-# consumed by all Auto Ontology workloads.
+# consumed by all Lexis workloads.
 # ------------------------------------------------------------------
 # Postgres
 postgresUser: auto_ontology
@@ -130,7 +130,7 @@ pgadmin:
       memory: 128Mi
 
 # ------------------------------------------------------------------
-# Auto Ontology FastAPI backend
+# Lexis FastAPI backend
 # ------------------------------------------------------------------
 backend:
   # The Alembic head revision this chart's image ships. The backend's

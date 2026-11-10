@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ---------------------------------------------------------------------------
-# Auto Ontology MCP server image
+# Lexis MCP server image
 # ---------------------------------------------------------------------------
 # Build (from /mcp):  docker build -t auto-ontology-mcp:latest .
 # Run:                docker run --rm -p 3003:3003 \
@@ -11,7 +11,7 @@
 #                         -e AUTO_ONTOLOGY_MCP_PUBLIC_URL=https://mcp.example.com \
 #                         auto-ontology-mcp:latest
 #
-# Separate from the FastAPI image: auto-ontology-mcp talks to Auto Ontology over HTTP and must
+# Separate from the FastAPI image: auto-ontology-mcp talks to Lexis over HTTP and must
 # not pull the backend's database drivers or model stack.
 # ---------------------------------------------------------------------------
 

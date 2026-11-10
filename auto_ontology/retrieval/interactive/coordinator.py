@@ -283,7 +283,7 @@ def _format_user_clarifications(session: InteractiveSessionState) -> str:
 
 
 def _run_sql_generation(session: InteractiveSessionState) -> str:
-    """Call Auto Ontology and persist the returned path_state back to session."""
+    """Call Lexis and persist the returned path_state back to session."""
     from auto_ontology.retrieval.text_to_sql.main import get_agent_response_with_state
     from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload
 
@@ -427,9 +427,7 @@ def _run_sql_generation(session: InteractiveSessionState) -> str:
         "data_retriever": session.data_retriever,
         "semantic_retriever": session.semantic_retriever,
         "connectors": session.connectors,
-        "path_state": dict(
-            session.path_state
-        ),  # copy so Auto Ontology doesn't mutate in place
+        "path_state": dict(session.path_state),  # copy so Lexis doesn't mutate in place
         "acronyms": [],
         "custom_prompts": combined_knowledge,  # full union as low-priority fallback
         "calculation_only": True,

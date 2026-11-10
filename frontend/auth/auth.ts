@@ -190,7 +190,7 @@ export const auth = betterAuth({
 	plugins: [
 		// Two roles only: `admin` (user management) and `viewer` (everything else).
 		admin({ ac, roles, adminRoles: [Role.Admin], defaultRole: Role.Viewer }),
-		// Auto Ontology Allows only one SSO provider, so this makes the redirect URI static.
+		// Lexis Allows only one SSO provider, so this makes the redirect URI static.
 		// Better Auth's baseURL already includes `/api/auth`, so this becomes
 		// APP_URL/api/auth/sso/callback — the URI the README tells the IdP to register.
 		sso({ redirectURI: '/sso/callback' }),
@@ -218,9 +218,9 @@ export const auth = betterAuth({
 			// die), but callers may opt into an expiry up to a year out.
 			keyExpiration: { defaultExpiresIn: null, maxExpiresIn: 365 },
 		}),
-		// Makes Auto Ontology the authorization server that MCP clients log in against, so
+		// Makes Lexis the authorization server that MCP clients log in against, so
 		// the MCP server holds no client credentials and the SSO provider never needs a
-		// redirect URI registered for it — the only one it ever sees is Auto Ontology's,
+		// redirect URI registered for it — the only one it ever sees is Lexis's,
 		// which SSO already uses. Clients register themselves, and those
 		// registrations live in Postgres rather than on an MCP pod's disk.
 		//
@@ -233,7 +233,7 @@ export const auth = betterAuth({
 			// UserInfo requires `openid`. Advertise it so MCP clients that copy
 			// `scopes_supported` from authorization-server metadata include it.
 			scopes: ['openid', 'profile', 'email', 'offline_access'],
-			// The MCP server checks every token against Auto Ontology, so opaque tokens retain
+			// The MCP server checks every token against Lexis, so opaque tokens retain
 			// immediate revocation without distributing resource-server credentials.
 			disableJwtPlugin: true,
 			// Keep RFC 7591 registration for existing MCP clients. Both switches are

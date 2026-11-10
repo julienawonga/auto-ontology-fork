@@ -18,7 +18,7 @@ store to store data nothing reads. ``total_counter`` is kept and is what a fix
 would use — see ``sql_attribute_suggester._usage_score``.
 
 **The ``deleted`` filter is dropped.** Both reads used to guard with
-``coalesce(node.deleted, false) = false``, but nothing in Auto Ontology writes ``deleted``
+``coalesce(node.deleted, false) = false``, but nothing in Lexis writes ``deleted``
 — verified across the codebase. The guard is always true, so omitting it
 preserves behaviour exactly, and carrying a column no writer sets would leave a
 permanent puzzle.

@@ -53,7 +53,7 @@ Usage: {{ include "auto-ontology.image" .Values.backend.image }}
 {{- end -}}
 
 {{/*
-Image pull secrets shared by all Auto Ontology workload pods. Empty by default (local /
+Image pull secrets shared by all Lexis workload pods. Empty by default (local /
 minikube pull public images); set `imagePullSecrets` to pull private images
 (e.g. a credential for a private registry).
 */}}

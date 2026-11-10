@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Trino connector implementing Auto Ontology's SQLDatabase ABC.
+"""Trino connector implementing Lexis's SQLDatabase ABC.
 
 Trino is a distributed query engine that federates other systems -- Hive, Iceberg,
 PostgreSQL, Kafka -- behind one ANSI SQL surface. It speaks HTTP rather than a

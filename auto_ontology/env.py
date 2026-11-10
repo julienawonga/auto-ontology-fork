@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Environment bootstrap shared by all Auto Ontology process entrypoints."""
+"""Environment bootstrap shared by all Lexis process entrypoints."""
 
 from __future__ import annotations
 

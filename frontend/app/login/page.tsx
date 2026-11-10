@@ -49,7 +49,7 @@ const LoginForm = () => {
 	const next = params.get('next') || resumeAuthorize(params) || '/chat';
 
 	// The authorize endpoint is a route handler, not a page. Resume it with a
-	// same-origin fetch so a loopback redirect_uri stays on Auto Ontology's thank-you
+	// same-origin fetch so a loopback redirect_uri stays on Lexis's thank-you
 	// page instead of Chrome following localhost:8787.
 	const goTo = (destination: string) => {
 		if (destination.startsWith('/api/')) {
@@ -224,9 +224,7 @@ const LoginPage = () => (
 				<span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-primary">
 					<Icon name={IconName.AppLogo} className="h-6 w-6 text-white" />
 				</span>
-				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">
-					Auto Ontology
-				</span>
+				<span className="text-lg font-bold text-glass-text dark:text-zinc-50">Lexis</span>
 			</div>
 			<div className="flex flex-col gap-1.5">
 				<h1 className="text-2xl leading-tight font-bold tracking-tight text-glass-text dark:text-zinc-50">

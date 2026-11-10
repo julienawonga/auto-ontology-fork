@@ -47,10 +47,10 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
 	title: {
-		default: 'Auto Ontology',
-		template: 'Auto Ontology - %s',
+		default: 'Lexis',
+		template: 'Lexis - %s',
 	},
-	description: 'Auto Ontology',
+	description: 'Lexis',
 	icons: {
 		icon: '/favicon.svg',
 	},

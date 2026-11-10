@@ -4,7 +4,7 @@
 
 """Batched description / sample-value writes.
 
-``apply_metadata_batch`` has no caller inside Auto Ontology -- it is DAL surface, kept
+``apply_metadata_batch`` has no caller inside Lexis -- it is DAL surface, kept
 because it is part of the published interface -- so nothing else exercises it.
 That is precisely why it is tested here: it was rewritten from a row-at-a-time
 loop into two ``UPDATE ... FROM (VALUES ...)`` statements, and a set-based
@@ -12,7 +12,7 @@ rewrite is exactly the kind that can start matching more rows than it should
 without any existing test noticing.
 
 The scoping cases carry the weight. Two databases with identically named
-schemas, tables and columns is the normal state of a Auto Ontology deployment, and the
+schemas, tables and columns is the normal state of a Lexis deployment, and the
 statement's ``WHERE`` is the only thing keeping one batch out of the other's
 catalog. ``coalesce`` direction gets its own tests for the same reason: the
 whole point of the function is that a curated description outlives a batch that

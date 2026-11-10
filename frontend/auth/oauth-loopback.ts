@@ -14,7 +14,7 @@
 // that navigation carries the user's consent click as its activation. Routing
 // it through the handoff page would lose that activation and would let anyone
 // who can craft a `/oauth/handoff?url=` link launch an arbitrary protocol
-// handler from a Auto Ontology origin.
+// handler from a Lexis origin.
 
 const isLoopbackHostname = (hostname: string): boolean =>
 	hostname === 'localhost' ||
@@ -44,24 +44,24 @@ export const isLoopbackCallback = (url: URL): boolean => {
 	return isLoopbackHostname(url.hostname);
 };
 
-/** True when `url` is an MCP client's loopback listener, not a Auto Ontology page. */
+/** True when `url` is an MCP client's loopback listener, not a Lexis page. */
 export const isMcpClientCallback = (url: URL, requestUrl: string): boolean => {
 	if (!isLoopbackCallback(url)) return false;
 	const origin = appOrigin(requestUrl);
-	// Auto Ontology pages are also loopback in local dev (localhost:3000). Anything else
+	// Lexis pages are also loopback in local dev (localhost:3000). Anything else
 	// on loopback — Cursor's :8787, Claude's ephemeral port — is the client.
 	if (!origin) return true;
 	return url.origin !== origin;
 };
 
-/** Absolute Auto Ontology `/oauth/handoff` URL that delivers `callback` without leaving Auto Ontology. */
+/** Absolute Lexis `/oauth/handoff` URL that delivers `callback` without leaving Lexis. */
 export const mcpHandoffLocation = (callback: URL, requestUrl: string): string => {
 	const handoff = new URL('/oauth/handoff', process.env.APP_URL || requestUrl);
 	handoff.searchParams.set('url', callback.toString());
 	return handoff.toString();
 };
 
-/** Same-origin path so the browser stays on this Auto Ontology host. */
+/** Same-origin path so the browser stays on this Lexis host. */
 export const mcpHandoffPath = (callback: URL): string => {
 	const handoff = new URL('/oauth/handoff', 'http://auto_ontology.invalid');
 	handoff.searchParams.set('url', callback.toString());
@@ -89,7 +89,7 @@ const loopbackCandidates = (parsed: URL): string[] => {
 // Fetch from a public HTTPS origin (Astra) to localhost is often blocked by
 // private-network access rules. A hidden iframe is a nested navigation, which
 // Chrome still allows, so the listener can receive the code while this tab
-// stays on Auto Ontology. The iframe is removed after a delay; its document is the
+// stays on Lexis. The iframe is removed after a delay; its document is the
 // client's response or Chrome's error page, neither of which the user should
 // see.
 const pokeLoopbackViaIframe = (url: string): void => {
@@ -106,7 +106,7 @@ const pokeLoopbackViaIframe = (url: string): void => {
 
 // Fetch every localhost alias so an IPv4 Chrome tab still hits a listener that
 // bound `[::1]:8787` (and the reverse). `no-cors` is required: the listener is
-// not Auto Ontology and will not send ACAO. A live listener answers with an opaque
+// not Lexis and will not send ACAO. A live listener answers with an opaque
 // response, which counts as fulfilled; a closed port rejects. Returns true only
 // when at least one alias was reached, so callers can tell delivery from a dead
 // listener. Each attempt has a deadline: a listener that accepts the socket
@@ -144,7 +144,7 @@ const redirectUrlFromPayload = (data: unknown): string | null => {
 	return payload.url;
 };
 
-/** Keep the tab on Auto Ontology for a loopback callback; otherwise follow `redirectUrl`. */
+/** Keep the tab on Lexis for a loopback callback; otherwise follow `redirectUrl`. */
 export const followOAuthRedirect = (redirectUrl: string): void => {
 	let parsed: URL;
 	try {

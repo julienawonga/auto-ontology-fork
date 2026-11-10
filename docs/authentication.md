@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Authentication, SSO, and API tokens
 
-Auto-Ontology authenticates through [Better Auth](https://github.com/better-auth/better-auth)
+Lexis authenticates through [Better Auth](https://github.com/better-auth/better-auth)
 and authorizes every call against the caller's role. Self-service sign-up is
 disabled: the first account is the bootstrap admin from
 `AUTO_ONTOLOGY_ADMIN_EMAIL` / `AUTO_ONTOLOGY_ADMIN_PASSWORD` (Helm: `adminEmail` /
@@ -17,8 +17,8 @@ Every `/api/...` route resolves the caller in one place,
 order:
 
 1. Browser session cookie
-2. Auto-Ontology API token (`x-api-key`, or `Authorization: Bearer`)
-3. OAuth bearer issued by Auto-Ontology to an MCP client
+2. Lexis API token (`x-api-key`, or `Authorization: Bearer`)
+3. OAuth bearer issued by Lexis to an MCP client
 4. SSO ID token forwarded by a trusted caller
 
 ## SSO
@@ -37,7 +37,7 @@ API token instead.
 
 1. Open the user menu (top right) → **API Tokens** → **New token**.
 2. Name it, optionally set an expiry (default: never), and copy the token.
-   Auto-Ontology stores only a SHA-256 hash, so the token is shown once. If you
+   Lexis stores only a SHA-256 hash, so the token is shown once. If you
    lose it, mint a new one.
 
 Send it as `x-api-key` (or `Authorization: Bearer <token>`) on any `/api/...`

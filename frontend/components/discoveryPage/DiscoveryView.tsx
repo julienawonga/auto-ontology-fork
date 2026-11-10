@@ -123,7 +123,7 @@ const DiscoveryResults = ({
 		<EmptyState
 			variant={EmptyStateVariant.Borderless}
 			illustration={<Placeholders.NoResults />}
-			title={searched ? 'No Results Match Your Search' : 'Search Auto Ontology'}
+			title={searched ? 'No Results Match Your Search' : 'Search Lexis'}
 			description={
 				searched
 					? "Don't give up, search harder!"
@@ -409,7 +409,7 @@ export const DiscoveryView = ({ initialQuery = '', handoverId = '' }: DiscoveryV
 								value={query}
 								onChange={setQuery}
 								placeholder="Search…"
-								aria-label="Search Auto Ontology"
+								aria-label="Search Lexis"
 								autoFocus
 								// `h-9` is `Size.REGULAR`'s height: the field's own
 								// padding would make it 2px taller than the buttons

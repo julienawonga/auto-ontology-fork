@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Auto Ontology CI
+name: Lexis CI
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
           src: './auto_ontology ./alembic ./dev_tools'
 
   build_image:
-    name: Build Auto Ontology Server image
+    name: Build Lexis Server image
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -67,7 +67,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build Auto Ontology Server image (no push)
+      - name: Build Lexis Server image (no push)
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -85,7 +85,7 @@ jobs:
 
     # pgvector, not plain postgres: the vector store creates its collections
     # with `CREATE EXTENSION vector`, and `stock postgres` fails there in a way
-    # that looks like a Auto Ontology bug. Pinned to the same tag as docker-compose.yml so
+    # that looks like a Lexis bug. Pinned to the same tag as docker-compose.yml so
     # CI and a developer's laptop disagree about nothing.
     services:
       postgres:
@@ -136,7 +136,7 @@ jobs:
       - name: Seed the fixture databases (pagila, chinook)
         run: uv run --no-sync python -m dev_tools.fixtures.seed_fixtures
 
-      - name: Migrate the Auto Ontology schema
+      - name: Migrate the Lexis schema
         run: uv run --no-sync alembic upgrade head
 
       - name: Seed the deterministic graph fixture

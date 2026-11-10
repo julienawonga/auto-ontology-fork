@@ -4,7 +4,7 @@
 
 """Model-interchange service tests.
 
-Unit tests for Auto Ontology model YAML export/import, run against mocks.
+Unit tests for Lexis model YAML export/import, run against mocks.
 
 The storage-level behaviour these do not reach — portable ``imported_id``
 matching, and the export/import round-trip — is covered against a live database
@@ -719,7 +719,7 @@ def test_import_model_rejects_unreadable_documents_before_touching_data(
 def test_import_model_converts_ossie_document_back_to_auto_ontology(
     mock_apply: MagicMock,
 ) -> None:
-    """An Ossie file must reach the DAL as the Auto Ontology document it describes."""
+    """An Ossie file must reach the DAL as the Lexis document it describes."""
     mock_apply.return_value = {}
     document = assemble_export_document(
         _export_rows(),

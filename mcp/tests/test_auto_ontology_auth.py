@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Verifying a token Auto Ontology issued, and telling rejection apart from an outage."""
+"""Verifying a token Lexis issued, and telling rejection apart from an outage."""
 
 from __future__ import annotations
 

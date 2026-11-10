@@ -6,13 +6,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # Configuration
 
-Auto Ontology is configured with environment variables, read from `.env` by Docker
+Lexis is configured with environment variables, read from `.env` by Docker
 Compose. [`.env.example`](../.env.example) documents every variable; this page explains
 the ones you set first: the models.
 
 ## Model providers
 
-Auto Ontology calls the model endpoints you configure for inference, embeddings and
+Lexis calls the model endpoints you configure for inference, embeddings and
 reranking. Any OpenAI-compatible endpoint works: a gateway such as a LiteLLM proxy, a
 hosted provider, or a local server (vLLM, Ollama, LM Studio). For OpenAI models behind a
 gateway that exposes them as `openai/<model>`, set:

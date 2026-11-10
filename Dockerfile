@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ---------------------------------------------------------------------------
-# Auto Ontology FastAPI backend image
+# Lexis FastAPI backend image
 # ---------------------------------------------------------------------------
 # Build:
 #

@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Container Third-Party Notices
 
-This file covers what the Auto-Ontology container images add on top of their
+This file covers what the Lexis container images add on top of their
 base image. The application's own open-source dependencies (Python and npm
 packages) are listed separately in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
@@ -16,10 +16,10 @@ Every image ships these files under `/licenses/`: `LICENSE`,
 ## Source code
 
 Source code for the open-source components added on top of the base image is
-available from https://github.com/julienawonga/auto-ontology-fork, as stated in
+available from https://github.com/julienawonga/lexis, as stated in
 `OPEN_SOURCE_NOTICE`; the Debian packages' sources are also published by Debian
-at https://sources.debian.org. Auto-Ontology's own source code is at
-https://github.com/julienawonga/auto-ontology-fork, a fork of the project it
+at https://sources.debian.org. Lexis's own source code is at
+https://github.com/julienawonga/lexis, a fork of the project it
 derives from, https://github.com/NVIDIA/auto-ontology.
 
 ## Base image
