@@ -240,6 +240,8 @@ curl -N http://localhost:3000/api/chat/completions \
 
 ## 🗺️ Roadmap
 
+Ordered by priority. Each step either unlocks the next or needs it, so the order is also the build order.
+
 **Done**
 
 - [x] Any OpenAI-compatible model provider
@@ -254,25 +256,25 @@ curl -N http://localhost:3000/api/chat/completions \
 
 **In progress**
 
-- [ ] Matching question values to stored values ("USA" for "United States", "Indai" for "India")
+1. [ ] Matching question values to stored values ("USA" for "United States", "Indai" for "India"). First brick of entity resolution.
+2. [ ] Clarification questions in chat: when a term is unknown the agent asks what it means, with 2 to 4 options and a free answer, instead of guessing. Backend first, then the card in the interface.
 
-**Next (days to weeks)**
+**Next, in this order**
 
-- [ ] Business metrics as verified, reusable definitions ("revenue", "VIP customer"), used by the chat
-- [ ] Authentication on the API itself (an internal token between the web app and the API), so it no longer depends on network placement
-- [ ] Clarification questions in chat: when a term is unknown the agent asks what it means instead of guessing
-- [ ] Learned terms: the answer becomes a draft definition in the asker's own scope, promoted for everyone by an owner
-- [ ] Provenance and review status on ontology facts; never overwrite a human edit
-- [ ] Enterprise review: zones and groups, an audit log, a setting and a button in the interface for the row cap and the index rebuild, re-ingestion to apply the new key extraction
-- [ ] Database-enforced read-only on the engines still relying on the parse-time guard (Snowflake, Databricks, Kyuubi, HeavyDB)
-- [ ] Recorded-model evaluation in CI, and a measure of key detection against a known schema
+3. [ ] Business metrics as verified, reusable definitions ("revenue", "VIP customer"), used by the chat. This is the mechanism a learned term will be written into, so it is proven before anything writes to it.
+4. [ ] Measure on real questions: the Chinook set, then your own questions on your own databases, and each feature above as it lands.
+5. [ ] Learned terms: the answer to a clarification becomes a draft definition in the asker's own scope, reused by the chat, with who said it and when (provenance and review status).
+6. [ ] Review and promotion: an owner promotes a draft for everyone; proposed changes with a diff, history and rollback; a human edit is never overwritten.
+7. [ ] Authentication on the API itself (an internal token between the web app and the API), so it no longer depends on network placement.
+8. [ ] Enterprise review: zones and groups, an audit log, a setting and a button in the interface for the row cap and the index rebuild, re-ingestion to apply the new key extraction.
+9. [ ] Database-enforced read-only on the engines still relying on the parse-time guard (Snowflake, Databricks, Kyuubi, HeavyDB).
+10. [ ] Recorded-model evaluation in CI, and a measure of key detection against a known schema.
 
-**Later**
+**Later, in this order**
 
 - [ ] Questions in French, and data with mixed-language values
 - [ ] Verified queries: a certified question and its SQL, reused and parameterised, proposed from chat feedback and approved by a person
 - [ ] Suggestions mined from query history: candidate terms, metrics and joins for a person to accept
-- [ ] Ontology review workflow: proposed changes, diff, approve or reject, history and rollback
 - [ ] Entity resolution for records: duplicate customers, products and companies
 - [ ] A per-question trace in the interface: tables retrieved, values matched, repairs made, time and cost
 - [ ] A scheduled evaluation with a regression history, and a question set per customer database
