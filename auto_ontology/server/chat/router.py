@@ -86,17 +86,28 @@ from fastapi.responses import StreamingResponse
 
 from auto_ontology.dal import datasources as datasources_dal
 from auto_ontology.dal.terms import semantic_layer_calculated
+from auto_ontology.infra.feature_flags import is_clarification_enabled
+from auto_ontology.retrieval.text_to_sql.clarification import (
+    Clarification,
+    is_clarification_answer,
+)
 from auto_ontology.retrieval.text_to_sql.visualization import analyze_and_visualize
 from auto_ontology.server.chat.helpers import (
     NODE_LABELS,
     ChatRequest,
     build_result_message,
 )
+from auto_ontology.server.chat.clarification import (
+    ClarificationStateError,
+    answer_text,
+    definition_evidence,
+)
 from auto_ontology.server.chat.conversation_dal import (
     ConversationAccessError,
     create_stateless_analytics,
     persist_analytics_result,
     persist_assistant_result,
+    persist_clarification_message,
     persist_result_message,
     prepare_conversation,
 )
@@ -400,6 +411,27 @@ def _pump(slot: _Slot) -> None:
             return
 
         event_type = event.get("type")
+        if event_type == "clarification":
+            # The turn ends here with a question rather than an answer. It is
+            # stored as the assistant message (with the original question, which
+            # the event does not carry) so a reload shows it and the answer
+            # that follows can be merged back into it.
+            if slot.conversation_id is None:
+                return
+            try:
+                persist_clarification_message(
+                    conversation_id=slot.conversation_id,
+                    user_id=slot.user_id,
+                    analytics_id=slot.analytics_id,
+                    clarification=Clarification(
+                        **{k: v for k, v in event.items() if k != "type"},
+                        original_question=slot.question,
+                    ),
+                )
+                persisted = True
+            except Exception:  # noqa: BLE001 — persistence must not break SSE
+                logger.exception("Failed to persist clarification message")
+            return
         if event_type == "result":
             answer = event.get("answer") or {}
             response = str(answer.get("response") or "")
@@ -561,6 +593,12 @@ async def chat_completions(
     """
     logger.info("Chat completions request: %s", request.model_dump())
 
+    if request.clarification is not None and request.conversation_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail="A clarification answer needs the conversation_id it belongs to.",
+        )
+
     # Block chat when the semantic layer hasn't been built — no connectors/graph
     # run happens. The chat page gates on the status API; this is the backstop.
     if not semantic_layer_calculated():
@@ -611,6 +649,9 @@ async def chat_completions(
         _release(displaced)
 
     conversation_history: list[dict[str, str | None]] = []
+    agent_question = request.question
+    agent_evidence = request.evidence
+    detect_clarification = False
     if request.conversation_id is not None and user_id is not None:
         try:
             prepared = await asyncio.to_thread(
@@ -619,7 +660,11 @@ async def chat_completions(
                 user_id=user_id,
                 question=request.question,
                 source=http_request.headers.get("x-auto-ontology-source") or "api",
+                clarification=request.clarification,
             )
+        except ClarificationStateError as exc:
+            _release(slot)
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except ConversationAccessError as exc:
             _release(slot)
             raise HTTPException(
@@ -641,6 +686,37 @@ async def chat_completions(
             }
             for turn in prepared.history
         ]
+
+        pending = prepared.pending_clarification
+        if pending is not None and (
+            request.clarification is not None
+            or await asyncio.to_thread(
+                is_clarification_answer,
+                clarification=pending,
+                reply=request.question,
+                llm=_non_reasoning_llm or _reasoning_llm,
+            )
+        ):
+            # Resume: the run that asked has ended, so this request re-runs the
+            # question it asked about, with the answer as evidence. Its history
+            # stops before that turn, exactly as it did when the question was
+            # first asked, and it is never asked a second time.
+            answer = answer_text(pending, request.clarification, request.question)
+            agent_question = pending.original_question or request.question
+            agent_evidence = "\n".join(
+                part
+                for part in (request.evidence, definition_evidence(pending, answer))
+                if part
+            )
+            conversation_history = conversation_history[:-1]
+            slot.question = agent_question
+            logger.info(
+                "Clarification %s answered for term %r",
+                pending.clarification_id,
+                pending.term,
+            )
+        elif request.supports_clarification:
+            detect_clarification = await asyncio.to_thread(is_clarification_enabled)
     elif user_id is not None:
         try:
             slot.analytics_id = await asyncio.to_thread(
@@ -653,12 +729,13 @@ async def chat_completions(
             logger.exception("Failed to create stateless conversation analytics")
 
     worker.submit(
-        request.question,
+        agent_question,
         prediction=request.prediction,
         target_db=target_db,
         subject_token=subject_token,
         conversation_history=conversation_history,
-        evidence=request.evidence,
+        evidence=agent_evidence,
+        detect_clarification=detect_clarification,
     )
     threading.Thread(target=_pump, args=(slot,), daemon=True).start()
     asyncio.create_task(_watch_disconnect(http_request, slot))

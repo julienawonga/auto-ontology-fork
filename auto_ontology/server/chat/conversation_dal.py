@@ -14,6 +14,14 @@ import psycopg
 from psycopg.rows import dict_row
 
 from auto_ontology.infra.postgres import FRONTEND_SCHEMA, get_postgres_connection_string
+from auto_ontology.retrieval.text_to_sql.clarification import Clarification
+from auto_ontology.server.chat.clarification import (
+    ClarificationAnswer,
+    check_answer,
+    history_text,
+    parse_message,
+    render_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +51,9 @@ class PreparedConversation:
 
     history: list[ConversationTurn]
     analytics_id: str
+    # The clarification this turn answers: the conversation's last message, when
+    # that message is a clarification question. ``history`` still ends with it.
+    pending_clarification: Clarification | None = None
 
 
 def _is_context_assistant(row: dict) -> bool:
@@ -71,7 +82,9 @@ def _rows_to_history(rows: list[dict]) -> list[ConversationTurn]:
             turns.append(
                 ConversationTurn(
                     question=pending_question[:_MAX_QUESTION_CHARS],
-                    response=(row["content"] or "").strip()[:_MAX_RESPONSE_CHARS],
+                    response=(
+                        history_text(row["content"] or "") or (row["content"] or "")
+                    ).strip()[:_MAX_RESPONSE_CHARS],
                     sql_code=(row["sql_code"] or "")[:_MAX_SQL_CHARS] or None,
                 )
             )
@@ -96,8 +109,14 @@ def prepare_conversation(
     user_id: str,
     question: str,
     source: str,
+    clarification: ClarificationAnswer | None = None,
 ) -> PreparedConversation:
-    """Verify/create a conversation, load prior turns, then persist the user turn."""
+    """Verify/create a conversation, load prior turns, then persist the user turn.
+
+    A *clarification* answer is checked against the conversation's last message
+    before anything is written, under the row lock taken for the ownership check,
+    so a stale or foreign id leaves no trace. Raises ``ClarificationStateError``.
+    """
 
     conversation_str = str(conversation_id)
     analytics_id = str(uuid.uuid4())
@@ -131,7 +150,15 @@ def prepare_conversation(
                 """,
                 (conversation_str,),
             )
-            history = _rows_to_history([dict(row) for row in cur.fetchall()])
+            rows = [dict(row) for row in cur.fetchall()]
+            history = _rows_to_history(rows)
+            pending = (
+                parse_message(rows[-1]["content"])
+                if rows and rows[-1]["role"] == "assistant"
+                else None
+            )
+            if clarification is not None:
+                check_answer(pending, clarification)
 
             cur.execute(
                 f"""
@@ -154,7 +181,9 @@ def prepare_conversation(
                 (conversation_str,),
             )
 
-    return PreparedConversation(history=history, analytics_id=analytics_id)
+    return PreparedConversation(
+        history=history, analytics_id=analytics_id, pending_clarification=pending
+    )
 
 
 def persist_assistant_result(
@@ -191,6 +220,50 @@ def persist_assistant_result(
                 WHERE id = %s AND user_id = %s
                 """,
                 (response, sql_code, analytics_id, user_id),
+            )
+            cur.execute(
+                f"UPDATE {FRONTEND_SCHEMA}.conversations SET updated_at = NOW() WHERE id = %s",
+                (conversation_str,),
+            )
+
+
+def persist_clarification_message(
+    *,
+    conversation_id: uuid.UUID,
+    user_id: str,
+    analytics_id: str,
+    clarification: Clarification,
+) -> None:
+    """Persist a clarification question as the turn's assistant message.
+
+    The question also completes the analytics row, so the turn does not read as
+    unanswered; no SQL ran.
+    """
+
+    conversation_str = str(conversation_id)
+    with psycopg.connect(get_postgres_connection_string(), connect_timeout=3) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT 1 FROM {FRONTEND_SCHEMA}.conversations WHERE id = %s AND user_id = %s",
+                (conversation_str, user_id),
+            )
+            if cur.fetchone() is None:
+                raise ConversationAccessError(conversation_str)
+            cur.execute(
+                f"""
+                INSERT INTO {FRONTEND_SCHEMA}.messages
+                    (id, conversation_id, role, content, created_at)
+                VALUES (%s, %s, 'assistant', %s, NOW())
+                """,
+                (str(uuid.uuid4()), conversation_str, render_message(clarification)),
+            )
+            cur.execute(
+                f"""
+                UPDATE {FRONTEND_SCHEMA}.conversation_analytics
+                SET response = %s, response_timestamp = NOW()
+                WHERE id = %s AND user_id = %s
+                """,
+                (clarification.question, analytics_id, user_id),
             )
             cur.execute(
                 f"UPDATE {FRONTEND_SCHEMA}.conversations SET updated_at = NOW() WHERE id = %s",
@@ -283,6 +356,7 @@ __all__ = [
     "create_stateless_analytics",
     "persist_analytics_result",
     "persist_assistant_result",
+    "persist_clarification_message",
     "persist_result_message",
     "prepare_conversation",
 ]
