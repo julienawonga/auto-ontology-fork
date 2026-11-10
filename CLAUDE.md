@@ -39,7 +39,7 @@ In [`frontend/CLAUDE.md`](./frontend/CLAUDE.md), loaded when working under `fron
 
 ## Git
 
-- Commit messages: concise imperative style, no `Co-Authored-By` trailers.
+- Commit messages: concise imperative style. Add `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` only on commits where Claude wrote most of the code (roughly an 80/20 split with the maintainer); omit it on small fixes or commits the maintainer mostly wrote.
 - Branch from `main`.
 
 ### Opening a PR
