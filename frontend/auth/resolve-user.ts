@@ -13,7 +13,7 @@
 //   3. A Auto Ontology-issued OAuth access token (an MCP client whose user signed in
 //      through Auto Ontology — see auth/oauth-token.ts). Opaque like an API token, so it
 //      is checked after that path has claimed the `auto_ontology_` prefix.
-//   4. An SSO id token (e.g. AI-Q), which authenticates with the same NVIDIA SSO
+//   4. An SSO id token (e.g. AI-Q), which authenticates with the same SSO
 //      identity but has no Auto Ontology session, so it is mapped to the Auto Ontology user sharing
 //      the token's email, falling back to the SSO account link by subject.
 

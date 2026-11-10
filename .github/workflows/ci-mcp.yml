@@ -6,7 +6,7 @@ name: MCP CI
 
 # auto-ontology-mcp is its own distribution with its own lightweight dependency set, so
 # it gets its own workflow rather than riding along with the backend's: it needs
-# no database drivers, no model tooling, and no NGC access, and installs in
+# no database drivers, no model tooling, and installs in
 # seconds.
 on:
   push:

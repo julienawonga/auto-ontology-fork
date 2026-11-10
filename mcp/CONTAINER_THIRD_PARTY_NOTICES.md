@@ -16,9 +16,11 @@ Every image ships these files under `/licenses/`: `LICENSE`,
 ## Source code
 
 Source code for the open-source components added on top of the base image is
-archived by NVIDIA at https://opensource.nvidia.com/oss/teams/nvidia, as stated
-in `OPEN_SOURCE_NOTICE`. Auto-Ontology's own source code is at
-https://github.com/NVIDIA/auto-ontology.
+available from https://github.com/julienawonga/auto-ontology-fork, as stated in
+`OPEN_SOURCE_NOTICE`; the Debian packages' sources are also published by Debian
+at https://sources.debian.org. Auto-Ontology's own source code is at
+https://github.com/julienawonga/auto-ontology-fork, a fork of the project it
+derives from, https://github.com/NVIDIA/auto-ontology.
 
 ## Base image
 

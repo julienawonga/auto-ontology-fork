@@ -219,7 +219,7 @@ export const auth = betterAuth({
 			keyExpiration: { defaultExpiresIn: null, maxExpiresIn: 365 },
 		}),
 		// Makes Auto Ontology the authorization server that MCP clients log in against, so
-		// the MCP server holds no client credentials and NVIDIA never needs a
+		// the MCP server holds no client credentials and the SSO provider never needs a
 		// redirect URI registered for it — the only one it ever sees is Auto Ontology's,
 		// which SSO already uses. Clients register themselves, and those
 		// registrations live in Postgres rather than on an MCP pod's disk.

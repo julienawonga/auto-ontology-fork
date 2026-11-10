@@ -111,10 +111,10 @@ Edit `.env` and set at least:
 ```dotenv
 DEFAULT_MODELS_ENDPOINT=https://your-endpoint/v1      # any OpenAI-compatible endpoint
 DEFAULT_MODELS_API_KEY=sk-...
-DEFAULT_MODELS_MODEL=openai/gpt-4.1                   # the openai/ prefix routes through the OpenAI client
+DEFAULT_MODELS_MODEL=openai/gpt-4.1                   # any OpenAI-compatible model name
 EMBED_MODEL=text-embedding-3-small
 EMBED_DIMENSIONS=1536                                 # the output width of your embedding model
-EMBED_NIM_FIELDS=false
+EMBED_EXTRA_FIELDS=false
 AUTH_SECRET=<output of: openssl rand -base64 32>
 POSTGRES_PASSWORD=<a new password>
 AUTO_ONTOLOGY_ADMIN_PASSWORD=<a new password>

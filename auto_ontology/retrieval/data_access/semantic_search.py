@@ -55,7 +55,7 @@ PER_LABEL_LIMITS: dict[str, int] = {
     LABEL_SQL_ATTRIBUTE: 3,
 }
 
-# ``retriever.query`` embeds the entity text via the remote NIM embeddings
+# ``retriever.query`` embeds the entity text via the remote embeddings
 # endpoint before it can run the vector search — a transient 5xx there
 # (observed as e.g. "502 Bad Gateway") currently has no retry anywhere in the
 # stack and silently degrades that query to zero candidates. These are

@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 _EMBED_ENDPOINT = resolve("EMBED", "ENDPOINT")
 _EMBED_MODEL = resolve("EMBED", "MODEL")
-_NVIDIA_API_KEY = resolve("EMBED", "API_KEY")
+_EMBED_API_KEY = resolve("EMBED", "API_KEY")
 _WORKERS = 2
 _SYSTEM_PROMPT = """\
 You are a database schema expert. You will be given a foreign-key column \
@@ -430,7 +430,7 @@ def _resolve_connector(database_name: str) -> SQLDatabase | None:
 
 def _build_retriever(database_name: str) -> Retriever | None:
     """Build a Retriever backed by the semantic VDB, or None when the API key is absent."""
-    if not _NVIDIA_API_KEY:
+    if not _EMBED_API_KEY:
         return None
 
     return Retriever(
@@ -438,7 +438,7 @@ def _build_retriever(database_name: str) -> Retriever | None:
         EmbedParams(
             model_name=_EMBED_MODEL,
             embed_invoke_url=_EMBED_ENDPOINT,
-            api_key=_NVIDIA_API_KEY,
+            api_key=_EMBED_API_KEY,
         ),
     )
 

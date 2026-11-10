@@ -134,8 +134,8 @@ def build_connection_string(connection: Mapping[str, Any]) -> str:
         if ssa_url:
             params.append(f"ssa_url={_enc(ssa_url)}")
 
-        # NVIDIA ships its internal CAs as a Java truststore; the connector
-        # converts it to PEM since Python's ssl module cannot read a JKS. The
+        # Some organisations ship their internal CAs as a Java truststore; the
+        # connector converts it to PEM since Python's ssl module cannot read a JKS. The
         # keystore can arrive either as base64 bytes uploaded through the UI --
         # which keeps it with the connection instead of requiring a file to
         # exist on every pod -- or as a path, for env-var connection strings.

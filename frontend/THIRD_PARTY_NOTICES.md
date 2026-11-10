@@ -91,16 +91,6 @@ bundles Mermaid (MIT); its license text ships in the wheel as
 | pytest | >=9.1.1 | MIT | https://github.com/pytest-dev/pytest |
 | Ruff | >=0.16.5 | MIT | https://github.com/astral-sh/ruff |
 
-### Release tooling (`release` dependency group, not redistributed)
-
-Installed only by the Helm chart release workflow to run
-`dev_tools/release_helm_chart.py`.
-
-| Component | Version | License | Project URL |
-| --- | --- | --- | --- |
-| ngcsdk | >=4.37.0 | Apache-2.0 | https://ngc.nvidia.com/ |
-| PyYAML | >=6.0.3 | MIT | https://github.com/yaml/pyyaml |
-
 ### Sample databases (test fixtures, not redistributed in any build artifact)
 
 Vendored under `dev_tools/fixtures/sql/` and used only to seed local development and

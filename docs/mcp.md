@@ -41,7 +41,7 @@ Install with `uvx`, which fetches and builds straight from the repository, so
 there is nothing to clone:
 
 ```sh
-uvx --from "git+https://github.com/NVIDIA/auto-ontology.git#subdirectory=mcp" auto-ontology-mcp
+uvx --from "git+https://github.com/julienawonga/auto-ontology-fork.git#subdirectory=mcp" auto-ontology-mcp
 ```
 
 > [!NOTE]

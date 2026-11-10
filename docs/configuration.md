@@ -23,11 +23,12 @@ DEFAULT_MODELS_ENDPOINT=http://localhost:4000/v1
 DEFAULT_MODELS_MODEL=openai/gpt-4.1
 EMBED_MODEL=<an embedding model>
 EMBED_DIMENSIONS=<its output width, e.g. 1536>
-EMBED_NIM_FIELDS=false
+EMBED_EXTRA_FIELDS=false
 ```
 
-The `openai/` prefix is what routes chat calls through the OpenAI client (see
-[Model roles](#model-roles)), and the gateway must map it to the real model.
+With an `openai/`, `azure/` or `aws/` prefix the model's default temperature is used;
+other model names get an explicit temperature. The gateway must map the name to the real
+model.
 
 ### Embedding width
 
@@ -36,8 +37,9 @@ The vector store is 2048 wide by default. For an embedding model with another wi
 vector of the wrong width fails with an error that names this setting.
 
 Embedding requests carry three extra body fields by default (`input_type`, `truncate`,
-`modality`) used by NIM-protocol endpoints. Set `EMBED_NIM_FIELDS=false` if your endpoint
-rejects unknown fields, as most OpenAI-compatible gateways do.
+`modality`) that some embedding servers use to tell queries from passages. Set
+`EMBED_EXTRA_FIELDS=false` if your endpoint rejects unknown fields, as most OpenAI-compatible
+gateways do (the older name `EMBED_NIM_FIELDS` is still accepted).
 
 ## Model triplets
 
@@ -66,9 +68,9 @@ falls back to the matching `DEFAULT_MODELS_<FIELD>`. The simplest setup fills in
 | `EMBED`         | Indexes tables, columns, terms, and SQL attributes in pgvector, and matches each question to them                              |
 | `RERANK`        | Optional. Ranks candidate tables when compilation builds bridge-table SQL attributes; on failure the first candidate is used   |
 
-Chat models are reached through the OpenAI client when the model name starts with
-`openai/`, `azure/` or `aws/`, and through a NIM-protocol client otherwise. Use models that
-support structured output, and keep the embedding model the same for ingestion and
+Every chat model is reached through the OpenAI client against its configured endpoint.
+If a model field is missing, the server stops with an error that names the variables to
+set; there are no built-in vendor defaults. Use models that support structured output, and keep the embedding model the same for ingestion and
 queries.
 
 ## Predictions

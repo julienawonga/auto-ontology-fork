@@ -187,10 +187,10 @@ def _prediction_enabled() -> bool:
     ``KUMO_RFM_API_URL`` is unset the prediction nodes/edges are never added, so
     the classify → prepare-graph → predict path simply does not exist.
 
-    The URL is what makes prediction possible. It must name a Universal TFM NIM
-    serving the ``kumo-relational`` model; a NIM serving the older ``kumo-rfm``
-    is refused by the client at startup. NIMs are unauthenticated by contract,
-    so ``KUMO_RFM_API_KEY`` is optional and only carries a gateway credential
+    The URL is what makes prediction possible. It must name a prediction server
+    serving the ``kumo-relational`` model; a server running the older
+    ``kumo-rfm`` is refused by the client at startup. Such servers are
+    unauthenticated by contract, so ``KUMO_RFM_API_KEY`` is optional and only carries a gateway credential
     when a deployment adds one.
     """
     return bool(os.environ.get("KUMO_RFM_API_URL"))

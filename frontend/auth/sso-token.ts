@@ -16,7 +16,7 @@
 //     bearer token, so we read the JWT Better Auth stored on their SSO account
 //     link at sign-in.
 //
-// Id tokens are short-lived (an hour at NVIDIA's IdP) and Better Auth only writes
+// Id tokens are short-lived (typically an hour at the IdP) and Better Auth only writes
 // them at sign-in, so the stored copy goes stale mid-session and Databricks
 // rejects it with `invalid_grant`. We therefore check `exp` before using one and
 // refresh it against the provider's token endpoint when it has aged out.

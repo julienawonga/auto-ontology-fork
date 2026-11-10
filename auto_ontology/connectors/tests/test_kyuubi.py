@@ -22,15 +22,15 @@ from auto_ontology.connectors.kyuubi import (
 )
 from auto_ontology.connectors.registry import CONNECTOR_REGISTRY
 
-HOST = "hive.pdx-aws.data.nvidia.com"
-SSA_URL = "https://svc.ssa.nvidia.com"
+HOST = "hive.us-west.data.example.com"
+SSA_URL = "https://svc.ssa.example.com"
 
 
 def _connection(**overrides: object) -> dict[str, object]:
     connection = {
         "type": "kyuubi",
         "host": HOST,
-        "user": "nvssa-prd-abc",
+        "user": "ssa-client-abc",
         "password": "secret",
         "database": "nvdp",
         "ssa_url": SSA_URL,
@@ -121,7 +121,7 @@ def test_dialect_is_spark() -> None:
 
 
 def test_database_name_is_the_catalog() -> None:
-    """NeMo routes SQL by database_name, so it has to be the catalog."""
+    """SQL is routed by database_name, so it has to be the catalog."""
     assert _database(database="kratos").database_name == "kratos"
 
 
@@ -292,7 +292,7 @@ def test_describing_nothing_at_all_raises_instead_of_emptying_the_catalog() -> N
 
 
 def test_every_reported_schema_has_columns() -> None:
-    """The invariant nemo's schemas_parser relies on, stated directly."""
+    """The invariant the catalog's schemas_parser relies on, stated directly."""
     db = _database()
     _stub_with_failing_describe(db, {"table_creation_locks"})
 

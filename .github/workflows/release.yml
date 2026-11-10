@@ -1,0 +1,182 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
+# SPDX-License-Identifier: Apache-2.0
+
+# Builds the Auto Ontology images for amd64 and arm64 and pushes them to the
+# GitHub Container Registry, then packages the Helm chart and pushes it there
+# as an OCI artifact:
+#
+#   ghcr.io/<owner>/auto-ontology           backend API, ingestion service and
+#                                           the Alembic migrate Job (one image,
+#                                           selected by its entrypoint argument)
+#   ghcr.io/<owner>/auto-ontology-frontend  Next.js app and the Prisma
+#                                           frontend-migrate Job
+#   ghcr.io/<owner>/auto-ontology-mcp       MCP server
+#   oci://ghcr.io/<owner>/charts/auto-ontology
+#
+# Pushing a tag vX.Y.Z publishes images tagged X.Y.Z, X.Y and sha-<short>, and
+# chart version X.Y.Z. A manual run publishes sha-<short> images only and skips
+# the chart, since a chart needs a SemVer version to name its images by.
+# Authenticates with the workflow's GITHUB_TOKEN; no secrets to configure.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  images:
+    name: Build & push ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One image failing should not cancel the others mid-push.
+      fail-fast: false
+      matrix:
+        include:
+          - image: auto-ontology
+            context: .
+            build-args: ""
+          - image: auto-ontology-frontend
+            context: frontend
+            # Baked into the Next.js rewrites at build time; must match the
+            # in-cluster backend Service name the Helm chart creates.
+            build-args: |
+              PYTHON_API_URL=http://auto-ontology:3001
+          - image: auto-ontology-mcp
+            context: mcp
+            build-args: ""
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # Image names must be lowercase; repository_owner may not be.
+      - name: Compute image name
+        id: name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ matrix.image }}
+        run: echo "image=${REGISTRY}/${OWNER,,}/${IMAGE}" >>"$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: ${{ env.PLATFORMS }}
+          build-args: ${{ matrix.build-args }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Summary
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Published \`${{ matrix.image }}\`"
+            echo ""
+            echo "Digest: \`${DIGEST}\`"
+            echo ""
+            echo '```'
+            echo "${TAGS}"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  chart:
+    name: Package & push Helm chart
+    needs: images
+    # The chart pins images by version, so only a release tag can publish it.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      CHART_DIR: helm/auto-ontology
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Compute versions
+        id: ver
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="${REF_NAME#v}"
+          echo "version=${version}" >>"$GITHUB_OUTPUT"
+          echo "owner=${OWNER,,}" >>"$GITHUB_OUTPUT"
+
+      - name: Lint chart
+        run: helm lint "$CHART_DIR"
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$GITHUB_TOKEN" | \
+            helm registry login "$REGISTRY" --username "$ACTOR" --password-stdin
+
+      # values.yaml carries the image tag of the last release; point every
+      # image at this release's tag and owner before packaging.
+      - name: Package & push
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          OWNER: ${{ steps.ver.outputs.owner }}
+        run: |
+          set -euo pipefail
+          values="$CHART_DIR/values.yaml"
+          sed -i -E \
+            -e "s#^(\s*repository:\s*)ghcr\.io/[^/]+/(auto-ontology[a-z-]*)\s*\$#\1${REGISTRY}/${OWNER}/\2#" \
+            -e "/repository:\s*${REGISTRY//./\\.}\/${OWNER}\/auto-ontology/{n;s#^(\s*tag:\s*).*#\1\"${VERSION}\"#}" \
+            "$values"
+          grep -nE "repository: ${REGISTRY}|tag:" "$values"
+          helm package "$CHART_DIR" --version "$VERSION" --app-version "$VERSION"
+          helm push "auto-ontology-${VERSION}.tgz" "oci://${REGISTRY}/${OWNER}/charts"
+          echo "Published \`oci://${REGISTRY}/${OWNER}/charts/auto-ontology:${VERSION}\`" >>"$GITHUB_STEP_SUMMARY"
