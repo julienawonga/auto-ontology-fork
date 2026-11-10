@@ -11,7 +11,13 @@ import { PopoverAlign } from '@/enums/popover';
 /** Distance between the trigger and the panel, in pixels. */
 const GAP = 4;
 
-type PanelPosition = { top: number; left?: number; right?: number; width?: number };
+type PanelPosition = {
+	top?: number;
+	bottom?: number;
+	left?: number;
+	right?: number;
+	width?: number;
+};
 
 type PopoverProps = {
 	trigger: (props: { open: boolean; toggle: (e: React.MouseEvent) => void }) => ReactNode;
@@ -120,6 +126,9 @@ export const Popover = ({
 		const rect = e.currentTarget.getBoundingClientRect();
 		setPosition((prev) => {
 			if (prev != null) return null;
+			if (align === PopoverAlign.AboveLeft) {
+				return { bottom: window.innerHeight - rect.top + GAP, left: rect.left };
+			}
 			const top = rect.bottom + GAP;
 			return align === PopoverAlign.Stretch
 				? { top, left: rect.left, width: rect.width }
@@ -135,7 +144,7 @@ export const Popover = ({
 					<div
 						ref={panelRef}
 						style={position}
-						className={`fixed z-[1000] rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800 ${panelClassName}`}
+						className={`fixed z-[1000] border border-white/70 dark:border-white/10 rounded-xl glass-strong ${panelClassName}`}
 					>
 						{children({ close: () => setPosition(null) })}
 					</div>,

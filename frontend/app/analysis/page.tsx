@@ -10,7 +10,7 @@ export default function AnalysisPage() {
 	return (
 		<Suspense
 			fallback={
-				<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+				<div className="flex h-full w-full flex-col">
 					<div className="flex-1 px-6 py-6">
 						<SkeletonCard rows={4} />
 					</div>

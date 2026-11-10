@@ -55,9 +55,8 @@ https://github.com/nodejs/docker-node.
 | npm packages in the Next.js standalone bundle | per `frontend/pnpm-lock.yaml` | see `THIRD_PARTY_NOTICES.md` (Frontend runtime) | — |
 | Prisma CLI and engines (`/app/migrate`) | 7.7.0 | Apache-2.0 | https://github.com/prisma/prisma |
 | dotenv (`/app/migrate`) | 17.4.2 | BSD-2-Clause | https://github.com/motdotla/dotenv |
-| Geist and Geist Mono fonts (bundled by `next/font`) | — | SIL Open Font License 1.1 | https://github.com/vercel/geist-font |
-| Plus Jakarta Sans font (bundled by `next/font`, Chat page) | — | SIL Open Font License 1.1 | https://github.com/tokotype/PlusJakartaSans |
-| JetBrains Mono font (bundled by `next/font`, Chat page) | — | SIL Open Font License 1.1 | https://github.com/JetBrains/JetBrainsMono |
+| Plus Jakarta Sans font (bundled by `next/font`) | — | SIL Open Font License 1.1 | https://github.com/tokotype/PlusJakartaSans |
+| JetBrains Mono font (bundled by `next/font`) | — | SIL Open Font License 1.1 | https://github.com/JetBrains/JetBrainsMono |
 | `ca-certificates` (Debian package) | bookworm | MPL-2.0 (certificate data), GPL-2.0-or-later (scripts) | https://packages.debian.org/bookworm/ca-certificates |
 | `tini` (Debian package) | bookworm | MIT | https://github.com/krallin/tini |
 

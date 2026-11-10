@@ -90,7 +90,7 @@ export const ActiveDataCard = ({
 	onShowQueries,
 	onShowTerms,
 }: ActiveDataCardProps) => (
-	<section className="absolute right-4 top-20 bottom-28 z-20 flex w-[380px] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+	<section className="absolute right-4 top-20 bottom-28 z-20 flex w-[380px] flex-col overflow-hidden border border-white/70 dark:border-white/10 rounded-xl glass-strong">
 		<header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
 			<p className="text-xs font-semibold text-body dark:text-zinc-300">
 				Showing info on this Data Object

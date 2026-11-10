@@ -26,7 +26,7 @@ export const HoverNodeCard = ({ node, x, y }: HoverNodeCardProps) => {
 			// Read-only preview: pointer-events-none so it never intercepts hover/click
 			// on the graph beneath it. Actionable links only live in the click card.
 			style={{ left: x, top: y }}
-			className="pointer-events-none absolute z-30 w-[min(25rem,calc(100%-2rem))] rounded-lg border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+			className="pointer-events-none absolute z-30 w-[min(25rem,calc(100%-2rem))] border p-3 border-white/70 dark:border-white/10 rounded-xl glass-strong"
 		>
 			<div className="flex items-start gap-2">
 				<Icon

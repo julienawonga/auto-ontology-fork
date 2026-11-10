@@ -2149,10 +2149,10 @@ export const ExplorationView = () => {
 									? 'Search terms in exploration'
 									: 'Search data objects in exploration'
 							}
-							className="h-10 bg-white shadow-md dark:bg-zinc-900"
+							className="h-10 glass-strong"
 						/>
 						{filteredNodes.length > 0 && (
-							<ul className="absolute top-12 max-h-[calc(100dvh-8.5rem)] w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+							<ul className="absolute top-12 max-h-[calc(100dvh-8.5rem)] w-full overflow-y-auto border py-1 border-white/70 dark:border-white/10 rounded-xl glass-strong">
 								{filteredNodes.map((node) => (
 									<li key={node.id}>
 										<SelectButton
@@ -2196,7 +2196,7 @@ export const ExplorationView = () => {
 
 			{!loading && error != null && (
 				<div className="flex h-full items-center justify-center px-6 text-center">
-					<div className="rounded-xl border border-red-200 bg-white px-8 py-6 text-sm text-red-700 shadow-lg dark:border-red-900/50 dark:bg-zinc-900 dark:text-red-300">
+					<div className="rounded-xl border border-red-200 px-8 py-6 text-sm text-red-700 dark:border-red-900/50 dark:text-red-300 glass-strong">
 						Couldn&apos;t load exploration: {error}
 					</div>
 				</div>
@@ -2300,7 +2300,7 @@ export const ExplorationView = () => {
 					/>
 				)}
 
-			<div className="absolute bottom-4 right-4 z-20 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+			<div className="absolute bottom-4 right-4 z-20 border px-3 py-2 border-white/70 dark:border-white/10 rounded-xl glass-strong">
 				<p className="text-xs text-secondary dark:text-zinc-400">
 					Viewing:{' '}
 					{layer === ExplorationLayer.Semantic ? 'Semantic Objects' : 'Data Objects'}

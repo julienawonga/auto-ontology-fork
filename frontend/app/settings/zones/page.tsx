@@ -172,7 +172,7 @@ const ZoneCard = ({
 	onToggleEnabled: (zone: Zone) => void;
 }) => (
 	<div
-		className={`rounded-lg border border-zinc-200/90 bg-white/90 p-4 shadow-sm ring-1 ring-zinc-950/[0.04] transition-opacity dark:border-zinc-700/90 dark:bg-zinc-950/50 dark:ring-white/[0.06] ${zone.enabled ? '' : 'opacity-60'}`}
+		className={`border p-4 transition-opacity border-white/70 dark:border-white/10 rounded-2xl glass ${zone.enabled ? '' : 'opacity-60'}`}
 		style={{ borderTop: `4px solid ${zone.color ?? DEFAULT_ZONE_COLOR}` }}
 	>
 		<div className="flex items-start justify-between gap-4">
@@ -627,7 +627,7 @@ export default function ZonesSettingsPage() {
 	};
 
 	return (
-		<main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,0.6)_100%)] px-7 py-6 sm:px-10 sm:py-7 dark:bg-[linear-gradient(180deg,rgba(9,9,11,1)_0%,rgba(24,24,27,0.5)_100%)]">
+		<main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-7 py-6 sm:px-10 sm:py-7">
 			<div className="w-full space-y-5">
 				<div className="flex items-center gap-3">
 					<h1 className="text-base font-semibold text-heading dark:text-zinc-100">
@@ -693,7 +693,7 @@ export default function ZonesSettingsPage() {
 						variant={EmptyStateVariant.Inline}
 						icon={IconName.Key}
 						title="No Zones Found"
-						className="rounded-lg border border-dashed border-zinc-300/90 bg-white/70 dark:border-zinc-600 dark:bg-zinc-900/30"
+						className="rounded-lg border border-dashed border-zinc-400/40 bg-white/40 backdrop-blur-md dark:border-white/15 dark:bg-white/[0.03]"
 					/>
 				)}
 			</div>

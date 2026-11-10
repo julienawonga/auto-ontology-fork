@@ -200,7 +200,7 @@ export default function RulesSettingsPage() {
 	};
 
 	return (
-		<main className="flex min-h-0 min-w-0 flex-1 flex-col bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,0.6)_100%)] dark:bg-[linear-gradient(180deg,rgba(9,9,11,1)_0%,rgba(24,24,27,0.5)_100%)]">
+		<main className="flex min-h-0 min-w-0 flex-1 flex-col">
 			<InfiniteScroll
 				className="flex-1 px-7 py-6 sm:px-10 sm:py-7"
 				onLoadMore={loadMore}
@@ -273,7 +273,7 @@ export default function RulesSettingsPage() {
 							{rules.map((rule) => (
 								<li
 									key={rule.id}
-									className="rounded-lg border border-zinc-200/90 bg-white/90 shadow-sm ring-1 ring-zinc-950/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/50 dark:ring-white/[0.06]"
+									className="border border-white/70 dark:border-white/10 rounded-2xl glass"
 								>
 									<div className="flex items-center gap-2 px-4 py-3">
 										<Icon

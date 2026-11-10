@@ -83,7 +83,7 @@ export const CertificationBadge = ({
 				/>
 				<span
 					aria-hidden
-					className="pointer-events-none absolute bottom-full left-1/2 z-[1000] mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-body opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+					className="pointer-events-none absolute bottom-full left-1/2 z-[1000] mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium text-body opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 dark:text-zinc-300 border-white/70 dark:border-white/10 glass-strong"
 				>
 					{title}
 				</span>

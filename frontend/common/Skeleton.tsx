@@ -33,7 +33,7 @@ type SkeletonCardProps = {
 export const SkeletonCard = ({ className = '', rows = 3 }: SkeletonCardProps) => (
 	<div
 		aria-hidden
-		className={`rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900/50 ${className}`}
+		className={`rounded-xl border p-5 border-white/70 dark:border-white/10 glass ${className}`}
 	>
 		<div className="flex items-center gap-3">
 			<SkeletonBlock variant={SkeletonVariant.CIRCLE} className="h-10 w-10 shrink-0" />

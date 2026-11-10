@@ -405,7 +405,7 @@ const TagsList = () => {
 							rowKey={(tag) => tag.id}
 							onRowClick={(tag) => router.push(tagPath(tag.id))}
 							rowClickIsPointerShortcut
-							containerClassName="overflow-hidden rounded-lg border border-zinc-200/90 bg-white/90 shadow-sm ring-1 ring-zinc-950/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/50 dark:ring-white/[0.06]"
+							containerClassName="overflow-hidden border border-white/70 dark:border-white/10 rounded-2xl glass"
 							bodyClassName="divide-y divide-zinc-200/90 dark:divide-zinc-700/90"
 						/>
 					) : null}
@@ -432,7 +432,7 @@ const TagsList = () => {
 											onClick: openCreateModal,
 										}
 							}
-							className="rounded-lg border border-dashed border-zinc-300/90 bg-white/70 dark:border-zinc-600 dark:bg-zinc-900/30"
+							className="rounded-lg border border-dashed border-zinc-400/40 bg-white/40 backdrop-blur-md dark:border-white/15 dark:bg-white/[0.03]"
 						/>
 					) : null}
 				</div>

@@ -134,7 +134,7 @@ const TermCard = ({
 			tabIndex={0}
 			onClick={() => onClick(term)}
 			onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick(term)}
-			className="cursor-pointer rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+			className="cursor-pointer rounded-2xl border p-5 transition-shadow hover:shadow-md dark:hover:border-zinc-700 border-white/70 dark:border-white/10 glass"
 		>
 			{/* Card header */}
 			<div className="flex items-start justify-between gap-3">
@@ -1380,7 +1380,7 @@ export const TermsView = () => {
 	if (focusId != null && sqlAttrId != null) {
 		const sqlAttrTitle = focusedSqlAttr?.name ?? sqlAttrId;
 		return (
-			<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+			<div className="flex h-full w-full flex-col">
 				<main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 					<SinglePageView
 						key={sqlAttrId}
@@ -1517,7 +1517,7 @@ export const TermsView = () => {
 	if (focusId != null && colAttrId != null) {
 		const colAttrTitle = focusedColAttr?.name ?? colAttrId;
 		return (
-			<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+			<div className="flex h-full w-full flex-col">
 				<main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 					<SinglePageView
 						key={colAttrId}
@@ -1573,7 +1573,7 @@ export const TermsView = () => {
 
 	if (focusId != null) {
 		return (
-			<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+			<div className="flex h-full w-full flex-col">
 				<main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 					<SinglePageView
 						key={focusId}
@@ -1687,7 +1687,7 @@ export const TermsView = () => {
 	}
 
 	return (
-		<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+		<div className="flex h-full w-full flex-col">
 			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
 				<Icon name={IconName.Terms} className="h-5 w-5 text-body dark:text-zinc-300" />
 				<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
@@ -1718,7 +1718,7 @@ export const TermsView = () => {
 				{loading && <TermsLoadingSkeleton />}
 
 				{!loading && error != null && terms.length === 0 && (
-					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 bg-white/90 px-8 py-10 text-center shadow-xl shadow-red-100/50 dark:border-red-900/50 dark:bg-zinc-950/80 dark:shadow-none">
+					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 px-8 py-10 text-center dark:border-red-900/50 glass-strong">
 						<h2 className="text-lg font-semibold tracking-tight text-red-800 dark:text-red-300">
 							Couldn&apos;t load terms
 						</h2>

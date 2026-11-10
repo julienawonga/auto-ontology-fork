@@ -299,7 +299,7 @@ export const TagDetailView = ({ tagId }: TagDetailViewProps) => {
 						rows={items}
 						rowKey={(item) => `${item.type}:${item.id}`}
 						onRowClick={handleRowClick}
-						containerClassName="rounded-lg border border-zinc-200/90 bg-white/90 shadow-sm ring-1 ring-zinc-950/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/50 dark:ring-white/[0.06]"
+						containerClassName="border border-white/70 dark:border-white/10 rounded-2xl glass"
 					/>
 				) : null}
 
@@ -309,7 +309,7 @@ export const TagDetailView = ({ tagId }: TagDetailViewProps) => {
 						icon={IconName.Tag}
 						title="Nothing is tagged with this tag"
 						description="Terms, tables, columns, column attributes and SQL attributes carrying this tag will be listed here."
-						className="rounded-lg border border-dashed border-zinc-300/90 bg-white/70 dark:border-zinc-600 dark:bg-zinc-900/30"
+						className="rounded-lg border border-dashed border-zinc-400/40 bg-white/40 backdrop-blur-md dark:border-white/15 dark:bg-white/[0.03]"
 					/>
 				) : null}
 			</div>

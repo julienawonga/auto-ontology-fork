@@ -112,7 +112,7 @@ export const Toast = ({
 			aria-live="polite"
 			className="pointer-events-none fixed inset-x-0 bottom-[3%] z-[100] flex justify-center px-4"
 		>
-			<div className="pointer-events-auto flex max-w-md items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+			<div className="pointer-events-auto flex max-w-md items-center gap-2 border px-3 py-2 border-white/70 dark:border-white/10 rounded-xl glass-strong">
 				<VariantIcon variant={variant} />
 				{resolvedTitle ? (
 					<span className="text-sm font-semibold text-heading dark:text-zinc-100">

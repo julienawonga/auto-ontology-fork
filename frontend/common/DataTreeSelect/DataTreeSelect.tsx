@@ -389,9 +389,7 @@ export const DataTreeSelect = ({
 	return (
 		<div
 			className={
-				framed
-					? 'rounded-lg border border-zinc-200/90 bg-white/90 p-2 dark:border-zinc-700/90 dark:bg-zinc-950/40'
-					: ''
+				framed ? 'border p-2 border-white/70 dark:border-white/10 rounded-2xl glass' : ''
 			}
 		>
 			<div className="max-h-[min(50vh,420px)] overflow-y-auto">

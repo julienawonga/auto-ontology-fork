@@ -344,7 +344,7 @@ export const AnalysisView = () => {
 	};
 
 	return (
-		<div className="flex h-full w-full flex-col bg-white dark:bg-zinc-950">
+		<div className="flex h-full w-full flex-col">
 			<header className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
 				<Icon name={IconName.ChartBar} className="h-5 w-5 text-body dark:text-zinc-300" />
 				<h1 className="text-lg font-semibold tracking-tight text-heading dark:text-zinc-100">
@@ -410,7 +410,7 @@ export const AnalysisView = () => {
 				)}
 
 				{!loading && error != null && items.length === 0 && (
-					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 bg-white/90 px-8 py-10 text-center shadow-xl shadow-red-100/50 dark:border-red-900/50 dark:bg-zinc-950/80 dark:shadow-none">
+					<div className="mx-auto max-w-lg rounded-2xl border border-red-200/80 px-8 py-10 text-center dark:border-red-900/50 glass-strong">
 						<h2 className="text-lg font-semibold tracking-tight text-red-800 dark:text-red-300">
 							Couldn&apos;t load {MODE_LABEL[mode]} analyses
 						</h2>
@@ -450,10 +450,10 @@ export const AnalysisView = () => {
 							<li
 								key={a.id}
 								id={`analysis-${a.id}`}
-								className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-zinc-900 ${
+								className={`rounded-2xl border glass p-5 ${
 									a.id === focusId
 										? 'border-primary ring-2 ring-primary/30 dark:border-primary'
-										: 'border-zinc-200 dark:border-zinc-800'
+										: 'border-white/70 dark:border-white/10'
 								}`}
 							>
 								<div className="flex items-start justify-between gap-3">
