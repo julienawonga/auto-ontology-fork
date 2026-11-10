@@ -613,7 +613,16 @@ type GraphCanvasProps = {
 	onDoubleClickNode: (nodeId: string) => void;
 	onHoverNode: (hoveredNode: HoveredNode | null) => void;
 	onControllerChange: (controller: GraphController | null) => void;
+	/**
+	 * How many nodes of each kind the live graph holds, reported when it is
+	 * built and after every expansion or collapse. Expansions are grafted
+	 * straight onto the renderer, so this is the only place that knows.
+	 */
+	onNodeKindsChange?: (counts: NodeKindCounts) => void;
 };
+
+/** Node count per kind on the live graph; kinds with no node are absent. */
+export type NodeKindCounts = Partial<Record<NodeType, number>>;
 
 /** Sigma.js-backed graph canvas shared by both the semantic and data Exploration layers. */
 export const GraphCanvas = ({
@@ -626,8 +635,14 @@ export const GraphCanvas = ({
 	onDoubleClickNode,
 	onHoverNode,
 	onControllerChange,
+	onNodeKindsChange,
 }: GraphCanvasProps) => {
 	const containerRef = useRef<HTMLDivElement>(null);
+	// Read by the mount effect's controller, which outlives any one render.
+	const onNodeKindsChangeRef = useRef(onNodeKindsChange);
+	useEffect(() => {
+		onNodeKindsChangeRef.current = onNodeKindsChange;
+	});
 	const activeNodeIdRef = useRef<string | null>(activeNodeId);
 	const highlightedPathRef = useRef<{ nodeIds: Set<string>; edgeKeys: Set<string> } | null>(null);
 	// The renderer itself, mirrored out of the big mount effect below so
@@ -1669,6 +1684,15 @@ export const GraphCanvas = ({
 		});
 		resizeObserver.observe(containerRef.current);
 
+		const reportNodeKinds = () => {
+			const counts: NodeKindCounts = {};
+			graphology.forEachNode((_, attrs) => {
+				counts[attrs.kind] = (counts[attrs.kind] ?? 0) + 1;
+			});
+			onNodeKindsChangeRef.current?.(counts);
+		};
+		reportNodeKinds();
+
 		onControllerChange({
 			getCamera: () => renderer.getCamera(),
 			refresh: () => renderer.refresh(),
@@ -1677,8 +1701,15 @@ export const GraphCanvas = ({
 				renderer.refresh();
 			},
 			focusNode: (nodeId) => focusExpansionIfOffscreen([nodeId]),
-			addExpansion,
-			removeExpansion,
+			addExpansion: (originNodeId, nodes, edges) => {
+				addExpansion(originNodeId, nodes, edges);
+				reportNodeKinds();
+			},
+			removeExpansion: (originNodeId) => {
+				const dropped = removeExpansion(originNodeId);
+				reportNodeKinds();
+				return dropped;
+			},
 		});
 
 		return () => {
