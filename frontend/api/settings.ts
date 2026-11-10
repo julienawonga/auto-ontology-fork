@@ -135,3 +135,12 @@ export const sqlQueryTimeoutApi = {
 	set: (seconds: number): Promise<ResponseWithError<{ seconds: number }>> =>
 		requests.put('configurations/sql-query-timeout', { seconds }),
 };
+
+// Instance-wide cap on rows one agent-issued SQL statement may return (Settings > Agent Settings).
+export const sqlResultMaxRowsApi = {
+	get: (): Promise<ResponseWithError<{ rows: number }>> =>
+		requests.get('configurations/sql-result-max-rows'),
+
+	set: (rows: number): Promise<ResponseWithError<{ rows: number }>> =>
+		requests.put('configurations/sql-result-max-rows', { rows }),
+};

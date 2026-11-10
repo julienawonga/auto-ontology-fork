@@ -1797,6 +1797,118 @@
         "x-auto-ontology-proxied": false
       }
     },
+    "/api/configurations/sql-result-max-rows": {
+      "get": {
+        "tags": ["configurations"],
+        "summary": "Key/value stored in the `configurations` table.",
+        "description": "Key/value stored in the `configurations` table. The text-to-SQL pipeline\nreads this same key (see auto_ontology/infra/feature_flags.py) for each\nstatement it issues and cuts the result at this many rows. An absent row\nmeans 10,000, which is also what a backend running without this frontend\nuses.\nReport the instance-wide SQL result row limit.",
+        "operationId": "get_api_configurations_sql_result_max_rows",
+        "responses": {
+          "200": {
+            "description": "How many rows a SQL statement issued by the text-to-SQL agent may return; a longer result is cut and reported as such. 10000 when unset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Maximum rows one statement may return."
+                    }
+                  },
+                  "required": ["rows"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          }
+        },
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/configurations/sql-result-max-rows/route.ts",
+        "x-auto-ontology-permissions": {
+          "visualization": ["read"]
+        },
+        "x-auto-ontology-proxied": false
+      },
+      "put": {
+        "tags": ["configurations"],
+        "summary": "Set the instance-wide SQL result row limit (admin-only).",
+        "description": "Set the instance-wide SQL result row limit (admin-only).\n\nRejects anything but an in-range integer rather than coercing it: the backend\ntreats an unusable stored value as the default, so a coerced value would be\nsilently ignored while the page showed it as saved.",
+        "operationId": "put_api_configurations_sql_result_max_rows",
+        "requestBody": {
+          "required": true,
+          "description": "`rows` must be an integer from 1 to 1000000.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  }
+                },
+                "required": ["rows"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored limit. Applies from the next statement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Maximum rows one statement may return."
+                    }
+                  },
+                  "required": ["rows"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not JSON, or `rows` is not an in-range integer."
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          }
+        },
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/configurations/sql-result-max-rows/route.ts",
+        "x-auto-ontology-permissions": {
+          "visualization": ["manage"]
+        },
+        "x-auto-ontology-proxied": false
+      }
+    },
     "/api/configurations/visualization": {
       "get": {
         "tags": ["configurations"],

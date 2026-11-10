@@ -14,6 +14,12 @@ export const VISUALIZATION_ENABLED_KEY = 'visualization_enabled';
  */
 export const SQL_QUERY_TIMEOUT_SECONDS_KEY = 'sql_query_timeout_seconds';
 
+/**
+ * Key written by the SQL Result Row Limit field on Settings > Agent Settings.
+ * Default and bounds live in `@/lib/sqlResultMaxRows`, for the same reason.
+ */
+export const SQL_RESULT_MAX_ROWS_KEY = 'sql_result_max_rows';
+
 /** Key written by the Distinct Value Scanning toggle on Settings > Semantic Compilation. */
 export const DISTINCT_VALUE_PROBING_ENABLED_KEY = 'distinct_value_probing_enabled';
 

@@ -66,8 +66,9 @@ Notes:
 
 A statement returns at most `sql_result_max_rows` rows: 10,000 by default,
 between 1 and 1,000,000. It is read for each statement from the
-`sql_result_max_rows` row of the configuration table; there is no field for it
-in the interface yet, so without that row the default applies.
+`sql_result_max_rows` row of the configuration table. Admins set it in the
+SQL Result Row Limit field on Settings > Agent Settings; without that row the
+default applies, and so does a stored value outside the bounds.
 
 When a result is cut, the answer says so ("the result was limited to the first
 N rows, so the figures above may be incomplete") and the response carries
