@@ -20,6 +20,30 @@ from auto_ontology.catalog.constants import TableTypes
 from auto_ontology.connectors.base import SQLDatabase, StatementTimeout
 
 
+# Maps every table to the relation the catalog knows it by: a partition (at any
+# depth) to its topmost partitioned ancestor, anything else to itself.
+# ``get_tables`` lists only that root, so a key recorded against a partition
+# must be reported under the root's name to match a catalogued table.
+#
+# Only ``relispartition`` children are followed. Ordinary inheritance
+# (``CREATE TABLE child () INHERITS (parent)``) also lives in ``pg_inherits``,
+# but such a child is a table in its own right, catalogued under its own name,
+# and must keep its own keys.
+_PARTITION_ROOTS_CTE = """
+    WITH RECURSIVE partition_root(oid, root) AS (
+        SELECT c.oid, c.oid
+        FROM pg_class c
+        WHERE NOT c.relispartition
+          AND c.relkind IN ('r', 'p')
+        UNION ALL
+        SELECT child.oid, parent.root
+        FROM partition_root parent
+        JOIN pg_inherits i ON i.inhparent = parent.oid
+        JOIN pg_class child ON child.oid = i.inhrelid AND child.relispartition
+    )
+"""
+
+
 def _fetch_frame(
     conn: psycopg.Connection,
     sql: str,
@@ -284,40 +308,100 @@ class PostgresDatabase(SQLDatabase):
         """)
 
     def get_pks(self) -> pd.DataFrame:
-        return self.execute("""
-            SELECT
-                kcu.table_schema         AS table_schema,
-                kcu.table_name           AS table_name,
-                kcu.column_name          AS column_name,
-                kcu.ordinal_position     AS ordinal_position
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON tc.constraint_name = kcu.constraint_name
-             AND tc.table_schema    = kcu.table_schema
-            WHERE tc.constraint_type = 'PRIMARY KEY'
-              AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')
-            ORDER BY kcu.table_schema, kcu.table_name, kcu.ordinal_position
+        """Primary-key columns, one row each, under the name the catalog uses.
+
+        Driven from ``pg_constraint`` rather than ``information_schema``, for
+        the reasons given in :meth:`get_fks`: a key declared on partition
+        children is reported for the partitioned parent (the only name
+        :meth:`get_tables` catalogues), and constraints are matched by OID, not
+        by a name that is only unique per table.
+
+        ``ordinal_position`` is the column's position within the key, as
+        before. ``DISTINCT`` folds the copies Postgres keeps on every partition
+        of a key declared on the parent, and the identical keys of children
+        that each declare their own.
+        """
+        return self.execute(f"""
+            {_PARTITION_ROOTS_CTE}
+            SELECT DISTINCT
+                n.nspname                AS table_schema,
+                c.relname                AS table_name,
+                a.attname                AS column_name,
+                k.ord                    AS ordinal_position
+            FROM pg_constraint con
+            CROSS JOIN LATERAL unnest(con.conkey)
+                WITH ORDINALITY AS k(attnum, ord)
+            JOIN partition_root src ON src.oid = con.conrelid
+            JOIN pg_class c ON c.oid = src.root
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            -- Names are read from the relation that owns the constraint: a
+            -- partition shares its parent's column names, not its attnums.
+            JOIN pg_attribute a
+              ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+            WHERE con.contype = 'p'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND n.nspname NOT LIKE 'pg\\_%'
+              AND has_table_privilege(c.oid, 'SELECT')
+            ORDER BY table_schema, table_name, ordinal_position, column_name
         """)
 
     def get_fks(self) -> pd.DataFrame:
-        return self.execute("""
-            SELECT
-                kcu.table_schema         AS table_schema,
-                kcu.table_name           AS table_name,
-                kcu.column_name          AS column_name,
-                ccu.table_schema         AS referenced_schema,
-                ccu.table_name           AS referenced_table,
-                ccu.column_name          AS referenced_column
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON tc.constraint_name = kcu.constraint_name
-             AND tc.table_schema    = kcu.table_schema
-            JOIN information_schema.constraint_column_usage ccu
-              ON tc.constraint_name = ccu.constraint_name
-             AND tc.table_schema    = ccu.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-              AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')
-            ORDER BY kcu.table_schema, kcu.table_name, kcu.column_name
+        """Foreign-key column pairs, one row per (column, referenced column).
+
+        Driven from ``pg_constraint``. The previous query joined
+        ``information_schema.key_column_usage`` to ``constraint_column_usage``
+        on constraint name and schema, which was wrong three ways:
+
+        * **Partitions.** A key declared on partition children came back under
+          the child's name. :meth:`get_tables` catalogues only the parent, so
+          those rows matched no table and the relationship was lost — Pagila's
+          ``payment`` declares all its keys that way and had none. Both ends
+          are now mapped to their partition root.
+        * **Composite keys.** ``constraint_column_usage`` carries no position,
+          so ``(a, b) -> (x, y)`` came back as the cross product ``a->x, a->y,
+          b->x, b->y``. ``conkey`` and ``confkey`` are parallel arrays; they are
+          unnested together so each column meets only its counterpart.
+        * **Constraint names.** Postgres makes them unique per table, not per
+          schema, so two tables reusing a name had their columns mixed.
+          Constraints are matched by OID here.
+
+        ``DISTINCT`` folds the copies Postgres keeps per partition (on either
+        end) of a key declared on a partitioned table, and the identical keys
+        of sibling partitions. The schema and privilege filters mirror
+        :meth:`get_tables`, so no row names a relation the catalog lacks.
+        """
+        return self.execute(f"""
+            {_PARTITION_ROOTS_CTE}
+            SELECT DISTINCT
+                n.nspname                AS table_schema,
+                c.relname                AS table_name,
+                a.attname                AS column_name,
+                rn.nspname               AS referenced_schema,
+                rc.relname               AS referenced_table,
+                ra.attname               AS referenced_column
+            FROM pg_constraint con
+            CROSS JOIN LATERAL unnest(con.conkey, con.confkey)
+                AS k(attnum, ref_attnum)
+            JOIN partition_root src ON src.oid = con.conrelid
+            JOIN pg_class c ON c.oid = src.root
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN partition_root dst ON dst.oid = con.confrelid
+            JOIN pg_class rc ON rc.oid = dst.root
+            JOIN pg_namespace rn ON rn.oid = rc.relnamespace
+            -- Names are read from the relations the constraint itself points
+            -- at: a partition shares its parent's column names, not its
+            -- attnums.
+            JOIN pg_attribute a
+              ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+            JOIN pg_attribute ra
+              ON ra.attrelid = con.confrelid AND ra.attnum = k.ref_attnum
+            WHERE con.contype = 'f'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND n.nspname NOT LIKE 'pg\\_%'
+              AND has_table_privilege(c.oid, 'SELECT')
+              AND has_table_privilege(rc.oid, 'SELECT')
+            ORDER BY table_schema, table_name, column_name,
+                     referenced_schema, referenced_table, referenced_column
         """)
 
     # ------------------------------------------------------------------
