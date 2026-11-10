@@ -8,60 +8,23 @@ Every triplet (``REASONING``, ``NON_REASONING``, ``EMBED``, ``RERANK``) exposes
 three fields — ``ENDPOINT`` (URL), ``API_KEY``, and ``MODEL`` — as
 ``<PREFIX>_<FIELD>`` env vars. Any field left unset falls back to the
 corresponding ``DEFAULT_MODELS_<FIELD>``, so a single ``DEFAULT_MODELS_*`` triplet
-can supply the shared endpoint/key/model for all of them. Each field also falls
-back to its legacy pre-triplet env var name (``NVIDIA_API_KEY`` / ``BASE_URL`` /
+can supply the shared endpoint/key/model for all of them. ``ENDPOINT`` and
+``MODEL`` also fall back to their legacy pre-triplet names (``BASE_URL`` /
 ``MODEL_NAME``) for backward compatibility.
 
-When even ``DEFAULT_MODELS_<FIELD>`` is unset, a built-in default is used. There
-are two sets — one for ``sk-`` inference-api keys and one for ``nvapi-``
-integrate/build.nvidia.com keys — and the set is chosen from the API key that
-applies to the same triplet.
+There is no built-in endpoint or model: a field nobody configured resolves to
+``""``, and the client that needs it refuses to start with an error naming the
+env vars to set (see :func:`require`), rather than silently calling some
+provider's hosted service.
 """
 
 from __future__ import annotations
 
 import os
 
-# Built-in endpoint/model defaults, selected by the triplet's API key prefix.
-# Keyed by ``<PREFIX>_<FIELD>``. API keys are intentionally absent (they have no
-# safe hardcoded default and fall back to ``DEFAULT_MODELS_API_KEY`` /
-# ``NVIDIA_API_KEY`` instead).
-_DEFAULTS_BY_KEY_PREFIX: dict[str, dict[str, str]] = {
-    # inference-api.nvidia.com (sk-... keys).
-    "sk-": {
-        "REASONING_ENDPOINT": "https://inference-api.nvidia.com/v1",
-        "REASONING_MODEL": "azure/anthropic/claude-opus-5-5",
-        "NON_REASONING_ENDPOINT": "https://inference-api.nvidia.com/v1",
-        "NON_REASONING_MODEL": "azure/anthropic/claude-opus-5-5",
-        "EMBED_ENDPOINT": "https://inference-api.nvidia.com/v1",
-        "EMBED_MODEL": "nvidia/nvidia/nemotron-3.5-embed-1b-nvfp4",
-        "RERANK_ENDPOINT": "https://inference-api.nvidia.com/v1/rerank",
-        "RERANK_MODEL": "nvidia/nvidia/nemotron-3.5-rerank-8b-bf16",
-    },
-    # integrate.api.nvidia.com / build.nvidia.com (nvapi-... keys).
-    "nvapi-": {
-        "REASONING_ENDPOINT": "https://integrate.api.nvidia.com/v1",
-        "REASONING_MODEL": "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "NON_REASONING_ENDPOINT": "https://integrate.api.nvidia.com/v1",
-        "NON_REASONING_MODEL": "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "EMBED_ENDPOINT": "https://integrate.api.nvidia.com/v1",
-        "EMBED_MODEL": "nvidia/nemotron-3.5-embed-1b",
-        "RERANK_ENDPOINT": (
-            "https://ai.api.nvidia.com/v1/retrieval/nvidia/"
-            "nemotron-3.5-rerank-8b/reranking"
-        ),
-        "RERANK_MODEL": "nvidia/nemotron-3.5-rerank-8b",
-    },
-}
-
-# Default set to use when the API key matches no known prefix (or is unset).
-_FALLBACK_KEY_PREFIX = "sk-"
-
-
-# Legacy (pre-triplet) env var names, still honored so existing deployments and
-# --set nvidiaApiKey / BASE_URL / MODEL_NAME configs keep working.
+# Legacy (pre-triplet) env var names, still honored so existing deployments with
+# BASE_URL / MODEL_NAME configs keep working.
 _LEGACY_ENV: dict[str, str] = {
-    "API_KEY": "NVIDIA_API_KEY",
     "ENDPOINT": "BASE_URL",
     "MODEL": "MODEL_NAME",
 }
@@ -75,33 +38,40 @@ def _default(field: str) -> str:
     return value
 
 
-def _resolve_api_key(prefix: str) -> str:
-    """Effective API key for *prefix* (own env var, else the shared default)."""
-    return os.environ.get(f"{prefix}_API_KEY", "") or _default("API_KEY")
-
-
-def _builtin_default(prefix: str, key: str) -> str:
-    """Built-in default for ``<prefix>_<field>``, chosen by the key prefix."""
-    api_key = _resolve_api_key(prefix)
-    for key_prefix, defaults in _DEFAULTS_BY_KEY_PREFIX.items():
-        if api_key.startswith(key_prefix):
-            return defaults.get(key, "")
-    return _DEFAULTS_BY_KEY_PREFIX[_FALLBACK_KEY_PREFIX].get(key, "")
-
-
 def resolve(prefix: str, field: str) -> str:
-    """Resolve one triplet field.
+    """Resolve one triplet field, or ``""`` when it is not configured.
 
     Order of precedence: the ``<prefix>_<field>`` env var, then the shared
-    ``DEFAULT_MODELS_<field>``, then a built-in default chosen by whether the
-    triplet's API key is an ``sk-`` or ``nvapi-`` key.
+    ``DEFAULT_MODELS_<field>``, then the legacy name for that field.
     """
-    key = f"{prefix}_{field}"
-    return os.environ.get(key, "") or _default(field) or _builtin_default(prefix, key)
+    return os.environ.get(f"{prefix}_{field}", "") or _default(field)
 
 
-# Width of the vectors in the store. The default is what the Nemotron embedding
-# models emit; set ``EMBED_DIMENSIONS`` to match any other model.
+def env_names(prefix: str, field: str) -> str:
+    """The env vars that configure ``<prefix>_<field>``, for error messages."""
+    names = [f"{prefix}_{field}", f"DEFAULT_MODELS_{field}"]
+    if field in _LEGACY_ENV:
+        names.append(_LEGACY_ENV[field])
+    return " / ".join(names)
+
+
+class ModelConfigError(EnvironmentError):
+    """A model endpoint, key or model name the caller needs is not configured."""
+
+
+def require(prefix: str, field: str, value: str | None = None) -> str:
+    """*value* (default: the resolved field), or raise naming the env vars to set."""
+    resolved = resolve(prefix, field) if value is None else value
+    if not resolved:
+        raise ModelConfigError(
+            f"{prefix} {field.lower().replace('_', ' ')} is not configured: "
+            f"set {env_names(prefix, field)}"
+        )
+    return resolved
+
+
+# Width of the vectors in the store. 2048 is kept as the default so existing
+# stores keep their column width; set ``EMBED_DIMENSIONS`` to match your model.
 DEFAULT_EMBED_DIMENSIONS = 2048
 
 
@@ -131,11 +101,19 @@ def embed_dimensions_requested() -> int | None:
     return _dimensions_from_env()
 
 
-def embed_nim_fields_enabled() -> bool:
-    """Whether embedding requests carry the NVIDIA-only body fields.
+_FALSE_VALUES = {"0", "false", "no", "off"}
 
-    On by default. ``EMBED_NIM_FIELDS=false`` drops ``input_type``, ``truncate``
-    and ``modality`` for endpoints that reject unknown fields.
+
+def embed_extra_fields_enabled() -> bool:
+    """Whether embedding requests carry the extra body fields.
+
+    The fields are ``input_type``, ``truncate`` and ``modality``, which
+    asymmetric embedding servers use. On by default. ``EMBED_EXTRA_FIELDS=false``
+    drops them for endpoints that reject unknown fields; the older name
+    ``EMBED_NIM_FIELDS`` is still accepted, and ``EMBED_EXTRA_FIELDS`` wins when
+    both are set.
     """
-    raw = os.environ.get("EMBED_NIM_FIELDS", "").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    raw = os.environ.get("EMBED_EXTRA_FIELDS", "").strip()
+    if not raw:
+        raw = os.environ.get("EMBED_NIM_FIELDS", "").strip()
+    return raw.lower() not in _FALSE_VALUES

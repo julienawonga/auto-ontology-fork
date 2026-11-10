@@ -107,7 +107,7 @@ def load_spec(settings: Settings) -> dict[str, Any]:
 
 
 def load_icons() -> list[Icon]:
-    """The NVIDIA mark, for clients that show an icon beside each server.
+    """The Auto-Ontology mark, for clients that show an icon beside each server.
 
     Purely cosmetic, so a missing or unreadable file degrades to no icon rather
     than stopping a working server from starting.

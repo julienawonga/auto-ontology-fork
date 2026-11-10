@@ -12,8 +12,8 @@ wire protocol, so it is reached with the official ``trino`` Python client
 Three properties of the engine shape this connector:
 
 * **Three-level naming.** Objects are ``catalog.schema.table``. A connection
-  binds one catalog, which becomes :attr:`~TrinoDatabase.database_name` -- NeMo
-  routes SQL by that name, so one connection per catalog is the unit here, the
+  binds one catalog, which becomes :attr:`~TrinoDatabase.database_name` -- SQL
+  is routed by that name, so one connection per catalog is the unit here, the
   same model :mod:`auto_ontology.connectors.kyuubi` uses.
 * **A real ``information_schema``.** Unlike Spark/Kyuubi, every Trino catalog
   exposes ``information_schema.{schemata,tables,columns,views}``, so metadata is

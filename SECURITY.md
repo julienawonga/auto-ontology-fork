@@ -1,30 +1,38 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
-All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-## Security
+# Security policy
 
-NVIDIA is dedicated to the security and trust of our software products and services, including all source code repositories managed through our organization.
+## Reporting a vulnerability
 
-If you need to report a security issue, please use the appropriate contact points outlined below. **Please do not report security vulnerabilities through GitHub.** If a potential security issue is inadvertently reported via a public issue or pull request, NVIDIA maintainers may limit public discussion and redirect the reporter to the appropriate private disclosure channels.
+**Please do not report security vulnerabilities in public issues, discussions or pull
+requests.**
 
-## Reporting Potential Security Vulnerability in an NVIDIA Product
+Report them privately through GitHub instead: open the repository's **Security** tab and
+choose **Report a vulnerability**
+([direct link](https://github.com/julienawonga/auto-ontology-fork/security/advisories/new)).
+Only the maintainers can see the report.
 
-To report a potential security vulnerability in any NVIDIA product:
-- Web: [Security Vulnerability Submission Form](https://www.nvidia.com/object/submit-security-vulnerability.html)
-- E-Mail: psirt@nvidia.com
-    - We encourage you to use the following PGP key for secure email communication: [NVIDIA public PGP Key for communication](https://www.nvidia.com/en-us/security/pgp-key)
-    - Please include the following information:
-   	 - Product/Driver name and version/branch that contains the vulnerability
-     - Type of vulnerability (code execution, denial of service, buffer overflow, etc.)
-   	 - Instructions to reproduce the vulnerability
-   	 - Proof-of-concept or exploit code
-   	 - Potential impact of the vulnerability, including how an attacker could exploit the vulnerability
+Please include:
 
-While NVIDIA currently does not have a bug bounty program, we do offer acknowledgement when an externally reported security issue is addressed under our coordinated vulnerability disclosure policy. Please visit our [Product Security Incident Response Team (PSIRT)](https://www.nvidia.com/en-us/security/psirt-policies/) policies page for more information.
+- the version or commit you tested;
+- the component involved (web app, API, ingestion service, MCP server, Helm chart…);
+- steps to reproduce, and a proof of concept if you have one;
+- the impact you expect, and how an attacker could use it.
 
-## NVIDIA Product Security
+You will get an acknowledgement within a few days. Once a fix is ready, it is released and
+the advisory is published, crediting you unless you prefer otherwise.
 
-For all security-related concerns, please visit NVIDIA's Product Security portal at https://www.nvidia.com/en-us/security
+## Supported versions
+
+Security fixes go to the `main` branch. Run a recent `main` to get them.
+
+## Deployment notes
+
+- Keep ports 3001 (API) and 3002 (ingestion service) on a private network. The API trusts
+  the user identity forwarded by the web app, and the ingestion service has no
+  authentication of its own; clients go through the web app on port 3000.
+- Set a long random `AUTH_SECRET` (for example `openssl rand -base64 32`) and replace every
+  default password in `.env` before exposing the stack.

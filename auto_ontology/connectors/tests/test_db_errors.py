@@ -24,7 +24,7 @@ _SESSION_ERRORS = [
 _CONNECTIVITY_ERRORS = [
     "[Errno 61] Connection refused",
     "Connection reset by peer",
-    "TTransportException: Could not connect to hive.pdx-aws.data.nvidia.com:10000",
+    "TTransportException: Could not connect to hive.us-west.data.example.com:10000",
     "No connector available to execute SQL.",
     "Temporary failure in name resolution",
 ]

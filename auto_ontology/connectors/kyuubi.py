@@ -5,15 +5,15 @@
 """Apache Kyuubi connector implementing Auto Ontology's SQLDatabase ABC.
 
 Kyuubi fronts a Spark SQL engine over the HiveServer2 Thrift protocol, so it is
-reached with a Hive client rather than a REST driver. NVIDIA's ProcR / Cloud
-Data Platform deployment exposes it at ``hive.<region>.data.nvidia.com:10000``
-over TLS, with Iceberg catalogs (``nvdp``, ``kratos``, ...) underneath.
+reached with a Hive client rather than a REST driver. A typical data-platform
+deployment exposes it at ``hive.<region>.data.example.com:10000`` over TLS,
+with Iceberg catalogs (``lakehouse``, ``analytics``, ...) underneath.
 
 Authentication is SASL PLAIN. Two credential modes are supported:
 
 ``auth=ssa`` (default)
-    The username is a Starfleet SSA client id and the password is a token minted
-    from that client's ``client_credentials`` grant. Tokens expire in an hour, so
+    The username is an SSA (OAuth2 service account) client id and the password
+    is a token minted from that client's ``client_credentials`` grant. Tokens expire in an hour, so
     they are minted on demand and refreshed here rather than baked into the
     connection string -- a cached connector would otherwise start failing an hour
     after it was built.
@@ -37,7 +37,7 @@ Example
 -------
 ::
 
-    CONNECTION_STRINGS=kyuubi://nvssa-prd-abc:SECRET@hive.pdx-aws.data.nvidia.com:10000/nvdp?ssa_url=https://svc.ssa.nvidia.com&truststore=/etc/ssl/global_ca.jks&truststore_password=nvidia.com
+    CONNECTION_STRINGS=kyuubi://ssa-client-abc:SECRET@hive.us-west.data.example.com:10000/lakehouse?ssa_url=https://svc.ssa.example.com&truststore=/etc/ssl/global_ca.jks&truststore_password=changeit
 """
 
 from __future__ import annotations
@@ -189,7 +189,7 @@ def _parse_connection_string(connection_string: str) -> dict[str, Any]:
 
     Expected formats::
 
-        kyuubi://CLIENT_ID:CLIENT_SECRET@HOST:10000/CATALOG?ssa_url=https://SVC.ssa.nvidia.com
+        kyuubi://CLIENT_ID:CLIENT_SECRET@HOST:10000/CATALOG?ssa_url=https://SVC.ssa.example.com
         kyuubi://USER:JWT@HOST:10000/CATALOG?auth=token
     """
     parsed = urlparse(connection_string)
@@ -204,7 +204,7 @@ def _parse_connection_string(connection_string: str) -> dict[str, Any]:
     if not username:
         raise ValueError(
             "Kyuubi connection string requires a username, e.g. "
-            "kyuubi://client_id:secret@hive.pdx-aws.data.nvidia.com:10000/nvdp"
+            "kyuubi://client_id:secret@hive.us-west.data.example.com:10000/lakehouse"
         )
 
     secret = unquote(parsed.password) if parsed.password is not None else ""
@@ -221,7 +221,7 @@ def _parse_connection_string(connection_string: str) -> dict[str, Any]:
     if not catalog:
         raise ValueError(
             "Kyuubi connection string requires a catalog, e.g. "
-            "kyuubi://client_id:secret@host:10000/nvdp"
+            "kyuubi://client_id:secret@host:10000/lakehouse"
         )
 
     auth = (_first(query, "auth") or "ssa").lower()
@@ -232,7 +232,7 @@ def _parse_connection_string(connection_string: str) -> dict[str, Any]:
     if auth == "ssa" and not ssa_url:
         raise ValueError(
             "Kyuubi connection string with auth=ssa requires "
-            "?ssa_url=https://<service_id>.ssa.nvidia.com"
+            "?ssa_url=https://<service_id>.ssa.example.com"
         )
 
     return {
@@ -273,9 +273,9 @@ def _write_temp_jks(encoded: str) -> str:
 def _jks_to_pem(jks_path: str, password: str | None) -> str:
     """Convert a Java truststore to a PEM bundle and return the new file's path.
 
-    NVIDIA distributes its internal CAs as ``global_ca.jks``, which Python's ssl
-    module cannot read. ``pyjks`` parses it in-process, so no ``keytool`` (and no
-    JDK) has to be present on the host.
+    Some organisations distribute their internal CAs as a JKS file (e.g.
+    ``global_ca.jks``), which Python's ssl module cannot read. ``pyjks`` parses
+    it in-process, so no ``keytool`` (and no JDK) has to be present on the host.
     """
     import jks
 
@@ -304,7 +304,7 @@ class KyuubiDatabase(SQLDatabase):
     Parameters
     ----------
     connection_string:
-        ``kyuubi://client_id:secret@host:10000/catalog?ssa_url=https://svc.ssa.nvidia.com``
+        ``kyuubi://client_id:secret@host:10000/catalog?ssa_url=https://svc.ssa.example.com``
     schemas:
         Optional ingestion allowlist. Empty or ``None`` means every schema in the
         catalog.

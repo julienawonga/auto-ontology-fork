@@ -1834,7 +1834,7 @@ def generate_pql(
                     "Empty entity set (no context examples) on a valid query; not regenerating."
                 )
                 break
-            # The query passed both validators and the backend still failed (e.g. the NIM
+            # The query passed both validators and the backend still failed (e.g. the server
             # answering /v1/predictions with a bare HTTP 500). That is infrastructure, not the
             # query: the predict path already retried it, and the LLM would only regenerate the
             # same statement, so stop instead of burning every remaining attempt on a fault no

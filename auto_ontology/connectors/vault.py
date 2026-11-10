@@ -47,7 +47,7 @@ def is_vault_configured() -> bool:
 
 def get_client() -> hvac.Client:
     addr = os.environ["VAULT_ADDR"]
-    auth_mount = os.environ.get("VAULT_AUTH_MOUNT", "approle/nvdcs/dc1")
+    auth_mount = os.environ.get("VAULT_AUTH_MOUNT", "approle")
     try:
         client = hvac.Client(
             url=addr,

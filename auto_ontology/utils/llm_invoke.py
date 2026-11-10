@@ -18,7 +18,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
-from auto_ontology.utils.model_config import resolve
+from auto_ontology.utils.model_config import require, resolve
 
 logger = logging.getLogger(__name__)
 
@@ -198,17 +198,38 @@ class _TimeoutSession(_requests.Session):
 T = TypeVar("T", bound=BaseModel)
 
 # Main (reasoning) model triplet. Each field falls back to DEFAULT_MODELS_<field>
-# (and the API key additionally to the legacy NVIDIA_API_KEY) when unset.
+# when unset.
 _BASE_URL = resolve("REASONING", "ENDPOINT")
 _MODEL_NAME = resolve("REASONING", "MODEL")
 _API_KEY = resolve("REASONING", "API_KEY")
 
 # Non-reasoning model. Kept fully separate (key/endpoint/model) so it can point at
-# a different endpoint than the main model (e.g. inference vs integrate API). Each
+# a different endpoint than the main model (e.g. a cheaper, faster one). Each
 # field falls back to DEFAULT_MODELS_<field> when unset.
 _NON_REASONING_BASE_URL = resolve("NON_REASONING", "ENDPOINT")
 _NON_REASONING_MODEL_NAME = resolve("NON_REASONING", "MODEL")
 _NON_REASONING_API_KEY = resolve("NON_REASONING", "API_KEY")
+
+
+# Chat client implementation. Every endpoint is reached through langchain's
+# OpenAI client by default. ``LLM_CLIENT=nvidia`` restores the opt-in
+# ``ChatNVIDIA`` client (langchain-nvidia-ai-endpoints) for models without an
+# ``openai/``, ``azure/`` or ``aws/`` prefix, for servers that need its
+# structured-output path.
+_LLM_CLIENTS = ("openai", "nvidia")
+
+# Model-name prefixes of OpenAI-family models, which reject an explicit
+# temperature (see below).
+_OPENAI_FAMILY_PREFIXES = ("openai/", "azure/", "aws/")
+
+
+def _llm_client_kind() -> str:
+    kind = os.environ.get("LLM_CLIENT", "").strip().lower() or "openai"
+    if kind not in _LLM_CLIENTS:
+        raise EnvironmentError(
+            f"LLM_CLIENT must be one of {', '.join(_LLM_CLIENTS)}, got {kind!r}"
+        )
+    return kind
 
 
 def _build_client(
@@ -221,37 +242,41 @@ def _build_client(
 ) -> BaseChatModel:
     """Build a chat client for the given model/endpoint.
 
-    OpenAI-family models (``openai/``, ``azure/``, ``aws/`` prefixes) go through
-    ``ChatOpenAI``, which supports structured output. Everything else uses
-    ``ChatNVIDIA``.
+    Every model goes through ``ChatOpenAI`` against the configured
+    OpenAI-compatible endpoint. OpenAI-family models (``openai/``, ``azure/``,
+    ``aws/`` prefixes) get no explicit temperature; any other model gets
+    *temperature*. With ``LLM_CLIENT=nvidia`` the non-prefixed models use
+    ``ChatNVIDIA`` instead.
     """
-    if model.startswith(("openai/", "azure/", "aws/")):
-        from langchain_openai import ChatOpenAI
+    openai_family = model.startswith(_OPENAI_FAMILY_PREFIXES)
+    if not openai_family and _llm_client_kind() == "nvidia":
+        from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
-        return ChatOpenAI(
+        client = ChatNVIDIA(
             model=model,
             api_key=api_key,
             base_url=base_url,
-            # temperature omitted: gpt-5.x/o-series reject any explicit value and
-            # only allow the server default (1). Unset => langchain sends no
-            # temperature field, so the provider default applies.
-            # temperature=temperature,
+            temperature=temperature,
             max_tokens=max_tokens,
-            timeout=LLM_INVOKE_TIMEOUT_S,
-            max_retries=0,
         )
+        client._client.get_session_fn = lambda: _TimeoutSession(LLM_INVOKE_TIMEOUT_S)
+        return client
 
-    from langchain_nvidia_ai_endpoints import ChatNVIDIA
+    from langchain_openai import ChatOpenAI
 
-    client = ChatNVIDIA(
+    # temperature omitted for OpenAI-family models: gpt-5.x/o-series reject any
+    # explicit value and only allow the server default (1). Unset => langchain
+    # sends no temperature field, so the provider default applies.
+    extra = {} if openai_family else {"temperature": temperature}
+    return ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=base_url,
-        temperature=temperature,
         max_tokens=max_tokens,
+        timeout=LLM_INVOKE_TIMEOUT_S,
+        max_retries=0,
+        **extra,
     )
-    client._client.get_session_fn = lambda: _TimeoutSession(LLM_INVOKE_TIMEOUT_S)
-    return client
 
 
 def get_llm_client(
@@ -267,13 +292,10 @@ def get_llm_client(
     model : str | None
         Override the default ``REASONING_MODEL`` env var for this client.
     """
-    if not _API_KEY:
-        raise EnvironmentError("REASONING_API_KEY is not set")
-
     return _build_client(
-        model=model or _MODEL_NAME,
-        api_key=_API_KEY,
-        base_url=_BASE_URL,
+        model=require("REASONING", "MODEL", model or _MODEL_NAME),
+        api_key=require("REASONING", "API_KEY", _API_KEY),
+        base_url=require("REASONING", "ENDPOINT", _BASE_URL),
         temperature=temperature,
         max_tokens=max_tokens,
     )
@@ -296,13 +318,10 @@ def get_non_reasoning_llm_client(
     model : str | None
         Override the default ``NON_REASONING_MODEL`` env var for this client.
     """
-    if not _NON_REASONING_API_KEY:
-        raise EnvironmentError("NON_REASONING_API_KEY is not set")
-
     client = _build_client(
-        model=model or _NON_REASONING_MODEL_NAME,
-        api_key=_NON_REASONING_API_KEY,
-        base_url=_NON_REASONING_BASE_URL,
+        model=require("NON_REASONING", "MODEL", model or _NON_REASONING_MODEL_NAME),
+        api_key=require("NON_REASONING", "API_KEY", _NON_REASONING_API_KEY),
+        base_url=require("NON_REASONING", "ENDPOINT", _NON_REASONING_BASE_URL),
         temperature=temperature,
         max_tokens=max_tokens,
     )
@@ -430,7 +449,7 @@ def _system_messages_first(
     Claude takes a single system prompt ahead of the conversation, but agents
     interleave them: ``sql_from_semantic`` sends system, user, system, system,
     user, and a validation retry appends a system message after the user turn.
-    On the inference-api gateway, ``azure/anthropic/*`` rejects every request
+    On an OpenAI-compatible (LiteLLM) gateway, ``azure/anthropic/*`` rejects every request
     with a system message after a user message, because the gateway attaches
     prompt-cache markers in an order Anthropic refuses::
 

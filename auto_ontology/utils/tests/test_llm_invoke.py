@@ -64,7 +64,7 @@ def test_claude_is_matched_on_either_vendor_or_family_name() -> None:
 
 def test_other_models_keep_the_langchain_default() -> None:
     """json_schema is preferred where supported, so nothing is forced for them."""
-    for name in ("nvidia/nemotron-3.5-lightning-30b-a3b", "gpt-4o", ""):
+    for name in ("meta/llama-3.3-70b-instruct", "gpt-4o", ""):
         assert _structured_output_kwargs(_Model(name)) == {}
 
 
@@ -107,9 +107,7 @@ def test_other_models_keep_their_message_order() -> None:
     messages = _interleaved()
 
     assert (
-        _system_messages_first(
-            _Model("nvidia/nemotron-3.5-lightning-30b-a3b"), messages
-        )
+        _system_messages_first(_Model("meta/llama-3.3-70b-instruct"), messages)
         == messages
     )
 
@@ -231,6 +229,8 @@ class _Binding:
 def test_non_reasoning_client_is_marked(monkeypatch: Any) -> None:
     sentinel = object()
     monkeypatch.setattr(llm_invoke, "_NON_REASONING_API_KEY", "sk-test")
+    monkeypatch.setattr(llm_invoke, "_NON_REASONING_MODEL_NAME", "test-model")
+    monkeypatch.setattr(llm_invoke, "_NON_REASONING_BASE_URL", "https://llm.example/v1")
     monkeypatch.setattr(llm_invoke, "_build_client", lambda **_kwargs: sentinel)
 
     client = llm_invoke.get_non_reasoning_llm_client()
@@ -342,6 +342,8 @@ def test_structured_fallback_returns_none_when_reasoning_also_fails(
     monkeypatch.setattr(llm_invoke, "safe_invoke_with_structured_output", invoke)
     monkeypatch.setattr(llm_invoke, "get_llm_client", lambda **_kwargs: reasoning)
     monkeypatch.setattr(llm_invoke, "_NON_REASONING_API_KEY", "sk-test")
+    monkeypatch.setattr(llm_invoke, "_NON_REASONING_MODEL_NAME", "test-model")
+    monkeypatch.setattr(llm_invoke, "_NON_REASONING_BASE_URL", "https://llm.example/v1")
     monkeypatch.setattr(llm_invoke, "_build_client", lambda **_kwargs: primary)
 
     result = llm_invoke.safe_invoke_structured_nr([], _Schema)
@@ -450,6 +452,8 @@ def test_text_fallback_is_not_attempted_twice(monkeypatch: Any) -> None:
         raise RuntimeError("429")
 
     monkeypatch.setattr(llm_invoke, "_NON_REASONING_API_KEY", "sk-test")
+    monkeypatch.setattr(llm_invoke, "_NON_REASONING_MODEL_NAME", "test-model")
+    monkeypatch.setattr(llm_invoke, "_NON_REASONING_BASE_URL", "https://llm.example/v1")
     monkeypatch.setattr(llm_invoke, "_build_client", lambda **_kwargs: primary)
     monkeypatch.setattr(llm_invoke, "_safe_invoke_text", once)
     monkeypatch.setattr(llm_invoke, "get_llm_client", lambda **_kwargs: reasoning)
@@ -497,3 +501,60 @@ def test_missing_reasoning_client_keeps_the_original_failure(monkeypatch: Any) -
     monkeypatch.setattr(llm_invoke, "get_llm_client", unavailable)
 
     assert llm_invoke.invoke_with_structured_output(primary, [], _Schema) is None
+
+
+def _client(model: str) -> Any:
+    return llm_invoke._build_client(
+        model=model,
+        api_key="test-key",
+        base_url="https://llm.example/v1",
+        temperature=0.0,
+        max_tokens=16,
+    )
+
+
+def test_every_model_uses_the_openai_compatible_client(monkeypatch: Any) -> None:
+    from langchain_openai import ChatOpenAI
+
+    monkeypatch.delenv("LLM_CLIENT", raising=False)
+
+    for model in ("openai/gpt-4o", "meta/llama-3.3-70b-instruct", "gpt-4o"):
+        client = _client(model)
+        assert isinstance(client, ChatOpenAI)
+        assert client.openai_api_base == "https://llm.example/v1"
+
+
+def test_only_non_openai_family_models_get_a_temperature(monkeypatch: Any) -> None:
+    """gpt-5.x/o-series reject an explicit temperature; others keep the one asked for."""
+    monkeypatch.delenv("LLM_CLIENT", raising=False)
+
+    assert _client("openai/gpt-5").temperature is None
+    assert _client("meta/llama-3.3-70b-instruct").temperature == 0.0
+
+
+def test_an_unknown_llm_client_is_refused(monkeypatch: Any) -> None:
+    monkeypatch.setenv("LLM_CLIENT", "bogus")
+
+    with pytest.raises(EnvironmentError, match="LLM_CLIENT"):
+        _client("meta/llama-3.3-70b-instruct")
+
+
+@pytest.mark.parametrize(
+    ("attribute", "env_name"),
+    [
+        ("_API_KEY", "REASONING_API_KEY"),
+        ("_BASE_URL", "REASONING_ENDPOINT"),
+        ("_MODEL_NAME", "REASONING_MODEL"),
+    ],
+)
+def test_an_unconfigured_reasoning_model_fails_naming_the_env_vars(
+    monkeypatch: Any, attribute: str, env_name: str
+) -> None:
+    """No built-in endpoint: a missing field is an error, never a vendor default."""
+    monkeypatch.setattr(llm_invoke, "_API_KEY", "test-key")
+    monkeypatch.setattr(llm_invoke, "_BASE_URL", "https://llm.example/v1")
+    monkeypatch.setattr(llm_invoke, "_MODEL_NAME", "test-model")
+    monkeypatch.setattr(llm_invoke, attribute, "")
+
+    with pytest.raises(EnvironmentError, match=env_name):
+        llm_invoke.get_llm_client()

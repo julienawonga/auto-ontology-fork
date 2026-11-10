@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Feature request
+description: Suggest an idea, a connector, or an integration.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

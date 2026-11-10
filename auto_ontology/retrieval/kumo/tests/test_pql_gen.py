@@ -127,17 +127,17 @@ def test_unrelated_errors_are_not_classified_as_row_limit() -> None:
     assert not _is_context_capacity_error("Failed to parse query")
 
 
-_NIM_500_ERROR = (
+_SERVER_500_ERROR = (
     "An unexpected exception occurred. Please create an issue at "
     "'https://github.com/kumo-ai/kumo-rfm'. Unexpected server error."
 )
 
 
 def test_nim_internal_error_is_classified_as_infra_not_a_bad_query() -> None:
-    """A bare HTTP 500 from the NIM must stop the repair loop, not trigger 5 rewrites."""
-    assert _is_transient_exec_error(_NIM_500_ERROR)
+    """A bare HTTP 500 from the server must stop the repair loop, not trigger 5 rewrites."""
+    assert _is_transient_exec_error(_SERVER_500_ERROR)
     # It must NOT look like a capacity problem, or it would walk the neighbourhood ladder.
-    assert not _is_context_capacity_error(_NIM_500_ERROR)
+    assert not _is_context_capacity_error(_SERVER_500_ERROR)
 
 
 def test_neighbourhood_memo_skips_rungs_already_proven_too_big() -> None:

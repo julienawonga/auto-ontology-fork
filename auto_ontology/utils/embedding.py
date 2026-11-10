@@ -2,13 +2,13 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Text embedding against the configured NIM / inference-api endpoint.
+"""Text embedding against the configured OpenAI-compatible endpoint.
 
-Both endpoints speak the OpenAI ``/embeddings`` API, plus three NVIDIA fields
-sent through ``extra_body``. ``input_type`` is the one that matters: NVIDIA's
-embedding models are asymmetric, so a stored row must be embedded as a
-``passage`` and a search string as a ``query``. Mixing them up raises no error
--- it just makes every search worse.
+The endpoint speaks the OpenAI ``/embeddings`` API, plus three extra fields
+sent through ``extra_body`` (unless ``EMBED_EXTRA_FIELDS=false``). ``input_type``
+is the one that matters: asymmetric embedding models need a stored row
+embedded as a ``passage`` and a search string as a ``query``. Mixing them up
+raises no error -- it just makes every search worse.
 
 Some deployments ignore ``input_type`` (see ``_TEXT_PREFIXED_MODELS``); for
 those the type is written into the text as a ``query: `` / ``passage: ``
@@ -33,9 +33,11 @@ import httpx
 from openai import APIStatusError, Omit, OpenAI
 
 from auto_ontology.utils.model_config import (
+    ModelConfigError,
     embed_dimensions,
     embed_dimensions_requested,
-    embed_nim_fields_enabled,
+    embed_extra_fields_enabled,
+    env_names,
     resolve,
 )
 from auto_ontology.vdb.records import write_embedded_rows
@@ -53,8 +55,8 @@ InputType = Literal["passage", "query"]
 # needs the prefix in the text instead. Without it every vector shares one
 # dominant direction and similarity ranking is close to random; models that do
 # honour ``input_type`` get slightly worse with the prefix added on top. Only
-# the inference-api nvfp4 deployment drops it: the hosted
-# ``nvidia/nemotron-3.5-embed-1b`` on build.nvidia.com honours ``input_type``.
+# the nvfp4 deployment of this model is known to drop it; the same model served
+# unquantized honours ``input_type``.
 _TEXT_PREFIXED_MODELS = ("nemotron-3.5-embed-1b-nvfp4",)
 
 # Each field falls back to DEFAULT_MODELS_<field>.
@@ -99,13 +101,13 @@ class EmbedParams:
     api_key: str = field(default="", repr=False)
     embed_modality: str = "text"
     inference_batch_size: int = 32
-    nim_http_max_concurrent: int = 32
+    http_max_concurrent: int = 32
     request_timeout_s: float = 600.0
     # Sent as ``dimensions`` when set, for models that can shorten their output.
     dimensions: int | None = None
-    # False drops the NVIDIA-only body fields (``input_type``, ``truncate``,
+    # False drops the extra body fields (``input_type``, ``truncate``,
     # ``modality``) for endpoints that reject unknown fields.
-    nim_fields: bool = True
+    extra_fields: bool = True
     # When set, a vector of any other width is an error here rather than a
     # dimension error from pgvector at write time.
     expected_dimensions: int | None = None
@@ -117,7 +119,7 @@ def get_embed_params() -> EmbedParams:
         model_name=_EMBED_MODEL,
         api_key=_EMBED_API_KEY,
         dimensions=embed_dimensions_requested(),
-        nim_fields=embed_nim_fields_enabled(),
+        extra_fields=embed_extra_fields_enabled(),
         expected_dimensions=embed_dimensions(),
     )
 
@@ -126,7 +128,7 @@ def get_embed_params() -> EmbedParams:
 # Client
 # ---------------------------------------------------------------------------
 
-# A keyless self-hosted NIM expects no Authorization header, and the client
+# A keyless self-hosted server expects no Authorization header, and the client
 # only sends none when the header is omitted per request.
 _NO_AUTH = {"Authorization": Omit()}
 
@@ -137,14 +139,20 @@ _clients_lock = threading.Lock()
 def _base_url(endpoint: str) -> str:
     """*endpoint* without a trailing ``/embeddings``, which the client appends.
 
-    Configs carry both forms -- the built-in defaults end at ``/v1``, older
-    deployments spell out ``/v1/embeddings`` -- and both have to keep working.
+    Configs carry both forms -- most end at ``/v1``, older deployments spell
+    out ``/v1/embeddings`` -- and both have to keep working.
     """
     url = endpoint.rstrip("/")
     return url.removesuffix("/embeddings")
 
 
 def _new_client(params: EmbedParams, http_client: httpx.Client | None = None) -> OpenAI:
+    # No built-in endpoint: without one the client would quietly fall back to
+    # api.openai.com, so refuse here and name the env vars to set.
+    if not params.embed_invoke_url:
+        raise ModelConfigError(
+            f"Embedding endpoint is not configured: set {env_names('EMBED', 'ENDPOINT')}"
+        )
     return OpenAI(
         base_url=_base_url(params.embed_invoke_url),
         # The client refuses to start without a key; a keyless endpoint gets a
@@ -202,7 +210,7 @@ def embed_texts(
 
     def _embed_batch(indices: tuple[int, ...]) -> None:
         request: dict[str, Any] = {}
-        if params.nim_fields:
+        if params.extra_fields:
             request["extra_body"] = {
                 "input_type": input_type,
                 "truncate": "END",
@@ -241,7 +249,7 @@ def embed_texts(
     if len(batches) == 1:
         _embed_batch(batches[0])
     else:
-        workers = min(len(batches), max(1, params.nim_http_max_concurrent))
+        workers = min(len(batches), max(1, params.http_max_concurrent))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             # list() so the first failed batch re-raises here.
             list(pool.map(_embed_batch, batches))
@@ -258,7 +266,10 @@ def _is_fatal(exc: Exception) -> bool:
 
     Any 4xx except 408 (timeout), 409 and 429 (rate limit): a bad key, an
     unknown model id, a wrong path. The client has already retried the rest.
+    A missing endpoint configuration is fatal too.
     """
+    if isinstance(exc, ModelConfigError):
+        return True
     return isinstance(exc, APIStatusError) and (
         400 <= exc.status_code < 500 and exc.status_code not in (408, 409, 429)
     )
@@ -300,7 +311,7 @@ def embed_chunk_size(params: EmbedParams) -> int:
     lost to — or redone by — a mid-run failure, larger ones mean less pgvector
     round-tripping.
     """
-    return max(1, params.inference_batch_size * params.nim_http_max_concurrent)
+    return max(1, params.inference_batch_size * params.http_max_concurrent)
 
 
 def _embedded_row_count(frame: "pd.DataFrame") -> int:
@@ -407,7 +418,7 @@ def batch_embed_chunks(
         params.embed_invoke_url,
         params.model_name,
         params.inference_batch_size,
-        params.nim_http_max_concurrent,
+        params.http_max_concurrent,
     )
 
     started = time.monotonic()

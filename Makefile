@@ -6,19 +6,20 @@
 # Auto Ontology image build / publish helpers
 # ---------------------------------------------------------------------------
 # These targets wrap the `docker buildx build` invocations needed to build
-# the backend and frontend images and (optionally) push them to NVIDIA's NGC
-# container registry. See `helm/auto-ontology/README.md` for the full deploy story;
-# this file only covers building and publishing the images.
+# the backend, frontend and MCP images and (optionally) push them to a
+# container registry. Tagged releases are published to GHCR by
+# .github/workflows/release.yml; these targets are for local builds and
+# manual pushes. See DEPLOYMENT.md for the full deploy story.
 #
-# Common flow (one-time):
+# Common flow:
 #
-#   docker login nvcr.io                       # or: make login NGC_TOKEN=...
-#   make build  REGISTRY=nvcr.io/<org>/<team>  # local builds (single arch)
-#   make publish REGISTRY=nvcr.io/<org>/<team> # multi-arch push
+#   make build                                   # local builds (host arch)
+#   echo $GITHUB_TOKEN | docker login ghcr.io -u <user> --password-stdin
+#   make publish REGISTRY=ghcr.io/<owner>        # multi-arch push
 #
 # Variables (override on the command line):
 #
-#   REGISTRY        Full nvcr.io path, e.g. nvcr.io/nvidian/sw-auto-ontology
+#   REGISTRY        Registry path prefix, e.g. ghcr.io/<owner>
 #                   (required for `publish*` targets)
 #   TAG             Image tag. Defaults to `git describe`.
 #   PYTHON_API_URL  Backend URL baked into the frontend's Next.js rewrites
@@ -35,45 +36,41 @@ PLATFORMS      ?= linux/amd64,linux/arm64
 
 BACKEND_IMAGE  := auto-ontology
 FRONTEND_IMAGE := auto-ontology-frontend
+MCP_IMAGE      := auto-ontology-mcp
 
 # --tag prefix. Plain image name when REGISTRY is empty (local builds);
 # fully-qualified when REGISTRY is set (publish builds).
 ifeq ($(REGISTRY),)
   BACKEND_REF  := $(BACKEND_IMAGE):$(TAG)
   FRONTEND_REF := $(FRONTEND_IMAGE):$(TAG)
+  MCP_REF      := $(MCP_IMAGE):$(TAG)
 else
   BACKEND_REF  := $(REGISTRY)/$(BACKEND_IMAGE):$(TAG)
   FRONTEND_REF := $(REGISTRY)/$(FRONTEND_IMAGE):$(TAG)
+  MCP_REF      := $(REGISTRY)/$(MCP_IMAGE):$(TAG)
 endif
 
-.PHONY: help login builder build build build-frontend \
-        publish publish publish-frontend
+.PHONY: help builder build build-backend build-frontend build-mcp \
+        publish publish-backend publish-frontend publish-mcp
 
 help:
 	@echo "Auto Ontology image targets:"
-	@echo "  make build               Build both images locally (host arch only)"
-	@echo "  make build       Build backend image locally"
+	@echo "  make build               Build all images locally (host arch only)"
+	@echo "  make build-backend       Build backend image locally"
 	@echo "  make build-frontend      Build frontend image locally"
-	@echo "  make publish             Build + push both images (multi-arch)"
-	@echo "  make publish     Build + push backend image"
+	@echo "  make build-mcp           Build MCP server image locally"
+	@echo "  make publish             Build + push all images (multi-arch)"
+	@echo "  make publish-backend     Build + push backend image"
 	@echo "  make publish-frontend    Build + push frontend image"
-	@echo "  make login NGC_TOKEN=... docker login nvcr.io via NGC API token"
+	@echo "  make publish-mcp         Build + push MCP server image"
 	@echo ""
 	@echo "Schema targets (backend owns the \`auto_ontology\` schema; Prisma owns \`public\`):"
 	@echo "  make migrate             Apply Alembic migrations (alembic upgrade head)"
 	@echo "  make migrate-check       Fail if the schema has drifted from the metadata"
 	@echo "  make migrate-revision m=\"...\"  Autogenerate a revision from auto_ontology/dal/schema.py"
 	@echo
-	@echo "Required for publish*: REGISTRY=nvcr.io/<org>/<team>"
+	@echo "Required for publish*: REGISTRY=ghcr.io/<owner> (after docker login ghcr.io)"
 	@echo "Current REGISTRY=$(REGISTRY) TAG=$(TAG)"
-
-login:
-	@if [ -z "$(NGC_TOKEN)" ]; then \
-	  echo "Usage: make login NGC_TOKEN=<your NGC API token>"; \
-	  echo "Get a token at https://ngc.nvidia.com/setup/api-key"; \
-	  exit 2; \
-	fi
-	@echo "$(NGC_TOKEN)" | docker login nvcr.io --username '$$oauthtoken' --password-stdin
 
 # Ensure a docker-container builder exists for multi-arch builds.
 builder:
@@ -81,16 +78,19 @@ builder:
 	  || docker buildx create --name auto-ontology-builder --driver docker-container --use
 	@docker buildx use auto-ontology-builder
 
-build:
+build-backend:
 	docker buildx build -t $(BACKEND_REF) --load .
 
 build-frontend:
 	docker buildx build --build-arg PYTHON_API_URL=$(PYTHON_API_URL) \
 	    -t $(FRONTEND_REF) --load ./frontend
 
-build: build build-frontend
+build-mcp:
+	docker buildx build -t $(MCP_REF) --load ./mcp
 
-publish: require-registry builder
+build: build-backend build-frontend build-mcp
+
+publish-backend: require-registry builder
 	docker buildx build --platform $(PLATFORMS) \
 	    -t $(BACKEND_REF) --push .
 
@@ -99,14 +99,18 @@ publish-frontend: require-registry builder
 	    --build-arg PYTHON_API_URL=$(PYTHON_API_URL) \
 	    -t $(FRONTEND_REF) --push ./frontend
 
-publish: publish publish-frontend
+publish-mcp: require-registry builder
+	docker buildx build --platform $(PLATFORMS) \
+	    -t $(MCP_REF) --push ./mcp
+
+publish: publish-backend publish-frontend publish-mcp
 
 # Internal: fail fast if REGISTRY is missing on a publish target.
 .PHONY: require-registry
 require-registry:
 	@if [ -z "$(REGISTRY)" ]; then \
 	  echo "ERROR: REGISTRY is required for publish targets."; \
-	  echo "       e.g. make publish REGISTRY=nvcr.io/nvidian/sw-auto-ontology"; \
+	  echo "       e.g. make publish REGISTRY=ghcr.io/<owner>"; \
 	  exit 2; \
 	fi
 

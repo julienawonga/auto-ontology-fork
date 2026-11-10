@@ -55,7 +55,7 @@ Usage: {{ include "auto-ontology.image" .Values.backend.image }}
 {{/*
 Image pull secrets shared by all Auto Ontology workload pods. Empty by default (local /
 minikube pull public images); set `imagePullSecrets` to pull private images
-(e.g. a private registry credential such as nvcr.io).
+(e.g. a credential for a private registry).
 */}}
 {{- define "auto-ontology.imagePullSecrets" -}}
 {{- with .Values.imagePullSecrets }}

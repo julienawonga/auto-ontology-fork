@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 # auto-ontology-mcp
 
 An [MCP](https://modelcontextprotocol.io) server for
-[Auto-Ontology](https://github.com/NVIDIA/auto-ontology). It lets any
+[Auto-Ontology](https://github.com/julienawonga/auto-ontology-fork). It lets any
 MCP-capable agent — Cursor, Claude Desktop, an internal agent — ask questions in
 natural language about the data an Auto-Ontology deployment is connected to, and inspect the
 semantic layer behind the answers.
@@ -18,7 +18,7 @@ semantic layer behind the answers.
 nothing to clone:
 
 ```sh
-uvx --from "git+https://github.com/NVIDIA/auto-ontology.git#subdirectory=mcp" auto-ontology-mcp
+uvx --from "git+https://github.com/julienawonga/auto-ontology-fork.git#subdirectory=mcp" auto-ontology-mcp
 ```
 
 From a checkout of this directory, `uvx --from . auto-ontology-mcp` does the same.

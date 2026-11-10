@@ -9,7 +9,7 @@ from typing import Any, Union
 
 # NOTE: get_agent_response_with_state and TextToSQLPayload are imported lazily
 # inside _run_sql_generation to avoid triggering LLM client initialisation at
-# import time (which requires NVIDIA_API_KEY to be set).
+# import time (which requires the REASONING_* model settings).
 from concurrent.futures import ThreadPoolExecutor
 
 from .clarify import (

@@ -97,10 +97,6 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.5",
 ]
-release = [
-    "ngcsdk>=4.37.0",
-    "pyyaml>=6.0.3",
-]
 
 # Stated, not inherited. With no `select` at all, the rule set is whatever the
 # installed ruff happens to default to -- and 0.16 widened that default from

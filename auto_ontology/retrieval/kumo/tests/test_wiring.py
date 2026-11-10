@@ -84,7 +84,7 @@ class _Warehouse:
 
 @pytest.fixture(autouse=True)
 def _offline(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No live NIM. What is under test is the wiring, not the model."""
+    """No live server. What is under test is the wiring, not the model."""
 
     class Client:
         def relational(self, graph: Any) -> object:

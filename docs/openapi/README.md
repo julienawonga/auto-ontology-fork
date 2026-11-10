@@ -63,8 +63,9 @@ Run them in that order — the public spec reads the committed `backend.json`.
 
 ## Viewing
 
-The spec is deployed to Github Page in the following line: <https://friendly-adventure-38857y4.pages.github.io/>
-Later will be part of Auto-Ontology Docs on Nvidia website
+`.github/workflows/publish-api-docs.yml` renders `auto-ontology-api.json` with
+Redoc and publishes it to GitHub Pages, once Pages is enabled for the repository
+(Settings → Pages → Source: "GitHub Actions").
 
 Or paste the file into <https://docs.scalar.com/swagger-editor> — bearing in
 mind that hands the full API surface to a third party.

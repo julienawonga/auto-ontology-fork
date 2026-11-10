@@ -3,7 +3,10 @@
 
 import type { ChartColor } from './types';
 
-/** Named series colors. Green is the NVIDIA brand token; the rest are theme-stable hexes. */
+/**
+ * Named series colors. `green` is a legacy key that resolves to the brand token (the
+ * app's primary color); the rest are theme-stable hexes.
+ */
 export const PALETTE: Record<ChartColor, string> = {
 	green: 'var(--color-brand)',
 	blue: '#4f9ff0',

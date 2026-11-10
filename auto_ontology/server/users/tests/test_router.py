@@ -84,13 +84,13 @@ def test_owner_list_names_only_the_caller_in_a_group(
                 {
                     "id": "viewer-1",
                     "name": "Ada",
-                    "email": "ada@nvidia.com",
+                    "email": "ada@example.com",
                     "role": "viewer",
                 },
                 {
                     "id": "viewer-2",
                     "name": "",
-                    "email": "bea@nvidia.com",
+                    "email": "bea@example.com",
                     "role": "viewer",
                 },
             ],

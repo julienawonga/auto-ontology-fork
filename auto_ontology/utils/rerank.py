@@ -6,16 +6,17 @@
 
 Mirrors :mod:`auto_ontology.utils.embedding`: the endpoint, model, and API key
 are read from the environment here. Two request schemas are in use, picked by
-the URL, and each built-in default uses a different one:
+the URL:
 
-* ``…/rerank`` (inference-api, ``sk-`` keys) --
+* ``…/rerank`` (Cohere/Jina-style, as LiteLLM and most gateways expose it) --
   ``{"query": str, "documents": [str], "top_n"}``, scored by
   ``results[].relevance_score``.
-* ``…/reranking`` or ``…/ranking`` (NIM, ``nvapi-`` keys) --
+* ``…/reranking`` or ``…/ranking`` (passage-ranking servers) --
   ``{"query": {"text"}, "passages": [{"text"}], "truncate"}``, scored by
   ``rankings[].logit``.
 
-Any other URL is treated as a NIM base and gets ``/v1/ranking`` appended.
+Any other URL is treated as a ranking-server base and gets ``/v1/ranking``
+appended.
 """
 
 from __future__ import annotations
@@ -24,11 +25,11 @@ from typing import Any
 
 import httpx
 
-from auto_ontology.utils.model_config import resolve
+from auto_ontology.utils.model_config import ModelConfigError, env_names, resolve
 
-# Hosted NeMo reranking endpoint — no local GPU required. Override RERANK_ENDPOINT
-# to point at a self-hosted vLLM/NIM ranking server. Each field falls back to
-# DEFAULT_MODELS_<field> when unset.
+# Remote reranking endpoint — hosted or a self-hosted vLLM/TEI ranking server.
+# Each field falls back to DEFAULT_MODELS_<field> when unset; there is no
+# built-in endpoint.
 _RERANK_ENDPOINT = resolve("RERANK", "ENDPOINT")
 _RERANK_MODEL = resolve("RERANK", "MODEL")
 _RERANK_API_KEY = resolve("RERANK", "API_KEY")
@@ -37,7 +38,7 @@ _TIMEOUT_S = 30.0
 
 
 def get_rerank_kwargs() -> dict[str, str]:
-    """Keyword args for :func:`rerank_hits` (remote NeMo reranking endpoint)."""
+    """Keyword args for :func:`rerank_hits` (the configured reranking endpoint)."""
     return {
         "rerank_invoke_url": _RERANK_ENDPOINT,
         "model_name": _RERANK_MODEL,
@@ -47,6 +48,10 @@ def get_rerank_kwargs() -> dict[str, str]:
 
 def _ranking_url(endpoint: str) -> str:
     url = endpoint.rstrip("/")
+    if not url:
+        raise ModelConfigError(
+            f"Rerank endpoint is not configured: set {env_names('RERANK', 'ENDPOINT')}"
+        )
     if url.endswith(("/reranking", "/ranking", "/rerank")):
         return url
     return f"{url}/v1/ranking"

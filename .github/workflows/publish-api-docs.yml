@@ -9,11 +9,10 @@
 # BEFORE THIS CAN RUN: Settings → Pages → Source must be set to "GitHub
 # Actions". Until then this job fails; the deploy step is what needs it.
 #
-# ON VISIBILITY: this repository is private, but a Pages site is only private
-# on GitHub Enterprise Cloud with private Pages enabled. Anywhere else the
-# published site — the whole API surface, including which permission each
-# operation requires — is world-readable. Confirm the Pages visibility setting
-# before merging.
+# ON VISIBILITY: a Pages site is only private on GitHub Enterprise Cloud with
+# private Pages enabled. Anywhere else the published site — the whole API
+# surface, including which permission each operation requires — is
+# world-readable.
 
 name: Publish API docs
 

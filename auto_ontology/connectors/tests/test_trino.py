@@ -195,7 +195,7 @@ def test_dialect_is_trino() -> None:
 
 
 def test_database_name_is_the_catalog() -> None:
-    """NeMo routes SQL by database_name, so it has to be the catalog."""
+    """SQL is routed by database_name, so it has to be the catalog."""
     assert _database(database="iceberg").database_name == "iceberg"
 
 

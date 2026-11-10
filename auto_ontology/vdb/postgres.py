@@ -139,7 +139,7 @@ class PostgresVDB:
 
     Each record becomes a :class:`Document` whose ``page_content`` is
     the searchable text and whose ``metadata`` carries the original record
-    metadata plus ``document_type``. Embeddings produced upstream by the NIM
+    metadata plus ``document_type``. Embeddings produced upstream by the embedding
     pipeline are bulk-loaded into PGVectorStore via ``add_embeddings`` so we
     don't re-run the embedder on the write path.
 

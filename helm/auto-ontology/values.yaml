@@ -8,10 +8,11 @@
 # IfNotPresent prevents the cluster from trying to pull from a remote registry.
 imagePullPolicy: IfNotPresent
 
-# Image pull secrets for private registries (e.g. nvcr.io). Empty for local /
-# minikube (public images). A deployment overlay can set, e.g.:
+# Image pull secrets for private registries. Empty by default: the published
+# GHCR images are public. To pull from a private registry, create a
+# docker-registry Secret and list it, e.g.:
 #   imagePullSecrets:
-#     - name: nvcr-creds
+#     - name: registry-creds
 imagePullSecrets: []
 
 # When enabled, the chart renders an in-cluster Secret (<release>-secrets) from
@@ -36,27 +37,31 @@ postgresDatabase: auto_ontology
 # pgAdmin
 pgadminEmail: admin@example.com
 pgadminPassword: admin
-# NVIDIA NIM — default triplet; every model triplet falls back to these per field.
-# Leave endpoint/model empty to auto-derive them from the API key prefix
-# (sk- -> inference-api, nvapi- -> integrate/build.nvidia.com).
+# Models — default triplet for any OpenAI-compatible endpoint. Every model
+# triplet (reasoning / non-reasoning / embed / rerank) falls back to these per
+# field. See docs/configuration.md for the per-model overrides.
 defaultModelsApiKey: ""
 defaultModelsEndpoint: ""
 defaultModelsModel: ""
-# Legacy value names (pre-triplet). Still honored so existing
-# --set nvidiaApiKey / baseUrl / modelName configs keep working.
-nvidiaApiKey: ""
-baseUrl: ""
-modelName: ""
-# KumoRFM (predictions). Set the URL to a Universal TFM NIM serving the
-# 'kumo-rfm' model; leave it empty to disable the prediction tool. NIMs are
-# unauthenticated by contract, so the key is only needed when a deployment
-# fronts the NIM with an authenticating gateway.
+# KumoRFM (predictions). Set the URL to an endpoint serving the 'kumo-rfm'
+# model; leave it empty to disable the prediction tool. The key is only needed
+# when that endpoint sits behind an authenticating gateway.
 kumoRfmApiKey: ""
 kumoRfmApiUrl: ""
-# Embedding endpoint/model. Leave empty to inherit from the default triplet /
-# auto-derive from the API key prefix; set to override just the embedder.
+# Per-role overrides. Leave a field empty to inherit it from the default
+# triplet above. There is no built-in endpoint or model: a role whose model
+# resolves to empty refuses to start and names the setting to fill in.
+reasoningModel: ""
+nonReasoningModel: ""
 embedEndpoint: ""
 embedModel: ""
+rerankEndpoint: ""
+rerankModel: ""
+# Width of the embedding vectors (empty = 2048). Must match embedModel.
+embedDimensions: ""
+# Set to "false" when the embedding endpoint rejects the extra body fields
+# (input_type, truncate, modality), as most OpenAI-compatible gateways do.
+embedExtraFields: ""
 # Ingestion targets - comma-separated list of PG URLs the worker reads from.
 connectionStrings: ""
 # HashiCorp Vault (AppRole) credentials for pulling secrets at runtime.
@@ -65,7 +70,7 @@ vaultNamespace: ""
 vaultRoleId: ""
 vaultSecretId: ""
 # Optional Vault mount overrides (defaults shown).
-vaultAuthMount: "approle/nvdcs/dc1"
+vaultAuthMount: "approle"
 vaultKvMount: "auto-ontology"
 # Better Auth signing key (sessions, CSRF, OIDC state). Leave empty to
 # auto-generate a stable random secret on first install and preserve it across
@@ -99,7 +104,7 @@ postgres:
   persistence:
     size: 5Gi
     # Set to a specific class on clusters without a default dynamic provisioner
-    # (e.g. Astra pdx02: pdx02-cdot03-ainfs01-nfsv3). Empty = cluster default.
+    # Empty = cluster default.
     storageClassName: ""
   resources:
     requests:
@@ -110,8 +115,8 @@ postgres:
 # pgAdmin
 # ------------------------------------------------------------------
 pgadmin:
-  # Optional DB admin UI. Handy for local/minikube; disabled on Astra via the
-  # deploy overlay (auto-ontology.pgadmin.enabled=false).
+  # Optional DB admin UI. Handy for local/minikube; disable it in shared
+  # environments (pgadmin.enabled=false).
   enabled: true
   image:
     repository: dpage/pgadmin4
@@ -125,8 +130,6 @@ pgadmin:
       memory: 128Mi
 
 # ------------------------------------------------------------------
-# ------------------------------------------------------------------
-# ------------------------------------------------------------------
 # Auto Ontology FastAPI backend
 # ------------------------------------------------------------------
 backend:
@@ -135,14 +138,10 @@ backend:
   # matches it, so new Pods never serve against a schema the migration Job has
   # not finished applying. Bump this with the migration, in the same commit.
   alembicRevision: 99d4d343dd0b
-  # The images' published paths, not where the release pushes them. Releases
-  # are staged in nvcr.io/nvstaging/gsf and NGC Catalog publishing copies this
-  # chart to nvidia unmodified, so it has to name the registry customers
-  # pull from. To install a staged chart before publishing, override
-  # repository with nvcr.io/nvstaging/gsf/... for backend, ingestion and
-  # frontend. dev_tools/release_helm_chart.py refuses a release otherwise.
+  # Published by .github/workflows/release.yml. The chart that workflow
+  # pushes has every tag below set to its own release version.
   image:
-    repository: nvcr.io/nvidia/auto-ontology
+    repository: ghcr.io/julienawonga/auto-ontology
     tag: "1.2.0"
     # digest: ""  # e.g. sha256:...; overrides tag when set (immutable pin)
   service:
@@ -159,7 +158,7 @@ backend:
 ingestion:
   image:
     # Reuses the backend image with a different entrypoint arg.
-    repository: nvcr.io/nvidia/auto-ontology
+    repository: ghcr.io/julienawonga/auto-ontology
     tag: "1.2.0"
     # digest: ""  # e.g. sha256:...; overrides tag when set (immutable pin)
   service:
@@ -175,7 +174,7 @@ ingestion:
 # ------------------------------------------------------------------
 frontend:
   image:
-    repository: nvcr.io/nvidia/auto-ontology-frontend
+    repository: ghcr.io/julienawonga/auto-ontology-frontend
     tag: "1.2.0"
     # digest: ""  # e.g. sha256:...; overrides tag when set (immutable pin)
   service:

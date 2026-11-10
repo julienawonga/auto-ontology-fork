@@ -6,7 +6,7 @@
 //
 // Auto Ontology normally authenticates browsers via a Better Auth session cookie. But
 // AI-Q calls our chat API on behalf of a signed-in user, and both products
-// trust the *same* NVIDIA SSO provider. So instead of a cookie, AI-Q forwards
+// trust the *same* SSO provider. So instead of a cookie, AI-Q forwards
 // the user's SSO id token as `Authorization: Bearer <jwt>`, and we verify it
 // here against that provider's JWKS — the same issuer an interactive SSO login
 // would use. No shared service secret is involved; every call is attributed to
