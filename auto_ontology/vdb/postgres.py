@@ -573,6 +573,109 @@ class PostgresVDB:
                 )
                 return {row[0] for row in cur.fetchall()}
 
+    def values_by_database(self, database_name: str, label: str) -> list[dict]:
+        """Text and location of every *label* row stored for *database_name*.
+
+        ``{"value", "schema_name", "table_name", "column_name", "aliases"}`` per row, read
+        straight from the table without touching vectors: for rows whose text
+        is itself the thing to look up (see ``ColumnValue``), so a lookup can
+        compare in memory instead of embedding a query. Empty when the
+        collection table doesn't exist yet.
+        """
+        if not self._table_exists():
+            return []
+
+        with psycopg.connect(self.connection_string) as conn:
+            with conn.cursor() as cur:
+                # Identifiers are internal config, as in `delete_by_id`.
+                cur.execute(
+                    sql.SQL(
+                        """
+                        SELECT content,
+                               langchain_metadata ->> 'schema_name',
+                               langchain_metadata ->> 'table_name',
+                               langchain_metadata ->> 'source_column',
+                               langchain_metadata -> 'aliases'
+                        FROM {table}
+                        WHERE database_name = %s
+                          AND label = %s
+                        ORDER BY 3, 4, 1
+                        """
+                    ).format(
+                        table=sql.Identifier(self.schema_name, self.collection_name)
+                    ),
+                    (database_name, label),
+                )
+                return [
+                    {
+                        "value": row[0],
+                        "schema_name": row[1],
+                        "table_name": row[2],
+                        "column_name": row[3],
+                        "aliases": row[4] or [],
+                    }
+                    for row in cur.fetchall()
+                ]
+
+    def add_value_alias(
+        self,
+        database_name: str,
+        *,
+        schema_name: str | None,
+        table_name: str,
+        column_name: str,
+        value: str,
+        alias: str,
+    ) -> bool:
+        """Add *alias* to the ``aliases`` of one ``ColumnValue`` row.
+
+        Matched by database, table, column and value, so it only ever touches
+        the row that holds that value. Idempotent. Returns whether the row
+        exists (``False`` too when the collection table doesn't).
+        """
+        if not self._table_exists():
+            return False
+
+        with psycopg.connect(self.connection_string) as conn:
+            with conn.cursor() as cur:
+                # Identifiers are internal config, as in `delete_by_id`.
+                cur.execute(
+                    sql.SQL(
+                        """
+                        UPDATE {table}
+                        SET langchain_metadata = jsonb_set(
+                            langchain_metadata,
+                            '{{aliases}}',
+                            CASE
+                                WHEN COALESCE(langchain_metadata -> 'aliases', '[]'::jsonb)
+                                     @> to_jsonb(%(alias)s::text)
+                                THEN COALESCE(langchain_metadata -> 'aliases', '[]'::jsonb)
+                                ELSE COALESCE(langchain_metadata -> 'aliases', '[]'::jsonb)
+                                     || to_jsonb(%(alias)s::text)
+                            END
+                        )
+                        WHERE database_name = %(db)s
+                          AND label = 'ColumnValue'
+                          AND content = %(value)s
+                          AND langchain_metadata ->> 'table_name' = %(tbl)s
+                          AND langchain_metadata ->> 'source_column' = %(col)s
+                          AND langchain_metadata ->> 'schema_name'
+                              IS NOT DISTINCT FROM %(schema)s::text
+                        """
+                    ).format(
+                        table=sql.Identifier(self.schema_name, self.collection_name)
+                    ),
+                    {
+                        "alias": alias,
+                        "db": database_name,
+                        "value": value,
+                        "tbl": table_name,
+                        "col": column_name,
+                        "schema": schema_name,
+                    },
+                )
+                return cur.rowcount > 0
+
     def retrieval(
         self,
         queries: list,

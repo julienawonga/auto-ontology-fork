@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from auto_ontology.connectors.registry import get_connectors
 from auto_ontology.dal.datasources import fetch_databases
 from auto_ontology.dal.terms import semantic_layer_calculated
 from auto_ontology.ingestion_service.history import (
@@ -34,10 +35,12 @@ from auto_ontology.semantic.embed import (
     embed_all_semantic_nodes,
 )
 from auto_ontology.semantic.index_health import check_semantic_indexes
+from auto_ontology.semantic.value_index import embed_column_values
 from auto_ontology.server.responses import (
     SemanticReindexResponse,
     SemanticStatusResponse,
     StatusResponse,
+    ValueIndexResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +107,71 @@ def reindex(
             status_code=503, detail="Embedding is not configured (no API key)"
         )
     result = embed_all_semantic_nodes(embedder)
+    return {"database_name": database_name, **asdict(result)}
+
+
+@router.post("/semantic-compilation/value-index", response_model=ValueIndexResponse)
+def build_value_index(
+    database_name: str = Query(
+        description="Name of the catalog database whose values to index."
+    ),
+) -> dict[str, Any]:
+    """Index the stored values of one database's small text columns, so a
+    question's wording can be matched to how the data spells it ("USA" to
+    "United States", "Indai" to "India").
+
+    **This copies data out of the source database into the vector index.** For
+    each eligible column, every distinct value is stored as plain text next to
+    its table and column name, and sent to the embedding endpoint. Eligible
+    means a text column that is not a primary key, is not tagged ``PII``, has at
+    most ``VALUE_INDEX_MAX_DISTINCT`` (2,000) distinct values and is not free
+    text (mean length over ``VALUE_INDEX_MAX_AVG_LENGTH``, 40 characters).
+    Names, emails, addresses and other high-cardinality columns therefore never
+    leave the source. With PII detection on, a column not yet classified is
+    left out too. At most ``VALUE_INDEX_MAX_VALUES`` (20,000) values are stored
+    per database.
+
+    Opt-in and never run by ingestion. Repeatable: each value has a fixed id
+    and replaces its previous row, and rows no longer wanted (a value that left
+    the data, a column since tagged PII) are deleted. Runs synchronously, one
+    ``SELECT DISTINCT`` per candidate column against the source plus one
+    embedding call per value, so a large schema takes a while. The result says
+    how many rows were ``written`` out of those ``expected``, and how many
+    columns were indexed or skipped.
+
+    404 for a database the catalog does not hold, 409 while a compilation pass
+    is running (a reset deletes the index's rows), 503 when no embedding
+    endpoint is configured or no connector is configured for the database.
+    """
+    if database_name not in {db["name"] for db in fetch_databases()}:
+        raise HTTPException(
+            status_code=404, detail=f"Unknown database {database_name!r}"
+        )
+    if is_semantic_compilation_running():
+        raise HTTPException(
+            status_code=409,
+            detail="Semantic compilation is running; retry when it has finished",
+        )
+    connector = next(
+        (
+            c
+            for c in get_connectors()
+            if str(getattr(c, "database_name", "")).casefold()
+            == database_name.casefold()
+        ),
+        None,
+    )
+    if connector is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No connector is configured for database {database_name!r}",
+        )
+    embedder = build_semantic_embedder(database_name, reset=False)
+    if embedder is None:
+        raise HTTPException(
+            status_code=503, detail="Embedding is not configured (no API key)"
+        )
+    result = embed_column_values(embedder, connector)
     return {"database_name": database_name, **asdict(result)}
 
 

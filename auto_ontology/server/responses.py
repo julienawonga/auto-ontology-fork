@@ -131,6 +131,7 @@ __all__ = [
     "TermExplorationDetailsResponse",
     "TermResponse",
     "TermsPageResponse",
+    "ValueIndexResponse",
     "ZoneListResponse",
     "ZoneResponse",
 ]
@@ -236,6 +237,21 @@ class SemanticReindexResponse(_Payload):
     database_name: str
     expected: int
     written: int
+
+
+class ValueIndexResponse(_Payload):
+    """Result of building one database's value index.
+
+    ``written < expected`` is a partial build: the embedding endpoint did not
+    return a vector for every row. ``columns_skipped`` counts the columns left
+    out as ineligible (not text, a key, tagged PII) or over a limit.
+    """
+
+    database_name: str
+    expected: int
+    written: int
+    columns_indexed: int
+    columns_skipped: int
 
 
 class SemanticRunningResponse(_Payload):
