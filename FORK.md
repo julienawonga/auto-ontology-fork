@@ -393,3 +393,29 @@ and the original question is answered with it as evidence.
 Code: `auto_ontology/retrieval/text_to_sql/clarification.py` (detector, option validation),
 `auto_ontology/server/chat/clarification.py` (stored form, answer matching), `auto_ontology/server/chat/router.py`,
 `auto_ontology/server/chat/worker.py`.
+
+## Clarification questions in the chat
+
+When the backend needs a business term defined ("How many VIP customers do we have?"), the chat shows a card instead
+of guessing: a short question, 2 to 4 option buttons (each with an optional description) and an "Other" free-text row.
+The backend only asks when `clarification_enabled` is on; it is off by default, so nothing changes until it is set.
+
+- **Wire format:** the UI sends `supports_clarification: true` (and a `conversation_id`) on every request; only then can a
+  `clarification` SSE event arrive (`clarification_id`, `term`, `question`, `options[]`, `allow_other`), after which the
+  stream ends with `[DONE]`. The answer is the next request on the same conversation with
+  `clarification: {clarification_id, option_id}` or `{clarification_id, text}`; `question` carries the same words and
+  becomes the user message. A refusal (HTTP 422: stale, already answered, option not offered) closes the card and shows
+  a message.
+- **History:** the question is stored as an assistant message with a fenced `clarification` JSON block, parsed back into
+  the card (`parseClarificationFence`). It is pending only while it is the last message; the user message after it
+  is the answer, matched to an option label (otherwise shown as free text).
+- **States:** pending (options enabled), answering (disabled, spinner on the chosen row), answered (compact, read-only),
+  and stale (the conversation moved on without an answer: shown as "not answered", no buttons).
+- **Keyboard:** the options are a radio group. Arrows, Home and End move between rows, Enter or Space picks one, and the
+  card takes focus when it appears. In "Other", Enter sends, Shift+Enter adds a line, Escape goes back to the list;
+  answers are trimmed, must not be empty, and are capped at 500 characters.
+- **Without the backend:** `frontend/lib/clarification.fixture.ts` holds a canned event and its SSE framing; `pnpm test`
+  (vitest) feeds it through the stream parser, the payload builder and the card's server-rendered markup.
+
+Code: `frontend/components/chatPage/ClarificationCard.tsx`, `frontend/lib/clarification.ts`, `frontend/api/chat.ts`,
+`frontend/lib/useChat.ts`.
