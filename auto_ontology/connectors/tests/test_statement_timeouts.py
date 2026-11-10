@@ -270,6 +270,60 @@ def test_postgres_without_timeout_sends_no_setting() -> None:
     assert conn.log == [("query", "SELECT 1")]
 
 
+def test_postgres_read_only_opens_a_read_only_transaction_first() -> None:
+    database, conn = _fake_postgres()
+
+    database.execute("SELECT 1", read_only=True)
+
+    assert conn.log == [
+        "BEGIN",
+        ("SET TRANSACTION READ ONLY", None),
+        ("query", "SELECT 1"),
+        "COMMIT",
+    ]
+
+
+def test_postgres_read_only_and_timeout_share_one_transaction() -> None:
+    database, conn = _fake_postgres()
+
+    database.execute("SELECT 1", timeout_s=2, read_only=True)
+
+    assert conn.log == [
+        "BEGIN",
+        ("SET TRANSACTION READ ONLY", None),
+        ("SELECT set_config('statement_timeout', %s, true)", ("2000ms",)),
+        ("query", "SELECT 1"),
+        "COMMIT",
+    ]
+
+
+def test_postgres_advertises_read_only_execution() -> None:
+    assert PostgresDatabase.supports_read_only_execution is True
+
+
+def test_live_postgres_refuses_a_write_in_a_read_only_transaction() -> None:
+    if not os.environ.get("POSTGRES_USER"):
+        pytest.skip("POSTGRES_* not set")
+    host = os.environ.get("POSTGRES_HOST", "localhost")
+    port = os.environ.get("POSTGRES_PORT", "5432")
+    user = os.environ["POSTGRES_USER"]
+    password = os.environ["POSTGRES_PASSWORD"]
+    try:
+        database = PostgresDatabase(
+            f"postgresql://{user}:{password}@{host}:{port}/postgres"
+        )
+    except Exception as exc:  # noqa: BLE001 — any failure means "no fixture DB"
+        pytest.skip(f"postgres not reachable: {exc}")
+    try:
+        with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+            database.execute("CREATE TABLE read_only_probe (v int)", read_only=True)
+        # The setting must not stick to the pooled connection.
+        assert database.execute("SHOW transaction_read_only").iloc[0, 0] == "off"
+    finally:
+        database.execute("DROP TABLE IF EXISTS read_only_probe")
+        database.close()
+
+
 def test_live_postgres_cancels_and_does_not_leak_the_cap() -> None:
     if not os.environ.get("POSTGRES_USER"):
         pytest.skip("POSTGRES_* not set")
@@ -703,6 +757,16 @@ def test_postgres_statement_timeout_becomes_statement_timeout() -> None:
     with pytest.raises(StatementTimeout) as caught:
         database.execute("SELECT 1", timeout_s=30)
     assert caught.value.timeout_s == 30
+
+
+def test_postgres_cancellation_without_a_timeout_is_left_alone() -> None:
+    """A read-only call with no cap must not relabel a cancellation as a timeout."""
+    database = _raising_postgres(
+        psycopg.errors.QueryCanceled("canceling statement due to statement timeout")
+    )
+
+    with pytest.raises(psycopg.errors.QueryCanceled):
+        database.execute("SELECT 1", read_only=True)
 
 
 def test_postgres_other_cancellation_is_left_alone() -> None:

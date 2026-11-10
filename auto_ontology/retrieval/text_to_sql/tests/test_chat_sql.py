@@ -21,6 +21,7 @@ from auto_ontology.retrieval.text_to_sql.chat_sql import (
     log_chat_sql,
     truncate_sql,
 )
+from auto_ontology.retrieval.text_to_sql.sql_guard import UnsafeSqlError
 
 _LOGGER = "auto_ontology.retrieval.text_to_sql.chat_sql"
 
@@ -177,3 +178,60 @@ def test_an_explicit_timeout_overrides_the_configured_one(
     execute_chat_sql(connector, "SELECT 1", timeout_s=7)
 
     assert connector.calls == [("SELECT 1", {"timeout_s": 7})]
+
+
+class _ReadOnlyRecorder(_Recorder):
+    supports_read_only_execution = True
+
+
+def test_a_write_is_refused_before_it_reaches_the_database() -> None:
+    connector = _Recorder(supports_timeout=True)
+
+    with pytest.raises(UnsafeSqlError):
+        execute_chat_sql(connector, "DELETE FROM payment")
+
+    assert connector.calls == []
+
+
+def test_a_refused_statement_is_logged_as_refused_not_as_executed(
+    caplog: LogCaptureFixture,
+) -> None:
+    connector = SimpleNamespace(database_name="pagila", execute=lambda sql: "df")
+
+    with caplog.at_level(logging.INFO, logger=_LOGGER):
+        with pytest.raises(UnsafeSqlError):
+            execute_chat_sql(connector, "DROP TABLE payment")
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any(m.startswith("[pagila] Refused chat SQL") for m in messages)
+    assert not any("Executing" in m for m in messages)
+
+
+def test_the_guard_judges_sql_in_the_connectors_dialect() -> None:
+    connector = _Recorder(supports_timeout=False)
+    connector.dialect = "tsql"
+
+    assert execute_chat_sql(connector, "SELECT TOP 5 * FROM t") == "df"
+
+
+def test_read_only_execution_is_requested_when_supported(
+    configured_timeout: list[int],
+) -> None:
+    connector = _ReadOnlyRecorder(supports_timeout=True)
+
+    execute_chat_sql(connector, "SELECT 1")
+
+    assert connector.calls == [
+        (
+            "SELECT 1",
+            {"timeout_s": DEFAULT_SQL_QUERY_TIMEOUT_SECONDS, "read_only": True},
+        )
+    ]
+
+
+def test_read_only_execution_is_not_forced_on_connectors_without_it() -> None:
+    connector = _Recorder(supports_timeout=False)
+
+    execute_chat_sql(connector, "SELECT 1")
+
+    assert connector.calls == [("SELECT 1", {})]
