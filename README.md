@@ -245,7 +245,8 @@ curl -N http://localhost:3000/api/chat/completions \
 - [x] Foreign keys declared on partitioned tables, and composite keys (Postgres)
 - [x] Agent SQL is read-only and row-capped, enforced by the database on five engines
 - [x] Evaluation harness for the text-to-SQL engine
-- [ ] Rebuild and health check of the semantic index
+- [x] Rebuild and health check of the semantic index
+- [x] Held-out evaluation set on a second database (Chinook)
 - [ ] Provenance and review status on ontology facts; never overwrite a human edit
 - [ ] Business metrics as verified, reusable definitions
 - [ ] Matching question values to stored values
