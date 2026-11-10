@@ -48,7 +48,8 @@ export type ConnectionFieldKey =
 	| 'http_scheme'
 	| 'sso_federation'
 	| 'table_allow_regex'
-	| 'table_deny_regex';
+	| 'table_deny_regex'
+	| 'exclude_views';
 
 export type ConnectionField = {
 	key: ConnectionFieldKey;
@@ -286,6 +287,13 @@ export const COMMON_CONNECTION_FIELDS: ConnectionField[] = [
 		placeholder: 'Leave Empty to Exclude Nothing',
 		optional: true,
 		hint: 'Skip tables whose name matches, even if the allowlist also matches them. Use this for relations the warehouse lists but cannot actually read, such as a broken Distributed table or a Kafka queue.',
+	},
+	{
+		key: 'exclude_views',
+		label: 'Exclude Views',
+		hint: 'Skip every view and materialized view, so only base tables are ingested. Use this when views just re-present tables that are already catalogued, which otherwise show up as a second, near-identical Term for each. Connectors that do not report relation types fall back to the views they list.',
+		optional: true,
+		boolean: true,
 	},
 ];
 

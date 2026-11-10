@@ -117,7 +117,7 @@ const PanelBlock = ({
 		<div
 			className={`min-w-0 rounded-lg border bg-white p-3.5 dark:bg-zinc-950 ${
 				editing
-					? 'border-[#76b900]/60 ring-1 ring-[#76b900]/10'
+					? 'border-primary/60 ring-1 ring-primary/10'
 					: 'border-zinc-200/90 dark:border-zinc-700/90'
 			}`}
 		>
@@ -158,7 +158,7 @@ const ActivityBody = ({ bulk }: { bulk: SidePanelActivity }) => {
 					className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
 						name === ''
 							? 'bg-zinc-200 text-secondary dark:bg-zinc-700 dark:text-zinc-400'
-							: 'bg-[#76b900] text-white'
+							: 'bg-primary text-white'
 					}`}
 				>
 					{label.charAt(0).toUpperCase()}

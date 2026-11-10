@@ -85,7 +85,7 @@ function ConversationItem({
 								setEditing(false);
 							}
 						}}
-						className="min-w-0 flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-sm text-black outline-none focus:border-[#76b900] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-[#76b900]"
+						className="min-w-0 flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-sm text-black outline-none focus:border-primary dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-primary"
 					/>
 				</form>
 			</li>
@@ -202,13 +202,13 @@ export const ChatSidebar = ({
 
 			{/* Sidebar panel */}
 			<aside
-				className={`fixed inset-y-0 left-12 z-20 flex w-[296px] flex-col border-r border-zinc-200 bg-white transition-transform duration-200 dark:border-zinc-800 dark:bg-zinc-950 lg:static lg:translate-x-0 ${
+				className={`fixed inset-y-0 left-12 z-20 flex w-[296px] flex-col border-r border-white/70 bg-white/80 backdrop-blur-xl transition-transform duration-200 dark:border-white/10 dark:bg-zinc-950/70 lg:static lg:translate-x-0 lg:bg-white/45 dark:lg:bg-white/[0.03] ${
 					isOpen ? 'translate-x-0' : '-translate-x-full'
 				}`}
 			>
-				<div className="flex h-[65px] w-full shrink-0 items-center border-b border-zinc-200 px-4 dark:border-zinc-800">
+				<div className="flex h-[65px] w-full shrink-0 items-center border-b border-white/70 px-4 dark:border-white/10">
 					<Link href="/" className="flex items-center gap-3">
-						<Icon name={IconName.NvidiaLogo} className="h-6 w-auto text-[#76b900]" />
+						<Icon name={IconName.AppLogo} className="h-6 w-auto text-primary" />
 						<span className="text-sm font-semibold tracking-wide text-black dark:text-zinc-100">
 							Auto Ontology
 						</span>
@@ -224,7 +224,9 @@ export const ChatSidebar = ({
 						iconPosition="left"
 						full
 					>
-						<span className="text-lg leading-none text-[#76b900]">+</span>
+						<span className="text-lg leading-none text-primary dark:text-primary-soft">
+							+
+						</span>
 						New Chat
 					</Button>
 				</div>

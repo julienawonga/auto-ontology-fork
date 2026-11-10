@@ -44,7 +44,7 @@ const stepStatusClass: Record<StepStatus, string> = {
 	[StepStatus.DISABLED]: 'pointer-events-none text-secondary dark:text-zinc-600',
 	[StepStatus.ACTIVE]: 'pointer-events-none font-medium text-heading dark:text-zinc-100',
 	[StepStatus.COMPLETED]:
-		'cursor-pointer text-body hover:rounded-lg hover:bg-zinc-100 hover:text-[#76b900] dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-[#8fd100]',
+		'cursor-pointer text-body hover:rounded-lg hover:bg-zinc-100 hover:text-primary dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-primary-soft',
 	[StepStatus.INACTIVE]: 'pointer-events-none text-secondary dark:text-zinc-500',
 };
 

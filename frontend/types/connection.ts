@@ -79,12 +79,15 @@ export type HeavyDBConnectionParams = {
  * Enforced centrally at catalog extraction rather than per driver, so they
  * behave the same everywhere. Both are regexes matched unanchored and
  * case-sensitively against the unqualified table name; deny wins over allow.
+ * `exclude_views` is separate: it drops views and materialized views by type.
  */
 export type TableFilterParams = {
 	/** Ingest only tables matching this. Empty/absent = every table. */
 	table_allow_regex?: string;
 	/** Skip tables matching this, even when the allowlist matches them too. */
 	table_deny_regex?: string;
+	/** Skip every view and materialized view, whatever its name. */
+	exclude_views?: boolean;
 };
 
 /** Structured connection form fields, discriminated by `type`. */

@@ -217,9 +217,9 @@ const DescriptionSuggestion = ({
 	if (!loading && suggestion == null && error == null) return null;
 
 	return (
-		<div className="mt-3 rounded-lg border border-[#76b900]/40 bg-[#76b900]/[0.06] p-4 dark:border-[#76b900]/30 dark:bg-[#76b900]/10">
+		<div className="mt-3 rounded-lg border border-primary/40 bg-primary/[0.06] p-4 dark:border-primary/30 dark:bg-primary/10">
 			<div className="flex items-center justify-between gap-3">
-				<h3 className="text-xs font-semibold uppercase tracking-wide text-[#4d7a00] dark:text-[#a3d63a]">
+				<h3 className="text-xs font-semibold uppercase tracking-wide text-primary-strong dark:text-primary-soft">
 					Description Suggestion
 				</h3>
 				{suggestion != null && (
@@ -235,14 +235,16 @@ const DescriptionSuggestion = ({
 			</div>
 			<div className="mt-2 text-sm leading-relaxed text-body dark:text-zinc-300">
 				{loading ? (
-					<span className="flex items-center gap-2 italic text-[#4d7a00]/70 dark:text-[#a3d63a]/70">
+					<span className="flex items-center gap-2 italic text-primary-strong/70 dark:text-primary-soft/70">
 						<Spinner aria-label="Generating suggestion" className="h-3.5 w-3.5" />
 						Generating suggestion…
 					</span>
 				) : suggestion != null ? (
 					suggestion
 				) : (
-					<span className="italic text-[#4d7a00]/70 dark:text-[#a3d63a]/70">{error}</span>
+					<span className="italic text-primary-strong/70 dark:text-primary-soft/70">
+						{error}
+					</span>
 				)}
 			</div>
 		</div>
@@ -284,7 +286,7 @@ const EditableTextCard = ({
 	};
 
 	return (
-		<div className="rounded-lg border border-[#76b900]/60 bg-white/90 p-5 ring-1 ring-[#76b900]/10 dark:bg-zinc-950/50">
+		<div className="rounded-lg border border-primary/60 bg-white/90 p-5 ring-1 ring-primary/10 dark:bg-zinc-950/50">
 			<div className="flex items-start justify-between gap-3">
 				<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 					{section.title}
@@ -296,7 +298,7 @@ const EditableTextCard = ({
 				value={value}
 				onChange={handleChange}
 				rows={4}
-				className="mt-3 w-full resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm leading-relaxed text-body outline-none transition-colors focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+				className="mt-3 w-full resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm leading-relaxed text-body outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
 			/>
 			{section.suggestable === true && onSuggest != null && (
 				<DescriptionSuggestion onSuggest={onSuggest} onApply={handleApplySuggestion} />
@@ -343,7 +345,7 @@ const EditableTagListCard = ({
 	};
 
 	return (
-		<div className="rounded-lg border border-[#76b900]/60 bg-white/90 p-5 ring-1 ring-[#76b900]/10 dark:bg-zinc-950/50">
+		<div className="rounded-lg border border-primary/60 bg-white/90 p-5 ring-1 ring-primary/10 dark:bg-zinc-950/50">
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 				{section.title}
 			</h2>
@@ -437,7 +439,7 @@ const EditableEntityTagsCard = ({
 	const unassigned = section.options.filter((tag) => !assigned.has(tag.id));
 
 	return (
-		<div className="rounded-lg border border-[#76b900]/60 bg-white/90 p-5 ring-1 ring-[#76b900]/10 dark:bg-zinc-950/50">
+		<div className="rounded-lg border border-primary/60 bg-white/90 p-5 ring-1 ring-primary/10 dark:bg-zinc-950/50">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 					{section.title} ({tags.length})
@@ -533,7 +535,7 @@ const EditableOwnerCard = ({
 	const options = useLiveOwnerOptions(section);
 	const [ownerId, setOwnerId] = useState(section.ownerId ?? '');
 	return (
-		<div className="rounded-lg border border-[#76b900]/60 bg-white/90 p-5 ring-1 ring-[#76b900]/10 dark:bg-zinc-950/50">
+		<div className="rounded-lg border border-primary/60 bg-white/90 p-5 ring-1 ring-primary/10 dark:bg-zinc-950/50">
 			<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
 				{section.title}
 			</h2>
@@ -1208,7 +1210,7 @@ export const SinglePageComposer = forwardRef<HTMLDivElement, SinglePageComposerP
 						onChange={(e) => {
 							pendingEditsRef.current.name = e.target.value;
 						}}
-						className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-2xl font-semibold tracking-tight text-heading outline-none transition-colors focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+						className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-2xl font-semibold tracking-tight text-heading outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
 						aria-label="Name"
 					/>
 				) : (
@@ -1270,7 +1272,7 @@ export const SinglePageComposer = forwardRef<HTMLDivElement, SinglePageComposerP
 								<EmptyState
 									illustration={
 										<div
-											className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#76b900]/15 text-xl"
+											className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/15 text-xl"
 											aria-hidden
 										>
 											◇

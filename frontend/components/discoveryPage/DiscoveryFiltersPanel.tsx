@@ -195,7 +195,7 @@ const ObjectsFilter = ({
 									type="checkbox"
 									checked={checked}
 									onChange={() => toggleType(type)}
-									className="h-4 w-4 shrink-0 accent-[#76b900]"
+									className="h-4 w-4 shrink-0 accent-primary"
 								/>
 								<Icon
 									name={SEARCH_TYPE_ICON[type]}
@@ -223,7 +223,7 @@ const TagOption = ({ label, checked, onToggle }: TagOptionProps) => (
 			type="checkbox"
 			checked={checked}
 			onChange={onToggle}
-			className="h-4 w-4 shrink-0 accent-[#76b900]"
+			className="h-4 w-4 shrink-0 accent-primary"
 		/>
 		<span className="truncate">{label}</span>
 	</label>

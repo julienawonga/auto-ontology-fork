@@ -21,6 +21,12 @@ export const DISTINCT_VALUE_PROBING_ENABLED_KEY = 'distinct_value_probing_enable
 export const PII_DETECTION_ENABLED_KEY = 'pii_detection_enabled';
 
 /**
+ * Key written by the Expand Reasoning and SQL toggle on Settings > Agent
+ * Settings. Display-only: the frontend reads it, the backend never does.
+ */
+export const CHAT_DETAILS_EXPANDED_KEY = 'chat_details_expanded';
+
+/**
  * Read an opt-out flag the way `auto_ontology/infra/feature_flags.py` does.
  *
  * Both layers read the same row, so they have to canonicalize it the same way
@@ -53,6 +59,18 @@ export async function isVisualizationEnabled(): Promise<boolean> {
 		where: { key: VISUALIZATION_ENABLED_KEY },
 	});
 	return row?.value !== 'false';
+}
+
+/**
+ * Global "Expand Reasoning and SQL" flag. A missing row counts as disabled, so
+ * chat answers show their explanation and SQL collapsed until an admin turns
+ * it on from Settings > Agent Settings.
+ */
+export async function isChatDetailsExpanded(): Promise<boolean> {
+	const row = await getPrisma().configuration.findUnique({
+		where: { key: CHAT_DETAILS_EXPANDED_KEY },
+	});
+	return readOptInFlag(row?.value);
 }
 
 /**

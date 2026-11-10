@@ -73,7 +73,7 @@ export const CopyButton = ({ text, className = '', ...props }: CopyButtonProps) 
 		>
 			<Icon
 				name={copied ? IconName.Check : IconName.Copy}
-				className={`h-4 w-4 ${copied ? 'text-[#76b900]' : ''}`}
+				className={`h-4 w-4 ${copied ? 'text-primary' : ''}`}
 			/>
 		</button>
 	);

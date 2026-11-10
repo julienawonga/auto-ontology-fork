@@ -139,7 +139,7 @@ def test_the_icon_decodes_back_to_the_svg() -> None:
 
 def test_a_missing_icon_does_not_stop_the_server(monkeypatch: Any) -> None:
     # Cosmetic, so it must never be the reason a working server fails to start.
-    monkeypatch.setattr(server, "ICON_PATH", Path("/nonexistent/nvidia-mark.svg"))
+    monkeypatch.setattr(server, "ICON_PATH", Path("/nonexistent/app-mark.svg"))
 
     assert load_icons() == []
 

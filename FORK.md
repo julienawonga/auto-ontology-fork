@@ -1,0 +1,232 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# What this fork adds
+
+This repository is a fork of
+[NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) (Apache-2.0).
+Upstream does not take external pull requests, so the changes below live here.
+Each one is opt-in or backwards compatible: with no new settings, the fork
+behaves like upstream.
+
+| Feature | Branch | Status |
+|---|---|---|
+| [Any OpenAI-compatible model provider](#any-openai-compatible-model-provider) | `neutral-llm-typing` | Done, verified end to end |
+| [Exclude views from ingestion](#exclude-views-from-ingestion) | `exclude-views-filter` | Done, verified end to end |
+| [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | `collapsible-sql` | Done, verified in the UI |
+| [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | `chat-assistant-ui` | Done, verified in the UI |
+| [Glass design on the Chat page](#glass-design-on-the-chat-page) | `chat-glass` | Done, verified in the UI |
+| [Light/dark theme switcher](#lightdark-theme-switcher) | `theme-switcher` | Done, not yet tested in the UI |
+| [Collapsible navigation](#collapsible-navigation) | `ui-refresh` | Done, not yet tested in the UI |
+| [Blue accent and neutral logo](#blue-accent-and-neutral-logo) | `ui-refresh` | Done, not yet tested in the UI |
+| [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
+
+## Any OpenAI-compatible model provider
+
+Upstream assumes NVIDIA-hosted (NIM) models: the vector store is fixed at 2048
+dimensions, and every embedding request carries NVIDIA-only body fields. An
+embedding model with another width, or a gateway that rejects unknown fields,
+breaks retrieval without any clear error. The chat then answers "SQL can't be
+constructed" because no vectors were ever stored.
+
+What changed:
+
+- **`EMBED_DIMENSIONS`**: sets the width of the stored vectors (default `2048`)
+  and is sent to the model as `dimensions`. The pgvector tables are created at
+  this width (`auto_ontology/vdb/postgres.py`).
+- **`EMBED_NIM_FIELDS`**: set it to `false` to drop `input_type`, `truncate` and
+  `modality` from embedding requests (default `true`).
+- **Clear error on width mismatch**: if the model returns vectors of a
+  different width, ingestion fails with a message naming `EMBED_DIMENSIONS`,
+  instead of failing later inside pgvector.
+- **Provider-neutral typing**: the text-to-SQL agent state accepts any
+  LangChain `BaseChatModel`, not only `ChatNVIDIA`.
+- **Provider-neutral docs**: `README.md` and `.env.example` describe a generic
+  OpenAI-compatible endpoint (e.g. a LiteLLM gateway).
+
+Example for a 768-dimension embedder behind a gateway:
+
+```env
+EMBED_MODEL=text-embedding-005
+EMBED_DIMENSIONS=768
+EMBED_NIM_FIELDS=false
+```
+
+Changing `EMBED_DIMENSIONS` on an existing install requires recreating the
+vector tables (e.g. `docker compose down -v`) and ingesting again.
+
+Code: `auto_ontology/utils/model_config.py`, `auto_ontology/utils/embedding.py`,
+`auto_ontology/retrieval/text_to_sql/state.py`. Tests: `test_model_config.py`,
+`test_embedding.py`.
+
+## Exclude views from ingestion
+
+Databases often expose views that only re-present tables that are already
+catalogued (Pagila has seven). Each view becomes a second, near-identical Term,
+which clutters the ontology and lets the agent take shortcuts through a view
+instead of joining the real tables.
+
+What changed:
+
+- New connection option **`exclude_views`**: skips every view and materialized
+  view **by type**, not by name, so no regex is needed.
+- It combines with `table_allow_regex` / `table_deny_regex`, and changing it
+  triggers re-ingestion, just as changing those does.
+- It works with any connector: it uses the relation type when the connector
+  reports one, and otherwise the connector's list of views.
+- **UI**: an "Exclude Views" checkbox in *Settings > Connections*.
+
+Verified on Pagila: 15 base tables catalogued, all 7 views skipped.
+
+Code: `auto_ontology/catalog/table_filter.py`, `frontend/enums/connection.ts`,
+`frontend/types/connection.ts`. Docs: `docs/connections.md`. Tests:
+`test_table_filter.py`.
+
+Limitation: when `CONNECTION_STRINGS` is set in `.env`, the connection created
+at startup cannot carry this option. To use it, create the connection from the
+UI instead.
+
+## Collapsible reasoning and SQL in chat
+
+A chat answer shows its explanation and the SQL it ran in full, which pushes
+the result itself down the page. Business users mostly want the number;
+checking how it was computed should stay one click away.
+
+What changed:
+
+- An answer that carries SQL folds its explanation and SQL behind
+  "Show reasoning and SQL". The results and charts always stay visible, and
+  replies without SQL (including errors) are never folded.
+- New admin setting **Expand Reasoning and SQL** in *Settings > Agent
+  Settings*, stored as `chat_details_expanded` in the `configurations` table.
+  Off (the default, also when the row is missing): answers start collapsed.
+  On: they start expanded. Each answer can still be toggled by hand.
+- Route `/api/configurations/chat-details`: anyone who can chat may read it,
+  and changing it requires the same permission as "Visualize SQL Results".
+
+Code: `frontend/components/chatPage/MessageBubble.tsx`,
+`frontend/components/chatPage/MessageList.tsx`,
+`frontend/app/settings/agent-settings/page.tsx`,
+`frontend/app/api/configurations/chat-details/`,
+`frontend/lib/queries/chatDisplay.ts`.
+
+## Chat-app style thread (assistant-ui)
+
+The chat input was a separate full-width bar, and answers sat in grey
+bubbles. The thread now follows the familiar chat-app layout, and its input
+behaviour comes from a maintained library instead of code kept in this repo.
+
+What changed:
+
+- The thread is built on the unstyled primitives of
+  [assistant-ui](https://github.com/assistant-ui/assistant-ui)
+  (`@assistant-ui/react`, pinned to 0.15.31), styled with the app's own
+  Tailwind classes. No shadcn/ui setup is added.
+- From the library: the auto-growing composer (Enter to send, Shift+Enter for a
+  new line), a **Copy** button under each answer, clickable **suggestions**,
+  the Stop button while an answer runs, and stick-to-bottom scrolling with a
+  "scroll to latest" button.
+- Suggestions are the names of the saved SQL analyses (Analysis page), so they
+  follow that page instead of a hand-kept list.
+- Questions sit in a bubble on the right; answers read as plain text across
+  the column. The SQL block, result tables, charts, live progress steps and the
+  collapsible reasoning are unchanged.
+- The stream to the backend is untouched: `useChat` still owns the messages,
+  and assistant-ui reads them through its external-store runtime.
+
+Code: `frontend/components/chatPage/ChatThread.tsx`,
+`frontend/lib/queries/chatSuggestions.ts`,
+`frontend/components/chatPage/MessageBubble.tsx`. It replaces
+`ChatInput.tsx` and `MessageList.tsx`.
+
+## Glass design on the Chat page
+
+A first step away from the upstream look: the Chat page uses a frosted-glass
+style (translucent panels, background blur, light borders) over a softly
+tinted page, with its own palette and typefaces. Other pages are unchanged.
+
+What changed:
+
+- Palette as tokens in `frontend/app/globals.css` (`glass-primary` #1856FF,
+  `glass-secondary`, `glass-success`, `glass-canvas`, …), used through Tailwind
+  classes such as `bg-glass-primary`. Blue replaces the green accent on the
+  Chat page.
+- Plus Jakarta Sans for text and JetBrains Mono for SQL, loaded by
+  `frontend/app/chat/layout.tsx` for the Chat page only.
+- One recipe for the glass surface, hover, focus ring and primary button in
+  `frontend/components/chatPage/glass.ts`, applied to the composer, the
+  question bubble, the conversation list, the scroll button and result cards.
+- A single-value result (such as a total) shows as a card with a large figure.
+- Visible keyboard focus on every control; text keeps the app's dark tones so
+  it stays readable on the frosted surface.
+
+Other pages keep their solid surfaces for now; the accent colour is shared (see
+[Blue accent and neutral logo](#blue-accent-and-neutral-logo)).
+
+## Light/dark theme switcher
+
+Upstream only follows the operating system's light/dark setting, with no way
+to override it in the app.
+
+What changed:
+
+- **Theme choice in the user menu**: a System / Light / Dark control at the
+  bottom of the avatar menu. The default is System.
+- **Stored per browser** (`localStorage`), not per account: no database or API
+  change. If storage is blocked, the app falls back to System.
+- **No flash on load**: a small inline script in the root layout sets the
+  theme before the first paint.
+- **Live updates**: while on System, the app follows OS changes as they happen,
+  and a change made in another tab carries over.
+- Tailwind's `dark:` variant now keys off a `dark` class on `<html>` instead of
+  the OS media query. The few hand-written dark CSS rules and the exploration
+  graph's canvas colors follow the same class.
+
+Code: `frontend/lib/theme.ts`, `frontend/common/ThemeSwitcher.tsx`,
+`frontend/enums/theme.ts`, `frontend/app/layout.tsx`,
+`frontend/app/globals.css`, `frontend/common/UserMenu.tsx`,
+`frontend/components/explorationPage/graph/GraphCanvas.tsx`.
+
+## Collapsible navigation
+
+Upstream's left navigation is an icon rail that opens over the page on hover
+and closes as soon as the pointer leaves, so the labels cannot stay visible.
+
+What changed:
+
+- A toggle at the top of the rail switches it between **open** (icons and
+  labels) and **collapsed** (icons only), as in common chat apps. The page
+  always sits beside it; the hover overlay is gone.
+- Stored per browser (`localStorage`), like the theme, and shared between tabs.
+  If storage is blocked, the rail stays collapsed.
+
+Code: `frontend/common/NavRail.tsx`, `frontend/lib/navRail.ts`.
+
+## Blue accent and neutral logo
+
+The upstream green accent and the NVIDIA logo are replaced everywhere, so the
+fork no longer carries NVIDIA's branding in its interface. The copyright and
+license notices are unchanged, as Apache-2.0 requires.
+
+What changed:
+
+- One accent token family in `frontend/app/globals.css`: `primary` (#1856FF),
+  `primary-hover`, `primary-strong`, `primary-soft`, `primary-subtle`, with
+  lighter values in dark mode so text stays readable. Changing the accent of the
+  whole app is now a one-line edit.
+- Every hard-coded green (`#76b900` and its lighter and darker shades, about
+  250 uses in 63 files) now uses those tokens.
+- A neutral logo (three linked nodes) replaces the NVIDIA logo in the top bar,
+  the chat, the login and invite pages, and the browser tab icon.
+
+Code: `frontend/app/globals.css`, `frontend/common/icons/svg/app-logo.svg`,
+`frontend/public/favicon.svg`, and the class names across `frontend/`.
+
+## Planned: foreign keys on partitioned tables
+
+On Postgres, foreign keys declared on a partitioned table's partitions (e.g.
+Pagila's `payment_p2022_*`) are lost when partitions are folded into their
+parent, so `payment` shows up without its links to `rental`, `customer` and
+`staff`. The fix will go in the Postgres connector.

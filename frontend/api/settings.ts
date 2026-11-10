@@ -118,6 +118,15 @@ export const visualizationApi = {
 		requests.put('configurations/visualization', { enabled }),
 };
 
+// Instance-wide "Expand Reasoning and SQL" toggle (Settings > Agent Settings).
+export const chatDetailsApi = {
+	get: (): Promise<ResponseWithError<{ enabled: boolean }>> =>
+		requests.get('configurations/chat-details'),
+
+	setEnabled: (enabled: boolean): Promise<ResponseWithError<{ enabled: boolean }>> =>
+		requests.put('configurations/chat-details', { enabled }),
+};
+
 // Instance-wide timeout for SQL the text-to-SQL agent runs (Settings > Agent Settings).
 export const sqlQueryTimeoutApi = {
 	get: (): Promise<ResponseWithError<{ seconds: number }>> =>

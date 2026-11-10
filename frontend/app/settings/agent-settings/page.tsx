@@ -5,9 +5,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { sqlQueryTimeoutApi, visualizationApi } from '@/api/settings';
+import { useQueryClient } from '@tanstack/react-query';
+import { chatDetailsApi, sqlQueryTimeoutApi, visualizationApi } from '@/api/settings';
 import { Button } from '@/common/Button';
 import { Toast } from '@/common/Toast';
+import { Toggle } from '@/common/Toggle/Toggle';
+import { setChatDetailsExpanded } from '@/lib/queries/chatDisplay';
 import { ButtonTheme, Size } from '@/enums/button';
 import { ToastVariant } from '@/enums/toast';
 import {
@@ -24,6 +27,11 @@ export default function AgentSettingsPage() {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	// Defaults to off, matching a missing `chat_details_expanded` configuration.
+	const queryClient = useQueryClient();
+	const [detailsExpanded, setDetailsExpanded] = useState(false);
+	const [savingDetails, setSavingDetails] = useState(false);
+
 	// `timeoutSeconds` is what the server holds; `timeoutDraft` is the raw input text.
 	const [timeoutSeconds, setTimeoutSeconds] = useState(DEFAULT_SQL_QUERY_TIMEOUT_SECONDS);
 	const [timeoutDraft, setTimeoutDraft] = useState(String(DEFAULT_SQL_QUERY_TIMEOUT_SECONDS));
@@ -38,6 +46,10 @@ export default function AgentSettingsPage() {
 		visualizationApi.get().then((res) => {
 			if (cancelled || res.error) return;
 			setVisualization(res.enabled);
+		});
+		chatDetailsApi.get().then((res) => {
+			if (cancelled || res.error) return;
+			setDetailsExpanded(res.enabled);
 		});
 		sqlQueryTimeoutApi.get().then((res) => {
 			if (cancelled || res.error) return;
@@ -81,6 +93,23 @@ export default function AgentSettingsPage() {
 		}
 	};
 
+	const handleDetailsToggle = async (next: boolean) => {
+		if (savingDetails) return;
+		setSavingDetails(true);
+		setError(null);
+		setDetailsExpanded(next);
+
+		const res = await chatDetailsApi.setEnabled(next);
+		setSavingDetails(false);
+
+		if (res.error) {
+			setDetailsExpanded(!next); // roll back the optimistic update
+			setError(res.message ?? 'Failed to update setting. Please try again.');
+			return;
+		}
+		setChatDetailsExpanded(queryClient, res.enabled);
+	};
+
 	return (
 		<main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,0.6)_100%)] px-7 py-6 sm:px-10 sm:py-7 dark:bg-[linear-gradient(180deg,rgba(9,9,11,1)_0%,rgba(24,24,27,0.5)_100%)]">
 			<div className="w-full space-y-5">
@@ -108,7 +137,7 @@ export default function AgentSettingsPage() {
 								void handleToggle();
 							}}
 							className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-								visualization ? 'bg-[#76b900]' : 'bg-zinc-300 dark:bg-zinc-600'
+								visualization ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'
 							}`}
 						>
 							<span
@@ -117,6 +146,28 @@ export default function AgentSettingsPage() {
 								}`}
 							/>
 						</button>
+					</div>
+				</div>
+
+				<div className="rounded-lg border border-zinc-200/90 bg-white/90 p-4 shadow-sm ring-1 ring-zinc-950/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/50 dark:ring-white/[0.06]">
+					<div className="flex items-center justify-between gap-4">
+						<div className="min-w-0">
+							<h2 className="text-sm font-semibold text-heading dark:text-zinc-100">
+								Expand Reasoning and SQL
+							</h2>
+							<p className="mt-1 text-xs text-secondary dark:text-zinc-400">
+								Show each answer&apos;s explanation and SQL expanded in chat, for
+								all users. When off they start collapsed, one click away.
+							</p>
+						</div>
+						<Toggle
+							checked={detailsExpanded}
+							aria-label="Expand Reasoning and SQL"
+							disabled={savingDetails}
+							onChange={(next) => {
+								void handleDetailsToggle(next);
+							}}
+						/>
 					</div>
 				</div>
 
@@ -154,7 +205,7 @@ export default function AgentSettingsPage() {
 								disabled={savingTimeout}
 								aria-invalid={!draftValid}
 								onChange={(e) => setTimeoutDraft(e.target.value)}
-								className="h-9 w-24 rounded-md border border-zinc-300 bg-white px-3 text-sm text-body outline-none transition-colors focus:border-[#76b900] focus:ring-2 focus:ring-[#76b900]/30 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-disabled aria-[invalid=true]:border-red-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400"
+								className="h-9 w-24 rounded-md border border-zinc-300 bg-white px-3 text-sm text-body outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-disabled aria-[invalid=true]:border-red-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400"
 							/>
 							<Button
 								theme={ButtonTheme.Primary}

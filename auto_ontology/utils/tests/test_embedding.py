@@ -109,6 +109,58 @@ def test_the_request_carries_the_nvidia_fields(endpoint, input_type: str) -> Non
     }
 
 
+def test_dimensions_are_requested_only_when_configured(endpoint) -> None:
+    seen = endpoint(_ok)
+
+    embed_texts(["orders"], _params(dimensions=1024), "passage")
+
+    assert json.loads(seen[0].content)["dimensions"] == 1024
+
+
+def test_the_nvidia_fields_can_be_dropped(endpoint) -> None:
+    """A gateway that rejects unknown body fields still gets a valid request."""
+    seen = endpoint(_ok)
+
+    embed_texts(["orders"], _params(nim_fields=False), "passage")
+
+    assert json.loads(seen[0].content) == {
+        "model": "nvidia/embed",
+        "input": ["orders"],
+        "encoding_format": "float",
+    }
+
+
+def test_a_vector_of_the_wrong_width_names_the_setting(endpoint) -> None:
+    endpoint(_ok)  # answers with 2-wide vectors
+
+    with pytest.raises(RuntimeError, match="EMBED_DIMENSIONS"):
+        embed_texts(["orders"], _params(expected_dimensions=3), "passage")
+
+
+def test_a_vector_of_the_expected_width_passes(endpoint) -> None:
+    endpoint(_ok)
+
+    assert embed_texts(["orders"], _params(expected_dimensions=2), "passage") == [
+        _vector("orders")
+    ]
+
+
+def test_get_embed_params_reads_the_dimension_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ("EMBED_DIMENSIONS", "EMBED_NIM_FIELDS"):
+        monkeypatch.delenv(name, raising=False)
+    default = embedding.get_embed_params()
+    assert (default.dimensions, default.nim_fields) == (None, True)
+    assert default.expected_dimensions == 2048
+
+    monkeypatch.setenv("EMBED_DIMENSIONS", "1024")
+    monkeypatch.setenv("EMBED_NIM_FIELDS", "false")
+    configured = embedding.get_embed_params()
+    assert (configured.dimensions, configured.nim_fields) == (1024, False)
+    assert configured.expected_dimensions == 1024
+
+
 @pytest.mark.parametrize("input_type", ["passage", "query"])
 def test_a_model_that_ignores_input_type_gets_it_as_a_text_prefix(
     endpoint, input_type: str

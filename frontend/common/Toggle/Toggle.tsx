@@ -36,9 +36,9 @@ export const Toggle = ({ checked, disabled = false, onChange, ...props }: Toggle
 			tabIndex={disabled ? -1 : 0}
 			onClick={disabled ? undefined : toggle}
 			onKeyDown={disabled ? undefined : handleKeyDown}
-			className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-[#76b900]/40 focus-visible:outline-none ${
+			className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none ${
 				disabled ? 'pointer-events-none cursor-default opacity-50' : 'cursor-pointer'
-			} ${checked ? 'bg-[#76b900]' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+			} ${checked ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-600'}`}
 		>
 			<span
 				className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${

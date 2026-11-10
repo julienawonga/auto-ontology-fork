@@ -32,7 +32,12 @@ from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 import httpx
 from openai import APIStatusError, Omit, OpenAI
 
-from auto_ontology.utils.model_config import resolve
+from auto_ontology.utils.model_config import (
+    embed_dimensions,
+    embed_dimensions_requested,
+    embed_nim_fields_enabled,
+    resolve,
+)
 from auto_ontology.vdb.records import write_embedded_rows
 
 if TYPE_CHECKING:
@@ -96,6 +101,14 @@ class EmbedParams:
     inference_batch_size: int = 32
     nim_http_max_concurrent: int = 32
     request_timeout_s: float = 600.0
+    # Sent as ``dimensions`` when set, for models that can shorten their output.
+    dimensions: int | None = None
+    # False drops the NVIDIA-only body fields (``input_type``, ``truncate``,
+    # ``modality``) for endpoints that reject unknown fields.
+    nim_fields: bool = True
+    # When set, a vector of any other width is an error here rather than a
+    # dimension error from pgvector at write time.
+    expected_dimensions: int | None = None
 
 
 def get_embed_params() -> EmbedParams:
@@ -103,6 +116,9 @@ def get_embed_params() -> EmbedParams:
         embed_invoke_url=_EMBED_ENDPOINT,
         model_name=_EMBED_MODEL,
         api_key=_EMBED_API_KEY,
+        dimensions=embed_dimensions_requested(),
+        nim_fields=embed_nim_fields_enabled(),
+        expected_dimensions=embed_dimensions(),
     )
 
 
@@ -185,17 +201,22 @@ def embed_texts(
     prefix = _text_prefix(params.model_name, input_type)
 
     def _embed_batch(indices: tuple[int, ...]) -> None:
+        request: dict[str, Any] = {}
+        if params.nim_fields:
+            request["extra_body"] = {
+                "input_type": input_type,
+                "truncate": "END",
+                "modality": params.embed_modality,
+            }
+        if params.dimensions is not None:
+            request["dimensions"] = params.dimensions
         response = client.embeddings.create(
             model=params.model_name,
             input=[prefix + stripped[i] for i in indices],
             encoding_format="float",
-            extra_body={
-                "input_type": input_type,
-                "truncate": "END",
-                "modality": params.embed_modality,
-            },
             timeout=timeout or params.request_timeout_s,
             extra_headers=None if params.api_key else _NO_AUTH,
+            **request,
         )
         returned = [item.index for item in response.data]
         if sorted(returned) != list(range(len(indices))):
@@ -207,6 +228,14 @@ def embed_texts(
                 f"for {len(indices)} input(s)."
             )
         for item in response.data:
+            width = len(item.embedding)
+            if params.expected_dimensions and width != params.expected_dimensions:
+                raise RuntimeError(
+                    f"Embedding model {params.model_name!r} returned {width} "
+                    f"dimensions, but the vector store is {params.expected_dimensions} "
+                    "wide. Set EMBED_DIMENSIONS to the model's width (and "
+                    "re-ingest), or pick a model that outputs that many."
+                )
             vectors[indices[item.index]] = list(item.embedding)
 
     if len(batches) == 1:

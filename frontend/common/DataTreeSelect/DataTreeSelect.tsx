@@ -353,7 +353,7 @@ export const DataTreeSelect = ({
 					}
 				}}
 				onChange={onSelectionChange}
-				className={`h-4 w-4 cursor-pointer border-zinc-300 text-[#76b900] focus:ring-[#76b900]/40 dark:border-zinc-600 ${
+				className={`h-4 w-4 cursor-pointer border-zinc-300 text-primary focus:ring-primary/40 dark:border-zinc-600 ${
 					singleSelect ? '' : 'rounded'
 				}`}
 			/>
