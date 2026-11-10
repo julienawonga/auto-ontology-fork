@@ -19,9 +19,15 @@
 # patch releases that existed when it was cut, so bump both together. 3.12.16
 # needs uv >= 0.13; the build fails if uv cannot install the pinned version.
 ARG PYTHON_VERSION=3.12.16
-ARG UV_VERSION=0.13.7
-ARG BASE_IMG=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMG_TAG=jammy-20250619
+# uv comes from Astral's official image; keep its tag in step with
+# PYTHON_VERSION as explained above.
+ARG UV_IMG=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490
+# Docker Official Image, pinned by digest so builds are reproducible. Bump the
+# tag and digest together.
+ARG BASE_IMG=debian
+ARG BASE_IMG_TAG=bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
+
+FROM ${UV_IMG} AS uv
 
 ############################
 # Stage 1: builder
@@ -29,7 +35,6 @@ ARG BASE_IMG_TAG=jammy-20250619
 FROM $BASE_IMG:$BASE_IMG_TAG AS builder
 
 ARG PYTHON_VERSION
-ARG UV_VERSION
 
 # UV_PYTHON overrides .python-version ("3.12", for local development), so the
 # image gets exactly PYTHON_VERSION rather than whatever 3.12.x uv defaults to.
@@ -46,16 +51,12 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
-        curl \
         git \
         libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
-# Install uv without introducing a non-NVIDIA build stage.
-RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" \
-        -o /tmp/install-uv.sh \
- && env UV_UNMANAGED_INSTALL=/usr/local/bin sh /tmp/install-uv.sh \
- && rm /tmp/install-uv.sh
+# Copied from the official image rather than fetched with an install script.
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
@@ -77,8 +78,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:${PATH}" \
     PORT=3001
 
-# The pinned base image predates later Ubuntu security fixes (libssl3, gpgv,
-# ...), so apply them before installing anything on top.
+# The base is pinned by digest, so it can predate later Debian security fixes;
+# apply them before installing anything on top.
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends \

@@ -21,6 +21,7 @@ behaves like upstream.
 | [Light/dark theme switcher](#lightdark-theme-switcher) | `theme-switcher` | Done, not yet tested in the UI |
 | [Collapsible navigation](#collapsible-navigation) | `ui-refresh` | Done, not yet tested in the UI |
 | [Blue accent and neutral logo](#blue-accent-and-neutral-logo) | `ui-refresh` | Done, not yet tested in the UI |
+| [Official base images](#official-base-images) | `official-base-images` | Done, verified locally |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -223,6 +224,26 @@ What changed:
 
 Code: `frontend/app/globals.css`, `frontend/common/icons/svg/app-logo.svg`,
 `frontend/public/favicon.svg`, and the class names across `frontend/`.
+
+## Official base images
+
+The upstream images build on NVIDIA's Ubuntu 22.04 base from nvcr.io, pinned to
+June 2025, and install Node.js and uv with scripts piped from the internet.
+
+What changed:
+
+- Backend, ingestion and MCP images build on `debian:bookworm-slim`; the
+  frontend image on `node:22-bookworm-slim`. Both are Docker Official Images,
+  pinned by digest.
+- uv is copied from Astral's official image (`ghcr.io/astral-sh/uv`) and
+  Node.js comes with its base image, so no install script is piped to a shell.
+- Security updates are still applied at build time (`apt-get upgrade`).
+- The CI image builds no longer log in to nvcr.io, and the NVIDIA-only publish
+  and release workflows are disabled on this fork.
+- `CONTAINER_THIRD_PARTY_NOTICES.md` lists the new bases and packages.
+
+Code: `Dockerfile`, `frontend/Dockerfile`, `mcp/Dockerfile`,
+`.github/workflows/ci-python.yml`, `.github/workflows/ci-client.yml`.
 
 ## Planned: foreign keys on partitioned tables
 
