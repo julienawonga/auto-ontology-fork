@@ -285,9 +285,51 @@ No model, registry or credential is tied to a single vendor any more.
   until the first `v*` tag is pushed.
 - **Docs and notices:** README, SECURITY, CONTRIBUTING, CODEOWNERS and the third-party notices point to this fork.
 
-## Planned: foreign keys on partitioned tables
+## Read-only, row-capped agent SQL
 
-On Postgres, foreign keys declared on a partitioned table's partitions (e.g.
-Pagila's `payment_p2022_*`) are lost when partitions are folded into their
-parent, so `payment` shows up without its links to `rental`, `customer` and
-`staff`. The fix will go in the Postgres connector.
+The chat runs SQL written by a model. Upstream only parsed it against the catalog, so a write was limited only by the
+database user's grants. Details: [docs/query-safety.md](./docs/query-safety.md).
+
+- **Parse-time guard:** one read-only `SELECT` only; a write nested in a CTE, `SELECT INTO`, row locks and several
+  statements are refused, and unparseable SQL is refused.
+- **Enforced by the database** on PostgreSQL, MySQL/MariaDB, SQLite, DuckDB and ClickHouse (`supports_read_only_execution`).
+  Snowflake, Databricks, Trino, Kyuubi and HeavyDB rely on the guard alone.
+- **Row cap:** `sql_result_max_rows` (10,000 by default). A cut result is disclosed in the answer and in
+  `result_truncated_at`. PostgreSQL stops reading at the cap through a server-side cursor.
+
+Code: `auto_ontology/retrieval/text_to_sql/sql_guard.py`, `chat_sql.py`, `auto_ontology/connectors/*.py`.
+
+## Evaluation harness
+
+`dev_tools/evals` scores a running backend against questions with known answers by comparing the rows the generated SQL
+returns, and compares two runs question by question. Engine changes are accepted or rejected on that result.
+Details and the rules for an honest measurement: [docs/evaluation.md](./docs/evaluation.md).
+
+## Semantic layer embedded with the configured parameters
+
+The semantic embedder built its request parameters by hand and ignored `EMBED_EXTRA_FIELDS` and `EMBED_DIMENSIONS`. On an
+endpoint that rejects the extra fields every Term and ColumnAttribute was refused, the semantic index stayed empty, and
+the chat answered from the raw schema while compilation reported success. It now uses the same parameters as every other
+embedder.
+
+An ontology compiled before this fix has no semantic index: compilation only processes tables that have no Term yet. Until
+a rebuild is exposed, run `embed_all_semantic_nodes` from `auto_ontology/semantic/embed.py` in the backend container.
+
+## Labels and ranking values in answers
+
+- **Far side of a junction:** when the relevance filter keeps a junction table (`film_category`), the table on its other
+  side (`category`, which holds the name) reaches SQL generation with its join. The chat used to return `category_id`.
+- **Ranking answers** return the item and the value it is ranked by, and a name rather than a bare id. The strict
+  benchmark mode (`shorten_answer`) keeps the upstream "item or value, never both" rule.
+
+Code: `auto_ontology/dal/attributes.py` (`find_junction_far_side_tables`),
+`auto_ontology/retrieval/text_to_sql/agents/candidates_preparation.py`, `auto_ontology/retrieval/text_to_sql/prompts.py`.
+
+## Postgres keys on partitions and composite keys
+
+Foreign and primary keys are read from `pg_constraint`. Keys declared on a partitioned table's partitions (Pagila's
+`payment_p2022_*`) are reported for the parent, composite keys pair their columns by position instead of as a cross
+product, and two tables sharing a constraint name are no longer mixed. Ordinary `INHERITS` children stay separate tables.
+A source ingested before this change keeps its old keys until it is ingested again.
+
+Code: `auto_ontology/connectors/postgres.py` (`get_fks`, `get_pks`).
