@@ -329,7 +329,9 @@ Code: `auto_ontology/dal/attributes.py` (`find_junction_far_side_tables`),
 
 Foreign and primary keys are read from `pg_constraint`. Keys declared on a partitioned table's partitions (Pagila's
 `payment_p2022_*`) are reported for the parent, composite keys pair their columns by position instead of as a cross
-product, and two tables sharing a constraint name are no longer mixed. Ordinary `INHERITS` children stay separate tables.
+product, two tables sharing a constraint name are no longer mixed, and foreign keys between two schemas are
+no longer dropped (the old query matched on the referencing table's schema, which `constraint_column_usage` does not
+report). Ordinary `INHERITS` children stay separate tables.
 A source ingested before this change keeps its old keys until it is ingested again.
 
 Code: `auto_ontology/connectors/postgres.py` (`get_fks`, `get_pks`).
