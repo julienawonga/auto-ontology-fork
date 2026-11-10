@@ -9,13 +9,13 @@ SQL_GEN_MAX_ENTITIES: int = int(os.environ.get("SQL_GEN_MAX_ENTITIES", "5"))
 
 _PROJECTION_RULES = (
     "**Projection**\n"
-    "- SELECT only the columns explicitly asked; extra columns make the result "
-    "wrong even when the rows are right. For superlative/ranking questions "
-    "(most/least/top/highest/lowest/peak/best/worst), select ONLY the item named "
-    "the ranking key OR the aggregated value, never both, and never add the "
-    "ORDER BY metric unless its value is asked. To identify an entity "
-    "(who/which/what), return one identifying column (name if it exists, else id), "
-    "not both.\n"
+    "- SELECT the columns the question asks for and do not add unrelated ones. "
+    "For superlative/ranking questions (most/least/top/highest/lowest/peak/best/"
+    "worst), return the item AND the value it is ranked by, so the reader sees "
+    "the figure behind the ranking; the item is the entity named in the "
+    "question, not the ranking value alone. To identify an entity "
+    "(who/which/what), return its name or title when the table has one, never "
+    "only its id or code; add the id only when it is asked for.\n"
     "- If the user asks for name, project the requested name fields and never add "
     "IDs unless the user explicitly asks for them.\n"
     "- Preserve the question's field order in SELECT: project explicitly requested "
@@ -34,6 +34,11 @@ def format_projection_rules(shorten_answer: bool = False) -> str:
     return (
         _PROJECTION_RULES
         + "- Return exactly the requested output fields and NO others.\n"
+        "- For superlative/ranking questions this overrides the ranking rule "
+        "above: select ONLY the item named OR the aggregated value, never both "
+        "unless the question asks for both, and never add the ORDER BY metric "
+        "unless its value is asked. To identify an entity, return one "
+        "identifying column (name if it exists, else id), not both.\n"
         "- When the question or evidence requests one aggregate over two "
         "alternative categories joined by 'and' (for example, a count for X and Y), "
         "return ONE aggregate and combine the category predicates with OR in the "
