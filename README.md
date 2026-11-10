@@ -209,7 +209,9 @@ flowchart LR
 
 > [!IMPORTANT]
 > Keep ports 3001 and 3002 on a private network: the API trusts the user identity the web app forwards, and the
-> ingestion service has no authentication of its own. Clients go through the web app on port 3000.
+> ingestion service has no authentication of its own. Clients go through the web app on port 3000. Docker Compose
+> therefore publishes the API, the ingestion service, PostgreSQL and pgAdmin on `127.0.0.1` only; set
+> `BIND_ADDRESS` in `.env` to expose them on purpose.
 
 ## 🤖 Use it from your agent
 
