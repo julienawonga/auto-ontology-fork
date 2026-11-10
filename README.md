@@ -240,19 +240,45 @@ curl -N http://localhost:3000/api/chat/completions \
 
 ## 🗺️ Roadmap
 
+**Done**
+
 - [x] Any OpenAI-compatible model provider
 - [x] Glass UI with light and dark themes, sidebar with Ctrl+K search
 - [x] Chat with folded reasoning and SQL, copy, suggestions from certified analyses
 - [x] Docker Official Images, digest-pinned
 - [x] Foreign keys declared on partitioned tables, and composite keys (Postgres)
 - [x] Agent SQL is read-only and row-capped, enforced by the database on six engines
-- [x] Evaluation harness for the text-to-SQL engine
+- [x] Internal service ports published on localhost only by default
+- [x] Evaluation harness for the text-to-SQL engine, with a held-out set on a second database (Chinook)
 - [x] Rebuild and health check of the semantic index
-- [x] Held-out evaluation set on a second database (Chinook)
+
+**In progress**
+
+- [ ] Matching question values to stored values ("USA" for "United States", "Indai" for "India")
+
+**Next (days to weeks)**
+
+- [ ] Business metrics as verified, reusable definitions ("revenue", "VIP customer"), used by the chat
+- [ ] Authentication on the API itself (an internal token between the web app and the API), so it no longer depends on network placement
+- [ ] Clarification questions in chat: when a term is unknown the agent asks what it means instead of guessing
+- [ ] Learned terms: the answer becomes a draft definition in the asker's own scope, promoted for everyone by an owner
 - [ ] Provenance and review status on ontology facts; never overwrite a human edit
-- [ ] Business metrics as verified, reusable definitions
-- [ ] Matching question values to stored values
-- [ ] Clarification questions in chat
+- [ ] Enterprise review: zones and groups, an audit log, a setting and a button in the interface for the row cap and the index rebuild, re-ingestion to apply the new key extraction
+- [ ] Database-enforced read-only on the engines still relying on the parse-time guard (Snowflake, Databricks, Kyuubi, HeavyDB)
+- [ ] Recorded-model evaluation in CI, and a measure of key detection against a known schema
+
+**Later**
+
+- [ ] Questions in French, and data with mixed-language values
+- [ ] Verified queries: a certified question and its SQL, reused and parameterised, proposed from chat feedback and approved by a person
+- [ ] Suggestions mined from query history: candidate terms, metrics and joins for a person to accept
+- [ ] Ontology review workflow: proposed changes, diff, approve or reject, history and rollback
+- [ ] Entity resolution for records: duplicate customers, products and companies
+- [ ] A per-question trace in the interface: tables retrieved, values matched, repairs made, time and cost
+- [ ] A scheduled evaluation with a regression history, and a question set per customer database
+- [ ] Per-user database credentials and row-level security where the engine supports them
+- [ ] Rate limits and a model-spend budget per user
+- [ ] Export and import of the ontology between environments
 - [ ] Key-figure tiles on database pages
 - [ ] Interface translations (French first)
 - [ ] One-click deploy templates (Railway, Render)
