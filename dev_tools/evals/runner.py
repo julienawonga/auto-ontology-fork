@@ -173,10 +173,19 @@ def run_cases(
     target_db: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_S,
     on_run: Callable[[Case, int, Run], None] | None = None,
+    provenance: dict[str, Any] | None = None,
 ) -> Report:
-    """Run every case ``repeats`` times against *base_url* and report."""
+    """Run every case ``repeats`` times against *base_url* and report.
+
+    *provenance* (index state, cases hash, ...) is stored in the report meta.
+    """
     report = Report(
-        meta=new_meta(label, base_url=base_url, repeats=repeats, target_db=target_db)
+        meta=new_meta(
+            label,
+            repeats=repeats,
+            target_db=target_db,
+            **{"backend_url": base_url, **(provenance or {})},
+        )
     )
     with httpx.Client() as client:
         for case in cases:

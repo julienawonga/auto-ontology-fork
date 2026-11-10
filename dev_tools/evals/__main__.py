@@ -29,8 +29,11 @@ import sys
 from pathlib import Path
 
 from dev_tools.evals.cases import DEFAULT_CASES_DIR, Case, load_cases, snapshot_file
+from dev_tools.evals.preflight import PreflightError, preflight
+from dev_tools.evals.provenance import check_comparable
 from dev_tools.evals.report import Report, Run, compare_reports, merge_reports
 from dev_tools.evals.runner import rescore, run_cases
+from dev_tools.integrity.freeze import file_cases_sha256
 
 DEFAULT_CASES = DEFAULT_CASES_DIR / "pagila.json"
 DEFAULT_URL = "http://localhost:3001"
@@ -59,6 +62,18 @@ def _cmd_run(args: argparse.Namespace) -> int:
     for case in cases:
         case.accepted()  # fail fast if a snapshot is missing
 
+    try:
+        provenance = preflight(
+            args.url, args.target_db, allow_empty_index=args.allow_empty_index
+        )
+    except PreflightError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    for problem in provenance.get("ontology_index_problems", []):
+        print(f"WARNING (--allow-empty-index): {problem}", file=sys.stderr)
+    provenance["cases_sha256"] = file_cases_sha256(Path(args.cases))
+    provenance["cases_file"] = Path(args.cases).name
+
     def show(case: Case, i: int, run: Run) -> None:
         mark = "pass" if run.passed else f"FAIL ({run.reason})"
         print(f"  {case.id} #{i + 1}: {mark}  {run.seconds:.0f}s", flush=True)
@@ -70,6 +85,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         repeats=args.repeats,
         target_db=args.target_db,
         on_run=show,
+        provenance=provenance,
     )
     report.save(Path(args.out))
     print(
@@ -79,11 +95,25 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
+    base, candidate = Report.load(Path(args.base)), Report.load(Path(args.candidate))
+    comparable = check_comparable(base, candidate)
+    for warning in comparable.warnings:
+        print(f"WARNING: {warning}", file=sys.stderr)
+    if comparable.mismatches:
+        listing = "\n  ".join(comparable.mismatches)
+        if not args.force:
+            print(
+                "error: the reports measured different things, so their scores "
+                f"are not comparable:\n  {listing}\n"
+                "Fix the mismatch, or pass --force to compare anyway.",
+                file=sys.stderr,
+            )
+            return 2
+        print(
+            f"FORCED comparison, the reports measured different things:\n  {listing}\n"
+        )
     comparison = compare_reports(
-        Report.load(Path(args.base)),
-        Report.load(Path(args.candidate)),
-        margin=args.margin,
-        tolerance=args.tolerance,
+        base, candidate, margin=args.margin, tolerance=args.tolerance
     )
     print(comparison.render())
     return 0 if comparison.accepted else 1
@@ -102,6 +132,8 @@ def _cmd_rescore(args: argparse.Namespace) -> int:
         load_cases(Path(args.cases)),
         strict=args.strict,
     )
+    # The runs are now scored against this file, whatever they were run with.
+    report.meta["cases_sha256"] = file_cases_sha256(Path(args.cases))
     report.save(Path(args.out))
     print(f"score {report.score:.1%} over {len(report.cases)} questions -> {args.out}")
     return 0
@@ -133,6 +165,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--label", default="run")
     run.add_argument("--out", default="eval-report.json")
     run.add_argument("--only", nargs="*", help="run only case ids containing these")
+    run.add_argument(
+        "--allow-empty-index",
+        action="store_true",
+        help="run although the semantic index is empty, partial or unreadable "
+        "(the report records that you did)",
+    )
     run.set_defaults(func=_cmd_run)
 
     cmp_ = sub.add_parser("compare", help="paired comparison of two reports")
@@ -144,6 +182,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.0,
         help="per-question pass-rate drop tolerated before it counts as a regression",
+    )
+    cmp_.add_argument(
+        "--force",
+        action="store_true",
+        help="compare although the reports measured different things "
+        "(index state or cases file); the mismatch is printed",
     )
     cmp_.set_defaults(func=_cmd_compare)
 
