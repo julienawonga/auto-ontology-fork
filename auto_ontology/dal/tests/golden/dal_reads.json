@@ -245,6 +245,17 @@
         "description": null,
         "fk_target_col_id": "<col:pagila.public.category.category_id>",
         "fk_target_table_id": "<table:pagila.public.category>",
+        "id": "<col:pagila.analytics.category_rollup.category_id>",
+        "is_unique": null,
+        "name": "category_id",
+        "sample_values": null,
+        "table_id": "<table:pagila.analytics.category_rollup>",
+        "table_name": "category_rollup"
+      },
+      {
+        "description": null,
+        "fk_target_col_id": "<col:pagila.public.category.category_id>",
+        "fk_target_table_id": "<table:pagila.public.category>",
         "id": "<col:pagila.public.film_category.category_id>",
         "is_unique": null,
         "name": "category_id",
@@ -273,6 +284,17 @@
         "sample_values": null,
         "table_id": "<table:pagila.public.city>",
         "table_name": "city"
+      },
+      {
+        "description": null,
+        "fk_target_col_id": "<col:pagila.public.film.film_id>",
+        "fk_target_table_id": "<table:pagila.public.film>",
+        "id": "<col:pagila.analytics.film_performance.film_id>",
+        "is_unique": null,
+        "name": "film_id",
+        "sample_values": null,
+        "table_id": "<table:pagila.analytics.film_performance>",
+        "table_name": "film_performance"
       },
       {
         "description": null,
@@ -328,6 +350,28 @@
         "sample_values": null,
         "table_id": "<table:pagila.public.film>",
         "table_name": "film"
+      },
+      {
+        "description": null,
+        "fk_target_col_id": "<col:pagila.public.rental.rental_id>",
+        "fk_target_table_id": "<table:pagila.public.rental>",
+        "id": "<col:pagila.public.payment.rental_id>",
+        "is_unique": null,
+        "name": "rental_id",
+        "sample_values": null,
+        "table_id": "<table:pagila.public.payment>",
+        "table_name": "payment"
+      },
+      {
+        "description": null,
+        "fk_target_col_id": "<col:pagila.public.staff.staff_id>",
+        "fk_target_table_id": "<table:pagila.public.staff>",
+        "id": "<col:pagila.public.payment.staff_id>",
+        "is_unique": null,
+        "name": "staff_id",
+        "sample_values": null,
+        "table_id": "<table:pagila.public.payment>",
+        "table_name": "payment"
       },
       {
         "description": null,
@@ -949,17 +993,6 @@
         "description": null,
         "fk_target_col_id": null,
         "fk_target_table_id": null,
-        "id": "<col:pagila.analytics.category_rollup.category_id>",
-        "is_unique": null,
-        "name": "category_id",
-        "sample_values": null,
-        "table_id": "<table:pagila.analytics.category_rollup>",
-        "table_name": "category_rollup"
-      },
-      {
-        "description": null,
-        "fk_target_col_id": null,
-        "fk_target_table_id": null,
         "id": "<col:pagila.analytics.category_rollup.category_rollup_id>",
         "is_unique": null,
         "name": "category_rollup_id",
@@ -988,17 +1021,6 @@
         "sample_values": null,
         "table_id": "<table:pagila.analytics.category_rollup>",
         "table_name": "category_rollup"
-      },
-      {
-        "description": null,
-        "fk_target_col_id": null,
-        "fk_target_table_id": null,
-        "id": "<col:pagila.analytics.film_performance.film_id>",
-        "is_unique": null,
-        "name": "film_id",
-        "sample_values": null,
-        "table_id": "<table:pagila.analytics.film_performance>",
-        "table_name": "film_performance"
       },
       {
         "description": null,
@@ -1887,28 +1909,6 @@
         "id": "<col:pagila.public.payment.payment_id>",
         "is_unique": null,
         "name": "payment_id",
-        "sample_values": null,
-        "table_id": "<table:pagila.public.payment>",
-        "table_name": "payment"
-      },
-      {
-        "description": null,
-        "fk_target_col_id": null,
-        "fk_target_table_id": null,
-        "id": "<col:pagila.public.payment.rental_id>",
-        "is_unique": null,
-        "name": "rental_id",
-        "sample_values": null,
-        "table_id": "<table:pagila.public.payment>",
-        "table_name": "payment"
-      },
-      {
-        "description": null,
-        "fk_target_col_id": null,
-        "fk_target_table_id": null,
-        "id": "<col:pagila.public.payment.staff_id>",
-        "is_unique": null,
-        "name": "staff_id",
         "sample_values": null,
         "table_id": "<table:pagila.public.payment>",
         "table_name": "payment"
@@ -2824,16 +2824,16 @@
         "id": "<db:chinook>",
         "name": "chinook",
         "num_of_schemas": 1,
-        "schemas": [],
-        "owner_id": null
+        "owner_id": null,
+        "schemas": []
       },
       {
         "description": null,
         "id": "<db:pagila>",
         "name": "pagila",
         "num_of_schemas": 2,
-        "schemas": [],
-        "owner_id": null
+        "owner_id": null,
+        "schemas": []
       }
     ],
     "datasources.fetch_databases[none]": [],
@@ -2843,8 +2843,8 @@
         "id": "<db:pagila>",
         "name": "pagila",
         "num_of_schemas": 1,
-        "schemas": [],
-        "owner_id": null
+        "owner_id": null,
+        "schemas": []
       }
     ],
     "datasources.fetch_item_by_id": {
@@ -2855,6 +2855,7 @@
       "is_junction_table": false,
       "label": "Table",
       "name": "film",
+      "owner_id": null,
       "pk": [
         "film_id"
       ],
@@ -2871,6 +2872,7 @@
       "is_junction_table": false,
       "label": "Table",
       "name": "film",
+      "owner_id": null,
       "pk": [
         "film_id"
       ],
@@ -2887,16 +2889,16 @@
         {
           "description": null,
           "id": "<schema:pagila.analytics>",
+          "owner_id": null,
           "schema_name": "analytics",
-          "tables_count": 3,
-          "owner_id": null
+          "tables_count": 3
         },
         {
           "description": null,
           "id": "<schema:pagila.public>",
+          "owner_id": null,
           "schema_name": "public",
-          "tables_count": 23,
-          "owner_id": null
+          "tables_count": 23
         }
       ],
       "schemas_count": 2
@@ -3599,63 +3601,63 @@
             "description": "Primary key of customer.",
             "format": null,
             "is_nullable": false,
-            "semantic_fk": "public.customer.customer_id",
             "name": "customer_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": "public.customer.customer_id"
           },
           {
             "data_type": "integer",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "inventory_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "integer",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "rental_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "integer",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "staff_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "timestamp with time zone",
             "description": "When the rental started.",
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "rental_date",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "timestamp with time zone",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "last_update",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "timestamp with time zone",
             "description": null,
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "return_date",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           }
         ],
         "database_name": "pagila",
@@ -3675,126 +3677,126 @@
             "description": "Primary key of film.",
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "film_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "integer",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "language_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "integer",
             "description": null,
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "original_language_id",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "mpaa_rating",
             "description": "MPAA rating; an enum.",
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "rating",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "numeric",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "rental_rate",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "numeric",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "replacement_cost",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "smallint",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "rental_duration",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "smallint",
             "description": null,
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "length",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "text",
             "description": "The film's title.",
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "title",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "text",
             "description": null,
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "description",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "text[]",
             "description": null,
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "special_features",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "timestamp with time zone",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "last_update",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "tsvector",
             "description": null,
             "format": null,
             "is_nullable": false,
-            "semantic_fk": null,
             "name": "fulltext",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           },
           {
             "data_type": "year",
             "description": null,
             "format": null,
             "is_nullable": true,
-            "semantic_fk": null,
             "name": "release_year",
-            "sample_values": null
+            "sample_values": null,
+            "semantic_fk": null
           }
         ],
         "database_name": "pagila",
@@ -3816,12 +3818,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.customer>",
         "name": "customer",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 1,
-        "owner_id": null
+        "terms_count": 1
       },
       {
         "columns_count": 11,
@@ -3830,12 +3832,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.staff>",
         "name": "staff",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 14,
@@ -3844,12 +3846,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.film>",
         "name": "film",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 2,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 1,
-        "owner_id": null
+        "terms_count": 1
       },
       {
         "columns_count": 2,
@@ -3858,12 +3860,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.rental_by_category>",
         "name": "rental_by_category",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "materialized view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 2,
@@ -3872,12 +3874,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.sales_by_film_category>",
         "name": "sales_by_film_category",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 3,
@@ -3886,12 +3888,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.category>",
         "name": "category",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 1,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 3,
@@ -3900,12 +3902,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.country>",
         "name": "country",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 3,
@@ -3914,12 +3916,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.film_actor>",
         "name": "film_actor",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 3,
@@ -3928,12 +3930,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.film_category>",
         "name": "film_category",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 1,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 3,
@@ -3942,12 +3944,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.language>",
         "name": "language",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 3,
@@ -3956,12 +3958,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.sales_by_store>",
         "name": "sales_by_store",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 4,
@@ -3970,12 +3972,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.actor>",
         "name": "actor",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 4,
@@ -3984,12 +3986,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.actor_info>",
         "name": "actor_info",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 4,
@@ -3998,12 +4000,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.city>",
         "name": "city",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 4,
@@ -4012,12 +4014,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.inventory>",
         "name": "inventory",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 1,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 1,
-        "owner_id": null
+        "terms_count": 1
       },
       {
         "columns_count": 4,
@@ -4026,12 +4028,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.store>",
         "name": "store",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 6,
@@ -4040,12 +4042,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.payment>",
         "name": "payment",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 3,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 2,
-        "owner_id": null
+        "terms_count": 2
       },
       {
         "columns_count": 7,
@@ -4054,12 +4056,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.rental>",
         "name": "rental",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 1,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 2,
-        "owner_id": null
+        "terms_count": 2
       },
       {
         "columns_count": 8,
@@ -4068,12 +4070,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.address>",
         "name": "address",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "base table",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 8,
@@ -4082,12 +4084,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.film_list>",
         "name": "film_list",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 8,
@@ -4096,12 +4098,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.nicer_but_slower_film_list>",
         "name": "nicer_but_slower_film_list",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 8,
@@ -4110,12 +4112,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.staff_list>",
         "name": "staff_list",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       },
       {
         "columns_count": 9,
@@ -4124,12 +4126,12 @@
         "description_certified": false,
         "id": "<table:pagila.public.customer_list>",
         "name": "customer_list",
+        "owner_id": null,
         "schema_name": "public",
         "sql_count": 0,
         "table_type": "view",
         "tags": [],
-        "terms_count": 0,
-        "owner_id": null
+        "terms_count": 0
       }
     ],
     "exploration.fetch_data_exploration_edges[admin]": [
@@ -4406,6 +4408,23 @@
       {
         "foreign_keys": [
           {
+            "source_column": "category_id",
+            "source_sample_values": null,
+            "target_column": "category_id",
+            "target_sample_values": null
+          }
+        ],
+        "queries": [],
+        "relationship_types": [
+          "FOREIGN_KEY"
+        ],
+        "source": "<table:pagila.analytics.category_rollup>",
+        "target": "<table:pagila.public.category>",
+        "via_foreign_key": true
+      },
+      {
+        "foreign_keys": [
+          {
             "source_column": "city_id",
             "source_sample_values": null,
             "target_column": "city_id",
@@ -4451,6 +4470,23 @@
           "FOREIGN_KEY"
         ],
         "source": "<table:pagila.public.customer>",
+        "target": "<table:pagila.public.payment>",
+        "via_foreign_key": true
+      },
+      {
+        "foreign_keys": [
+          {
+            "source_column": "customer_id",
+            "source_sample_values": null,
+            "target_column": "customer_id",
+            "target_sample_values": null
+          }
+        ],
+        "queries": [],
+        "relationship_types": [
+          "FOREIGN_KEY"
+        ],
+        "source": "<table:pagila.public.customer>",
         "target": "<table:pagila.public.rental>",
         "via_foreign_key": true
       },
@@ -4472,6 +4508,23 @@
         ],
         "source": "<table:pagila.public.film>",
         "target": "<table:pagila.public.inventory>",
+        "via_foreign_key": true
+      },
+      {
+        "foreign_keys": [
+          {
+            "source_column": "film_id",
+            "source_sample_values": null,
+            "target_column": "film_id",
+            "target_sample_values": null
+          }
+        ],
+        "queries": [],
+        "relationship_types": [
+          "FOREIGN_KEY"
+        ],
+        "source": "<table:pagila.analytics.film_performance>",
+        "target": "<table:pagila.public.film>",
         "via_foreign_key": true
       },
       {
@@ -4549,6 +4602,40 @@
         ],
         "source": "<table:pagila.public.film>",
         "target": "<table:pagila.public.language>",
+        "via_foreign_key": true
+      },
+      {
+        "foreign_keys": [
+          {
+            "source_column": "rental_id",
+            "source_sample_values": null,
+            "target_column": "rental_id",
+            "target_sample_values": null
+          }
+        ],
+        "queries": [],
+        "relationship_types": [
+          "FOREIGN_KEY"
+        ],
+        "source": "<table:pagila.public.payment>",
+        "target": "<table:pagila.public.rental>",
+        "via_foreign_key": true
+      },
+      {
+        "foreign_keys": [
+          {
+            "source_column": "staff_id",
+            "source_sample_values": null,
+            "target_column": "staff_id",
+            "target_sample_values": null
+          }
+        ],
+        "queries": [],
+        "relationship_types": [
+          "FOREIGN_KEY"
+        ],
+        "source": "<table:pagila.public.payment>",
+        "target": "<table:pagila.public.staff>",
         "via_foreign_key": true
       },
       {
@@ -4918,6 +5005,23 @@
         {
           "foreign_keys": [
             {
+              "source_column": "category_id",
+              "source_sample_values": null,
+              "target_column": "category_id",
+              "target_sample_values": null
+            }
+          ],
+          "queries": [],
+          "relationship_types": [
+            "FOREIGN_KEY"
+          ],
+          "source": "<table:pagila.analytics.category_rollup>",
+          "target": "<table:pagila.public.category>",
+          "via_foreign_key": true
+        },
+        {
+          "foreign_keys": [
+            {
               "source_column": "city_id",
               "source_sample_values": null,
               "target_column": "city_id",
@@ -4963,6 +5067,23 @@
             "FOREIGN_KEY"
           ],
           "source": "<table:pagila.public.customer>",
+          "target": "<table:pagila.public.payment>",
+          "via_foreign_key": true
+        },
+        {
+          "foreign_keys": [
+            {
+              "source_column": "customer_id",
+              "source_sample_values": null,
+              "target_column": "customer_id",
+              "target_sample_values": null
+            }
+          ],
+          "queries": [],
+          "relationship_types": [
+            "FOREIGN_KEY"
+          ],
+          "source": "<table:pagila.public.customer>",
           "target": "<table:pagila.public.rental>",
           "via_foreign_key": true
         },
@@ -4984,6 +5105,23 @@
           ],
           "source": "<table:pagila.public.film>",
           "target": "<table:pagila.public.inventory>",
+          "via_foreign_key": true
+        },
+        {
+          "foreign_keys": [
+            {
+              "source_column": "film_id",
+              "source_sample_values": null,
+              "target_column": "film_id",
+              "target_sample_values": null
+            }
+          ],
+          "queries": [],
+          "relationship_types": [
+            "FOREIGN_KEY"
+          ],
+          "source": "<table:pagila.analytics.film_performance>",
+          "target": "<table:pagila.public.film>",
           "via_foreign_key": true
         },
         {
@@ -5066,6 +5204,40 @@
         {
           "foreign_keys": [
             {
+              "source_column": "rental_id",
+              "source_sample_values": null,
+              "target_column": "rental_id",
+              "target_sample_values": null
+            }
+          ],
+          "queries": [],
+          "relationship_types": [
+            "FOREIGN_KEY"
+          ],
+          "source": "<table:pagila.public.payment>",
+          "target": "<table:pagila.public.rental>",
+          "via_foreign_key": true
+        },
+        {
+          "foreign_keys": [
+            {
+              "source_column": "staff_id",
+              "source_sample_values": null,
+              "target_column": "staff_id",
+              "target_sample_values": null
+            }
+          ],
+          "queries": [],
+          "relationship_types": [
+            "FOREIGN_KEY"
+          ],
+          "source": "<table:pagila.public.payment>",
+          "target": "<table:pagila.public.staff>",
+          "via_foreign_key": true
+        },
+        {
+          "foreign_keys": [
+            {
               "source_column": "staff_id",
               "source_sample_values": null,
               "target_column": "staff_id",
@@ -5140,7 +5312,7 @@
           "description": "A person who rents films from a store.",
           "id": "<table:pagila.public.customer>",
           "name": "customer",
-          "relationship_count": 3,
+          "relationship_count": 4,
           "schema_id": "<schema:pagila.public>",
           "schema_name": "public",
           "sql_count": 0,
@@ -5155,7 +5327,7 @@
           "description": null,
           "id": "<table:pagila.public.staff>",
           "name": "staff",
-          "relationship_count": 3,
+          "relationship_count": 4,
           "schema_id": "<schema:pagila.public>",
           "schema_name": "public",
           "sql_count": 0,
@@ -5192,7 +5364,7 @@
           "description": "A motion picture available for rental.",
           "id": "<table:pagila.public.film>",
           "name": "film",
-          "relationship_count": 5,
+          "relationship_count": 6,
           "schema_id": "<schema:pagila.public>",
           "schema_name": "public",
           "sql_count": 2,
@@ -5349,7 +5521,7 @@
           "description": null,
           "id": "<table:pagila.public.category>",
           "name": "category",
-          "relationship_count": 1,
+          "relationship_count": 2,
           "schema_id": "<schema:pagila.public>",
           "schema_name": "public",
           "sql_count": 1,
@@ -5565,7 +5737,7 @@
           "description": null,
           "id": "<table:pagila.analytics.category_rollup>",
           "name": "category_rollup",
-          "relationship_count": 0,
+          "relationship_count": 1,
           "schema_id": "<schema:pagila.analytics>",
           "schema_name": "analytics",
           "sql_count": 0,
@@ -5587,7 +5759,7 @@
           "description": null,
           "id": "<table:pagila.analytics.film_performance>",
           "name": "film_performance",
-          "relationship_count": 0,
+          "relationship_count": 1,
           "schema_id": "<schema:pagila.analytics>",
           "schema_name": "analytics",
           "sql_count": 0,
@@ -5609,7 +5781,7 @@
           "description": "Money received for a rental. Owning table is partitioned.",
           "id": "<table:pagila.public.payment>",
           "name": "payment",
-          "relationship_count": 0,
+          "relationship_count": 3,
           "schema_id": "<schema:pagila.public>",
           "schema_name": "public",
           "sql_count": 3,
@@ -5624,7 +5796,7 @@
           "description": "A single film rental transaction.",
           "id": "<table:pagila.public.rental>",
           "name": "rental",
-          "relationship_count": 4,
+          "relationship_count": 5,
           "schema_id": "<schema:pagila.public>",
           "schema_name": "public",
           "sql_count": 1,
@@ -5846,6 +6018,14 @@
       "nodes": [
         {
           "database_id": "<db:pagila>",
+          "id": "<table:pagila.analytics.film_performance>",
+          "name": "film_performance",
+          "relationship_count": 1,
+          "schema_id": "<schema:pagila.analytics>",
+          "table_type": "base table"
+        },
+        {
+          "database_id": "<db:pagila>",
           "id": "<table:pagila.public.film_actor>",
           "name": "film_actor",
           "relationship_count": 2,
@@ -5880,12 +6060,12 @@
           "database_id": "<db:pagila>",
           "id": "<table:pagila.public.rental>",
           "name": "rental",
-          "relationship_count": 4,
+          "relationship_count": 5,
           "schema_id": "<schema:pagila.public>",
           "table_type": "base table"
         }
       ],
-      "total": 5
+      "total": 6
     },
     "exploration.fetch_exploration_related_nodes__semantic": {
       "nodes": [],
@@ -6195,39 +6375,39 @@
     "sql_attributes.fetch_sql_attributes_by_term_id": [
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "description": "Film count grouped by category, via the bridge table.",
         "description_suggestion": null,
         "expression": "SELECT c.name, count(fc.film_id) FROM film_category fc JOIN category c ON c.category_id = fc.category_id GROUP BY c.name",
         "id": "<sqlattr:films per category>",
+        "modified": null,
+        "modified_by": null,
         "name": "films per category",
+        "owner_id": null,
         "source": "bridgeTable",
         "sql": "SELECT c.name, count(fc.film_id) FROM film_category fc JOIN category c ON c.category_id = fc.category_id GROUP BY c.name",
         "tags": [],
         "term_id": "<term:Film>",
-        "term_name": "Film",
-        "owner_id": null,
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        "term_name": "Film"
       },
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "description": "Number of films in the catalog.",
         "description_suggestion": null,
         "expression": "SELECT count(film_id) FROM film",
         "id": "<sqlattr:film count>",
+        "modified": null,
+        "modified_by": null,
         "name": "film count",
+        "owner_id": null,
         "source": "sql",
         "sql": "SELECT count(film_id) FROM film",
         "tags": [],
         "term_id": "<term:Film>",
-        "term_name": "Film",
-        "owner_id": null,
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        "term_name": "Film"
       }
     ],
     "sql_attributes.fetch_sql_attributes_with_sql": [
@@ -6293,92 +6473,92 @@
     "sql_attributes.find_attr_by_name__absent": null,
     "sql_attributes.get_full_sql_attribute_by_id": {
       "certified": false,
+      "created": "<redacted>",
+      "created_by": null,
       "description": "Sum of all payment amounts.",
       "description_suggestion": null,
       "expression": "SELECT sum(amount) FROM payment",
       "id": "<sqlattr:total revenue>",
+      "modified": null,
+      "modified_by": null,
       "name": "total revenue",
+      "owner_id": null,
       "source": "manual",
       "sql": "SELECT sum(amount) FROM payment",
       "tags": [],
       "term_id": "<term:Payment>",
       "term_name": "Payment",
-      "zones": [],
-      "owner_id": null,
-      "created": "<redacted>",
-      "modified": null,
-      "created_by": null,
-      "modified_by": null
+      "zones": []
     },
     "sql_attributes.get_sql_attribute_by_id": "<sqlattr:total revenue>",
     "sql_attributes.list_sql_attributes": [
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "description": "Film count grouped by category, via the bridge table.",
         "description_suggestion": null,
         "expression": "SELECT c.name, count(fc.film_id) FROM film_category fc JOIN category c ON c.category_id = fc.category_id GROUP BY c.name",
         "id": "<sqlattr:films per category>",
+        "modified": null,
+        "modified_by": null,
         "name": "films per category",
+        "owner_id": null,
         "source": "bridgeTable",
         "sql": "SELECT c.name, count(fc.film_id) FROM film_category fc JOIN category c ON c.category_id = fc.category_id GROUP BY c.name",
         "term_id": "<term:Film>",
-        "term_name": "Film",
-        "owner_id": null,
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        "term_name": "Film"
       },
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "description": "Number of films in the catalog.",
         "description_suggestion": null,
         "expression": "SELECT count(film_id) FROM film",
         "id": "<sqlattr:film count>",
+        "modified": null,
+        "modified_by": null,
         "name": "film count",
+        "owner_id": null,
         "source": "sql",
         "sql": "SELECT count(film_id) FROM film",
         "term_id": "<term:Film>",
-        "term_name": "Film",
-        "owner_id": null,
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        "term_name": "Film"
       },
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "description": "Sum of all payment amounts.",
         "description_suggestion": null,
         "expression": "SELECT sum(amount) FROM payment",
         "id": "<sqlattr:total revenue>",
+        "modified": null,
+        "modified_by": null,
         "name": "total revenue",
+        "owner_id": null,
         "source": "manual",
         "sql": "SELECT sum(amount) FROM payment",
         "term_id": "<term:Payment>",
-        "term_name": "Payment",
-        "owner_id": null,
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        "term_name": "Payment"
       },
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "description": "Total paid by each customer.",
         "description_suggestion": null,
         "expression": "SELECT customer_id, sum(amount) FROM payment GROUP BY customer_id",
         "id": "<sqlattr:customer lifetime value>",
+        "modified": null,
+        "modified_by": null,
         "name": "customer lifetime value",
+        "owner_id": null,
         "source": "table",
         "sql": "SELECT customer_id, sum(amount) FROM payment GROUP BY customer_id",
         "term_id": "<term:Customer>",
-        "term_name": "Customer",
-        "owner_id": null,
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        "term_name": "Customer"
       }
     ],
     "terms.count_column_attributes_by_term_id": 3,
@@ -6393,6 +6573,7 @@
         "id": "<term:Film>",
         "name": "Film",
         "name_certified": true,
+        "owner_id": null,
         "schema_names": [
           "public"
         ],
@@ -6401,6 +6582,7 @@
           "picture",
           "title"
         ],
+        "tags": [],
         "zones": [
           {
             "color": "#4f46e5",
@@ -6408,9 +6590,7 @@
             "id": "<zone:Film domain>",
             "name": "Film domain"
           }
-        ],
-        "owner_id": null,
-        "tags": []
+        ]
       },
       {
         "certification": "partial",
@@ -6419,6 +6599,7 @@
         "id": "<term:Customer>",
         "name": "Customer",
         "name_certified": true,
+        "owner_id": null,
         "schema_names": [
           "public"
         ],
@@ -6426,9 +6607,8 @@
           "patron",
           "renter"
         ],
-        "zones": [],
-        "owner_id": null,
-        "tags": []
+        "tags": [],
+        "zones": []
       },
       {
         "certification": "partial",
@@ -6437,6 +6617,7 @@
         "id": "<term:Rental>",
         "name": "Rental",
         "name_certified": false,
+        "owner_id": null,
         "schema_names": [
           "public"
         ],
@@ -6444,9 +6625,8 @@
           "hire",
           "loan"
         ],
-        "zones": [],
-        "owner_id": null,
-        "tags": []
+        "tags": [],
+        "zones": []
       },
       {
         "certification": "pending",
@@ -6455,12 +6635,14 @@
         "id": "<term:Track>",
         "name": "Track",
         "name_certified": false,
+        "owner_id": null,
         "schema_names": [
           "main"
         ],
         "synonyms": [
           "song"
         ],
+        "tags": [],
         "zones": [
           {
             "color": "#059669",
@@ -6468,9 +6650,7 @@
             "id": "<zone:Cross database>",
             "name": "Cross database"
           }
-        ],
-        "owner_id": null,
-        "tags": []
+        ]
       },
       {
         "certification": "pending",
@@ -6479,15 +6659,15 @@
         "id": "<term:Payment>",
         "name": "Payment",
         "name_certified": false,
+        "owner_id": null,
         "schema_names": [
           "public"
         ],
         "synonyms": [
           "transaction"
         ],
-        "zones": [],
-        "owner_id": null,
-        "tags": []
+        "tags": [],
+        "zones": []
       }
     ],
     "terms.fetch_all_terms[none]": [],
@@ -6499,6 +6679,7 @@
         "id": "<term:Film>",
         "name": "Film",
         "name_certified": true,
+        "owner_id": null,
         "schema_names": [
           "public"
         ],
@@ -6507,6 +6688,7 @@
           "picture",
           "title"
         ],
+        "tags": [],
         "zones": [
           {
             "color": "#4f46e5",
@@ -6514,9 +6696,7 @@
             "id": "<zone:Film domain>",
             "name": "Film domain"
           }
-        ],
-        "owner_id": null,
-        "tags": []
+        ]
       }
     ],
     "terms.fetch_all_terms_and_attributes[admin]": [
@@ -6528,6 +6708,7 @@
           "id": "<term:Film>",
           "name": "Film",
           "name_certified": true,
+          "owner_id": null,
           "schema_names": [
             "public"
           ],
@@ -6536,6 +6717,7 @@
             "picture",
             "title"
           ],
+          "tags": [],
           "zones": [
             {
               "color": "#4f46e5",
@@ -6543,9 +6725,7 @@
               "id": "<zone:Film domain>",
               "name": "Film domain"
             }
-          ],
-          "owner_id": null,
-          "tags": []
+          ]
         },
         {
           "certification": "partial",
@@ -6554,6 +6734,7 @@
           "id": "<term:Customer>",
           "name": "Customer",
           "name_certified": true,
+          "owner_id": null,
           "schema_names": [
             "public"
           ],
@@ -6561,9 +6742,8 @@
             "patron",
             "renter"
           ],
-          "zones": [],
-          "owner_id": null,
-          "tags": []
+          "tags": [],
+          "zones": []
         },
         {
           "certification": "partial",
@@ -6572,6 +6752,7 @@
           "id": "<term:Rental>",
           "name": "Rental",
           "name_certified": false,
+          "owner_id": null,
           "schema_names": [
             "public"
           ],
@@ -6579,9 +6760,8 @@
             "hire",
             "loan"
           ],
-          "zones": [],
-          "owner_id": null,
-          "tags": []
+          "tags": [],
+          "zones": []
         },
         {
           "certification": "pending",
@@ -6590,12 +6770,14 @@
           "id": "<term:Track>",
           "name": "Track",
           "name_certified": false,
+          "owner_id": null,
           "schema_names": [
             "main"
           ],
           "synonyms": [
             "song"
           ],
+          "tags": [],
           "zones": [
             {
               "color": "#059669",
@@ -6603,9 +6785,7 @@
               "id": "<zone:Cross database>",
               "name": "Cross database"
             }
-          ],
-          "owner_id": null,
-          "tags": []
+          ]
         },
         {
           "certification": "pending",
@@ -6614,15 +6794,15 @@
           "id": "<term:Payment>",
           "name": "Payment",
           "name_certified": false,
+          "owner_id": null,
           "schema_names": [
             "public"
           ],
           "synonyms": [
             "transaction"
           ],
-          "zones": [],
-          "owner_id": null,
-          "tags": []
+          "tags": [],
+          "zones": []
         }
       ],
       [
@@ -6753,6 +6933,7 @@
           "id": "<term:Film>",
           "name": "Film",
           "name_certified": true,
+          "owner_id": null,
           "schema_names": [
             "public"
           ],
@@ -6761,6 +6942,7 @@
             "picture",
             "title"
           ],
+          "tags": [],
           "zones": [
             {
               "color": "#4f46e5",
@@ -6768,9 +6950,7 @@
               "id": "<zone:Film domain>",
               "name": "Film domain"
             }
-          ],
-          "owner_id": null,
-          "tags": []
+          ]
         }
       ],
       [
@@ -6875,9 +7055,13 @@
     "terms.fetch_column_attributes_by_term_id": [
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "datatype": "integer",
         "description": "Primary key of film.",
         "id": "<attr:Film/film id/film_id>",
+        "modified": null,
+        "modified_by": null,
         "name": "film id",
         "primary_column": {
           "column_name": "film_id",
@@ -6909,17 +7093,17 @@
             "id": "<zone:Film domain>",
             "name": "Film domain"
           }
-        ],
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        ]
       },
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "datatype": "mpaa_rating",
         "description": "MPAA rating; an enum.",
         "id": "<attr:Film/film rating/rating>",
+        "modified": null,
+        "modified_by": null,
         "name": "film rating",
         "primary_column": {
           "column_name": "rating",
@@ -6942,17 +7126,17 @@
             "id": "<zone:Film domain>",
             "name": "Film domain"
           }
-        ],
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        ]
       },
       {
         "certified": false,
+        "created": "<redacted>",
+        "created_by": null,
         "datatype": "text",
         "description": "The film's title.",
         "id": "<attr:Film/film title/title>",
+        "modified": null,
+        "modified_by": null,
         "name": "film title",
         "primary_column": {
           "column_name": "title",
@@ -6975,11 +7159,7 @@
             "id": "<zone:Film domain>",
             "name": "Film domain"
           }
-        ],
-        "created": "<redacted>",
-        "modified": null,
-        "created_by": null,
-        "modified_by": null
+        ]
       }
     ],
     "terms.fetch_related_term_ids": [],
@@ -7281,11 +7461,16 @@
     "terms.find_column_attribute_by_column_id": "<attr:Film/film id/film_id>",
     "terms.get_full_term_by_id": {
       "certification": "partial",
+      "created": "<redacted>",
+      "created_by": null,
       "description": "A motion picture available for rental.",
       "description_certified": true,
       "id": "<term:Film>",
+      "modified": null,
+      "modified_by": null,
       "name": "Film",
       "name_certified": true,
+      "owner_id": null,
       "synonyms": [
         "movie",
         "picture",
@@ -7308,12 +7493,7 @@
           "id": "<zone:Film domain>",
           "name": "Film domain"
         }
-      ],
-      "owner_id": null,
-      "created": "<redacted>",
-      "modified": null,
-      "created_by": null,
-      "modified_by": null
+      ]
     },
     "terms.get_full_term_by_id__unknown": null,
     "terms.get_slim_term_by_id": {
