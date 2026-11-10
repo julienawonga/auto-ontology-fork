@@ -247,10 +247,24 @@ def candidate_phrases(question: str, entities: list[str]) -> list[_Phrase]:
     seen: set[str] = set()
     phrases: list[_Phrase] = []
 
-    def add(text: str, *, from_entity: bool, capitalised: bool) -> None:
+    def add(
+        text: str, *, from_entity: bool, capitalised: bool, after_the: bool = False
+    ) -> None:
         tokens = normalize_value(text).split()
         key = " ".join(tokens)
         if key in seen or not _usable(tokens):
+            return
+        # "us" is also the pronoun ("which of us bought most?"). Normalising
+        # case erases the sign that tells them apart, so a bare "us" found by
+        # windowing the question is kept only as the written abbreviation "US"
+        # or after "the" ("from the us"), which the pronoun never follows. An
+        # entity the model extracted already read the sentence, so it is kept.
+        if (
+            tokens == ["us"]
+            and not from_entity
+            and text.strip() != "US"
+            and not after_the
+        ):
             return
         seen.add(key)
         phrases.append(_Phrase(text.strip(), tuple(tokens), from_entity, capitalised))
@@ -266,7 +280,13 @@ def candidate_phrases(question: str, entities: list[str]) -> list[_Phrase]:
             # A capital or an upper-case run is how a name or an abbreviation
             # shows up in a question; it is the best hint of a value.
             capitalised = start > 0 and any(w[:1].isupper() for w in window)
-            add(" ".join(window), from_entity=False, capitalised=capitalised)
+            after_the = start > 0 and words[start - 1].lower() == "the"
+            add(
+                " ".join(window),
+                from_entity=False,
+                capitalised=capitalised,
+                after_the=after_the,
+            )
     return phrases
 
 

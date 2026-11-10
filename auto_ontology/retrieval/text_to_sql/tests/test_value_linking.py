@@ -151,6 +151,22 @@ def test_bare_numbers_are_not_phrases() -> None:
     assert "minutes" in texts
 
 
+def test_the_pronoun_us_is_not_a_phrase_but_the_abbreviation_US_is() -> None:
+    """Both normalise to "us", which would anchor the pronoun to "United States"."""
+    pronoun = [p.text for p in candidate_phrases("Which of us bought the most?", [])]
+    country = [p.text for p in candidate_phrases("customers from the US", [])]
+
+    after_the = [p.text for p in candidate_phrases("customers from the us", [])]
+    extracted = [p.text for p in candidate_phrases("us customers", ["us"])]
+
+    assert "us" not in [t.lower() for t in pronoun]
+    assert "US" in country
+    # Lower-case is how the country is often typed: after "the", or when the
+    # model extracted it as an entity, it is kept.
+    assert "us" in after_the
+    assert "us" in extracted
+
+
 def test_entities_come_first() -> None:
     phrases = candidate_phrases("Indai customers", ["Indai", "customers"])
 
