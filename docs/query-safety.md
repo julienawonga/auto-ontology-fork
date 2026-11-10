@@ -42,7 +42,8 @@ enforced by the database, so a write is refused even if it got past the parser.
 | SQLite | `PRAGMA query_only = ON` for the call |
 | DuckDB | `BEGIN TRANSACTION READ ONLY` on a private cursor |
 | ClickHouse | `readonly=1` on that request |
-| Snowflake, Databricks, Trino, Kyuubi, HeavyDB | none: they rely on the first protection |
+| Trino | `START TRANSACTION READ ONLY` per statement, rolled back afterwards |
+| Snowflake, Databricks, Kyuubi, HeavyDB | none: they rely on the first protection |
 
 Notes:
 
@@ -54,6 +55,12 @@ Notes:
   protection, not by this one.
 - **MySQL and ClickHouse** were verified by hand against real servers; the
   automated tests use a fake driver for them.
+- **Trino:** the engine refuses a write or DDL in the read-only transaction
+  (`READ_ONLY_VIOLATION`) and a `CALL` ("Procedures cannot be called within a
+  transaction"). It was verified against a real Trino 470 server on the
+  `memory` catalog. A statement that is refused aborts its transaction, so
+  each statement gets its own. `SET SESSION` is not blocked by it (the first
+  protection refuses it).
 
 ## 3. Results are capped
 

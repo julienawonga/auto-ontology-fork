@@ -75,6 +75,9 @@ _SYSTEM_SCHEMA = "information_schema"
 # Session property capping a query's wall clock, queueing included.
 _RUN_TIME_PROPERTY = "query_max_run_time"
 
+_START_READ_ONLY = "START TRANSACTION READ ONLY"
+_STARTED_TRANSACTION_HEADER = "X-Trino-Started-Transaction-Id"
+
 _TABLE_SCHEMA = ["table_schema", "table_name", "table_type"]
 
 _COLUMN_SCHEMA = [
@@ -209,6 +212,32 @@ def _run(cursor: Any, sql: str, parameters: Optional[list]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def _start_read_only_transaction(request: Any) -> str:
+    """Start a ``READ ONLY`` transaction with *request* and return its id.
+
+    Mirrors ``trino.transaction.Transaction.begin``, which hard-codes a
+    read-write ``START TRANSACTION``: post the statement, follow ``nextUri``
+    until it finishes, and read the id from the response headers.
+    """
+    transaction_id: str | None = None
+    response = request.post(_START_READ_ONLY)
+    if not response.ok:
+        raise RuntimeError(
+            f"failed to start a read-only transaction: {response.status_code}"
+        )
+    while True:
+        started = response.headers.get(_STARTED_TRANSACTION_HEADER)
+        if started and started != "NONE":
+            transaction_id = started
+        status = request.process(response)
+        if not status.next_uri:
+            break
+        response = request.get(status.next_uri)
+    if not transaction_id:
+        raise RuntimeError("Trino did not return a transaction id")
+    return transaction_id
+
+
 class TrinoDatabase(SQLDatabase):
     """Concrete :class:`SQLDatabase` backed by Trino over its HTTP protocol.
 
@@ -224,6 +253,7 @@ class TrinoDatabase(SQLDatabase):
     """
 
     supports_statement_timeout = True
+    supports_read_only_execution = True
 
     def __init__(
         self,
@@ -368,6 +398,7 @@ class TrinoDatabase(SQLDatabase):
         parameters: Optional[list] = None,
         *,
         timeout_s: float | None = None,
+        read_only: bool = False,
     ) -> pd.DataFrame:
         """Run *sql* and return the result as a DataFrame.
 
@@ -380,18 +411,22 @@ class TrinoDatabase(SQLDatabase):
         costs no extra round trip and cannot outlive the statement. A cluster
         whose access control refuses the property gets the statement uncapped,
         as before the cap existed, instead of failing every query.
+
+        With *read_only* the statement runs in its own ``START TRANSACTION READ
+        ONLY`` transaction, rolled back afterwards, so the engine refuses any
+        write (``READ_ONLY_VIOLATION``) or procedure call whatever the statement
+        looked like to the parser. The transaction id is carried by this call's
+        requests only and never reaches another caller.
         """
         with self._lock:
             if timeout_s is None or not self._run_time_property_allowed:
-                with self._cursor() as cursor:
-                    return _run(cursor, sql, parameters)
+                return self._run_statement(sql, parameters, read_only)
             started = time.monotonic()
             try:
                 with self._session_property(
                     _RUN_TIME_PROPERTY, f"{max(1, int(timeout_s))}s"
                 ):
-                    with self._cursor() as cursor:
-                        return _run(cursor, sql, parameters)
+                    return self._run_statement(sql, parameters, read_only)
             except Exception as exc:
                 # ``TrinoQueryError.error_name``; read by attribute so the
                 # driver stays a lazy import.
@@ -405,9 +440,59 @@ class TrinoDatabase(SQLDatabase):
                         self._catalog,
                     )
                     self._run_time_property_allowed = False
-                    with self._cursor() as cursor:
-                        return _run(cursor, sql, parameters)
+                    return self._run_statement(sql, parameters, read_only)
                 raise
+
+    def _run_statement(
+        self, sql: str, parameters: Optional[list], read_only: bool
+    ) -> pd.DataFrame:
+        if not read_only:
+            with self._cursor() as cursor:
+                return _run(cursor, sql, parameters)
+        with self._read_only_transaction():
+            with self._cursor() as cursor:
+                return _run(cursor, sql, parameters)
+
+    @contextmanager
+    def _read_only_transaction(self) -> Iterator[None]:
+        """Run the requests made inside in a ``READ ONLY`` transaction.
+
+        The python client starts transactions with a bare ``START TRANSACTION``
+        (read-write) and has no read-only option, and a ``START TRANSACTION
+        READ ONLY`` sent as a plain statement is lost because the client does
+        not pick up the started id in autocommit mode. So the statement is
+        posted by hand, the id read from ``X-Trino-Started-Transaction-Id`` and
+        set as the session's ``X-Trino-Transaction-Id`` for the requests inside.
+        A refused write aborts the transaction (every later statement in it fails
+        with ``TRANSACTION_ALREADY_ABORTED``), so there is one transaction per
+        statement. It is always rolled back and the id cleared, which keeps the
+        connection autocommit for every other caller.
+
+        https://trino.io/docs/current/sql/start-transaction.html
+        https://trino.io/docs/current/develop/client-protocol.html
+        """
+        with self._lock:
+            if self._connection is None:
+                self._connection = self._open()
+            connection = self._connection
+            session = connection._client_session  # noqa: SLF001 - see _session_property
+            previous = session.transaction_id
+            session.transaction_id = _start_read_only_transaction(
+                connection._create_request()  # noqa: SLF001 - no public equivalent
+            )
+            try:
+                yield
+            finally:
+                try:
+                    with self._cursor() as cursor:
+                        cursor.execute("ROLLBACK")
+                        cursor.fetchall()
+                except Exception:
+                    # An idle transaction is dropped by the coordinator on its
+                    # own; the result of the statement must not be lost to this.
+                    logger.debug("Failed to roll back Trino transaction", exc_info=True)
+                finally:
+                    session.transaction_id = previous
 
     @contextmanager
     def _session_property(self, name: str, value: str) -> Iterator[None]:

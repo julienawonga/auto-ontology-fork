@@ -69,8 +69,8 @@ def test_every_registered_connector_supports_a_timeout() -> None:
 def test_only_engines_that_can_refuse_a_write_advertise_read_only_execution() -> None:
     """Advertising it without enforcing it would be a false sense of safety.
 
-    Snowflake, Databricks, Trino, Kyuubi and HeavyDB have no per-statement
-    read-only mode; they rely on the parse-time guard and their grants.
+    Snowflake, Databricks, Kyuubi and HeavyDB have no per-statement read-only
+    mode; they rely on the parse-time guard and their grants.
     """
     advertised = {
         cls.__name__
@@ -83,6 +83,7 @@ def test_only_engines_that_can_refuse_a_write_advertise_read_only_execution() ->
         "SQLiteDatabase",
         "DuckDBDatabase",
         "ClickHouseDatabase",
+        "TrinoDatabase",
     }
 
 
@@ -804,6 +805,7 @@ class _TrinoCursor:
     def execute(self, sql: str, parameters: Any = None) -> None:
         properties = dict(self._conn._client_session.properties)
         self._conn.sent.append((sql, properties))
+        self._conn.transaction_ids.append(self._conn._client_session.transaction_id)
         error = self._conn.fail(sql, properties)
         if error is not None:
             raise error
@@ -816,11 +818,36 @@ class _TrinoCursor:
         return None
 
 
+class _TrinoRequest:
+    """Stands in for ``TrinoRequest``: answers ``START TRANSACTION`` with an id."""
+
+    def __init__(self, conn: "_TrinoConnection") -> None:
+        self._conn = conn
+
+    def post(self, sql: str) -> SimpleNamespace:
+        self._conn.posted.append((sql, dict(self._conn._client_session.properties)))
+        return SimpleNamespace(
+            ok=True,
+            status_code=200,
+            headers={"X-Trino-Started-Transaction-Id": "txn-1"},
+        )
+
+    def process(self, response: SimpleNamespace) -> SimpleNamespace:
+        return SimpleNamespace(next_uri=None)
+
+
 class _TrinoConnection:
     def __init__(self, fail: Any = lambda sql, properties: None) -> None:
         self.sent: list[tuple[str, dict[str, str]]] = []
+        self.transaction_ids: list[str] = []
+        self.posted: list[tuple[str, dict[str, str]]] = []
         self.fail = fail
-        self._client_session = SimpleNamespace(properties={"existing": "kept"})
+        self._client_session = SimpleNamespace(
+            properties={"existing": "kept"}, transaction_id="NONE"
+        )
+
+    def _create_request(self) -> _TrinoRequest:
+        return _TrinoRequest(self)
 
     def cursor(self) -> _TrinoCursor:
         return _TrinoCursor(self)
@@ -903,6 +930,160 @@ def test_trino_other_permission_errors_are_not_retried() -> None:
     with pytest.raises(_TrinoError):
         database.execute("SELECT * FROM t", timeout_s=30)
     assert len(fake.sent) == 1
+
+
+def test_trino_read_only_runs_the_statement_in_a_read_only_transaction() -> None:
+    fake = _TrinoConnection()
+    database = _trino(fake)
+
+    result = database.execute("SELECT 1", read_only=True)
+
+    assert result["v"].tolist() == [1]
+    # The read-only transaction is started by hand (the client has no option
+    # for it), the statement carries its id, then it is rolled back with it.
+    assert [sql for sql, _ in fake.posted] == ["START TRANSACTION READ ONLY"]
+    assert [sql for sql, _ in fake.sent] == ["SELECT 1", "ROLLBACK"]
+    assert fake.transaction_ids == ["txn-1", "txn-1"]
+    # And the connection is back in autocommit for whoever comes next.
+    assert fake._client_session.transaction_id == "NONE"
+
+
+def test_trino_sends_no_transaction_unless_read_only() -> None:
+    fake = _TrinoConnection()
+    database = _trino(fake)
+
+    database.execute("SELECT 1")
+    database.execute("SELECT 2", timeout_s=30)
+
+    assert fake.posted == []
+    assert [sql for sql, _ in fake.sent] == ["SELECT 1", "SELECT 2"]
+    assert fake.transaction_ids == ["NONE", "NONE"]
+
+
+def test_trino_read_only_does_not_outlive_the_statement() -> None:
+    fake = _TrinoConnection(
+        fail=lambda sql, properties: (
+            _TrinoError("READ_ONLY_VIOLATION", "Cannot execute write")
+            if sql.startswith("INSERT")
+            else None
+        )
+    )
+    database = _trino(fake)
+
+    with pytest.raises(_TrinoError, match="Cannot execute write"):
+        database.execute("INSERT INTO t VALUES (1)", read_only=True)
+    database.execute("SELECT 2")
+
+    # The refused write was rolled back, and the next statement is plain.
+    assert [sql for sql, _ in fake.sent] == [
+        "INSERT INTO t VALUES (1)",
+        "ROLLBACK",
+        "SELECT 2",
+    ]
+    assert fake.transaction_ids == ["txn-1", "txn-1", "NONE"]
+    assert fake._client_session.transaction_id == "NONE"
+
+
+def test_trino_read_only_and_timeout_share_the_request() -> None:
+    fake = _TrinoConnection()
+    database = _trino(fake)
+
+    database.execute("SELECT 1", timeout_s=30, read_only=True)
+    database.execute("SELECT 2", read_only=True)
+
+    capped = {"existing": "kept", "query_max_run_time": "30s"}
+    assert fake.posted == [
+        ("START TRANSACTION READ ONLY", capped),
+        ("START TRANSACTION READ ONLY", {"existing": "kept"}),
+    ]
+    assert fake.sent[0] == ("SELECT 1", capped)
+    assert fake._client_session.properties == {"existing": "kept"}
+
+
+def test_trino_read_only_survives_a_denied_timeout_property() -> None:
+    denied = _TrinoError(
+        "PERMISSION_DENIED",
+        "Access Denied: Cannot set system session property query_max_run_time",
+    )
+    fake = _TrinoConnection(
+        fail=lambda sql, properties: (
+            denied if "query_max_run_time" in properties and sql == "SELECT 1" else None
+        )
+    )
+    database = _trino(fake)
+
+    result = database.execute("SELECT 1", timeout_s=30, read_only=True)
+
+    assert result["v"].tolist() == [1]
+    # The retry is read-only too: a transaction per attempt, none left open.
+    assert [sql for sql, _ in fake.posted] == ["START TRANSACTION READ ONLY"] * 2
+    assert fake._client_session.transaction_id == "NONE"
+
+
+def test_trino_read_only_runs_nothing_when_no_transaction_can_start() -> None:
+    fake = _TrinoConnection()
+    fake._create_request = lambda: SimpleNamespace(  # type: ignore[method-assign]
+        post=lambda sql: SimpleNamespace(ok=False, status_code=503, headers={})
+    )
+    database = _trino(fake)
+
+    with pytest.raises(RuntimeError, match="read-only transaction"):
+        database.execute("INSERT INTO t VALUES (1)", read_only=True)
+
+    assert fake.sent == []
+    assert fake._client_session.transaction_id == "NONE"
+
+
+def test_trino_advertises_read_only_execution() -> None:
+    assert TrinoDatabase.supports_read_only_execution is True
+
+
+def _live_trino_or_skip() -> TrinoDatabase:
+    """A Trino with the ``memory`` catalog, from ``TRINO_TEST_URL``.
+
+    e.g. ``trino://probe@localhost:8080/memory?schema=default``
+    """
+    url = os.environ.get("TRINO_TEST_URL")
+    if not url:
+        pytest.skip("TRINO_TEST_URL not set")
+    database = TrinoDatabase(url)
+    try:
+        database.execute("SELECT 1")
+    except Exception as exc:  # noqa: BLE001 - any failure means "no fixture server"
+        pytest.skip(f"trino not reachable: {exc}")
+    return database
+
+
+def test_live_trino_refuses_writes_and_does_not_leak_the_transaction() -> None:
+    database = _live_trino_or_skip()
+    try:
+        database.execute("DROP TABLE IF EXISTS memory.default.read_only_probe")
+        database.execute("CREATE TABLE memory.default.read_only_probe (v int)")
+        for write in (
+            "INSERT INTO memory.default.read_only_probe VALUES (1)",
+            "CREATE TABLE memory.default.read_only_probe2 (v int)",
+            "ALTER TABLE memory.default.read_only_probe ADD COLUMN w int",
+            "DROP TABLE memory.default.read_only_probe",
+        ):
+            with pytest.raises(Exception, match="read-only transaction") as refused:
+                database.execute(write, read_only=True, timeout_s=30)
+            assert getattr(refused.value, "error_name", None) == "READ_ONLY_VIOLATION"
+        # Nothing was written, a read in the same mode works, and the next
+        # call on the same connector is a normal read-write one.
+        frame = database.execute(
+            "SELECT * FROM memory.default.read_only_probe", read_only=True
+        )
+        assert list(frame.columns) == ["v"] and frame.empty
+        database.execute("INSERT INTO memory.default.read_only_probe VALUES (1)")
+        assert (
+            database.execute(
+                "SELECT count(*) FROM memory.default.read_only_probe"
+            ).iloc[0, 0]
+            == 1
+        )
+    finally:
+        database.execute("DROP TABLE IF EXISTS memory.default.read_only_probe")
+        database.close()
 
 
 # ----------------------------------------------------------------------

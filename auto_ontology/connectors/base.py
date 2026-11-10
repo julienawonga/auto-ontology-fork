@@ -130,7 +130,7 @@ class SQLDatabase(ABC):
     #: :mod:`auto_ontology.retrieval.text_to_sql.sql_guard`. A connector that
     #: does not set this is called without it and relies on the guard (and on
     #: the grants of its database user) alone. Set it only where the engine
-    #: enforces it: Snowflake, Databricks, Trino, Kyuubi and HeavyDB have no
+    #: enforces it: Snowflake, Databricks, Kyuubi and HeavyDB have no
     #: per-statement read-only mode this could switch on, so they do not.
     supports_read_only_execution: bool = False
 
