@@ -15,27 +15,23 @@
 # public files — node_modules from the build stage are intentionally excluded.
 # ---------------------------------------------------------------------------
 
-ARG NODE_MAJOR=22
 ARG PNPM_VERSION=10.10.0
-ARG BASE_IMG=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMG_TAG=jammy-20250619
+# Official Node.js image (Node 22 on Debian bookworm), pinned by digest so
+# builds are reproducible. Bump the tag and digest together.
+ARG BASE_IMG=node
+ARG BASE_IMG_TAG=22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
 
 ############################
 # Stage 0: base-node
 ############################
-# Install Node.js on top of the NVIDIA Ubuntu base; shared by every
-# downstream stage so the install only happens once.
+# Node.js comes with the base image; shared by every downstream stage.
 FROM $BASE_IMG:$BASE_IMG_TAG AS base-node
 
-ARG NODE_MAJOR
-# The pinned base image predates later Ubuntu security fixes (libssl3, ...),
-# so apply them first; every later stage builds on this one.
+# The base is pinned by digest, so it can predate later Debian security fixes;
+# apply them first. Every later stage builds on this one.
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
- && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
- && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
- && apt-get install -y --no-install-recommends nodejs \
- && apt-get purge -y --auto-remove curl gnupg \
+ && apt-get install -y --no-install-recommends ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 ############################
