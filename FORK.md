@@ -11,18 +11,21 @@ Upstream does not take external pull requests, so the changes below live here.
 Each one is opt-in or backwards compatible: with no new settings, the fork
 behaves like upstream.
 
-| Feature | Branch | Status |
-|---|---|---|
-| [Any OpenAI-compatible model provider](#any-openai-compatible-model-provider) | `neutral-llm-typing` | Done, verified end to end |
-| [Exclude views from ingestion](#exclude-views-from-ingestion) | `exclude-views-filter` | Done, verified end to end |
-| [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | `collapsible-sql` | Done, verified in the UI |
-| [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | `chat-assistant-ui` | Done, verified in the UI |
-| [Glass design on the Chat page](#glass-design-on-the-chat-page) | `chat-glass` | Done, verified in the UI |
-| [Light/dark theme switcher](#lightdark-theme-switcher) | `theme-switcher` | Done, not yet tested in the UI |
-| [Collapsible navigation](#collapsible-navigation) | `ui-refresh` | Done, not yet tested in the UI |
-| [Blue accent and neutral logo](#blue-accent-and-neutral-logo) | `ui-refresh` | Done, not yet tested in the UI |
-| [Official base images](#official-base-images) | `official-base-images` | Done, verified locally |
-| [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | — | Planned |
+Every feature below is merged into `main`.
+
+| Feature | Area |
+|---|---|
+| [Any OpenAI-compatible model provider](#any-openai-compatible-model-provider) | Backend |
+| [Exclude views from ingestion](#exclude-views-from-ingestion) | Backend, connections |
+| [Official base images](#official-base-images) | Containers, CI |
+| [Glass design across the app](#glass-design-across-the-app) | Frontend |
+| [Sidebar with search and account](#sidebar-with-search-and-account) | Frontend |
+| [Light/dark theme switcher](#lightdark-theme-switcher) | Frontend |
+| [Blue accent and neutral logo](#blue-accent-and-neutral-logo) | Frontend |
+| [Chat-app style thread (assistant-ui)](#chat-app-style-thread-assistant-ui) | Chat |
+| [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | Chat |
+| [Page redesigns](#page-redesigns) | Terms, Analysis, Analytics, Discovery, Exploration |
+| [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | Planned |
 
 ## Any OpenAI-compatible model provider
 
@@ -142,29 +145,66 @@ Code: `frontend/components/chatPage/ChatThread.tsx`,
 `frontend/components/chatPage/MessageBubble.tsx`. It replaces
 `ChatInput.tsx` and `MessageList.tsx`.
 
-## Glass design on the Chat page
+## Glass design across the app
 
-A first step away from the upstream look: the Chat page uses a frosted-glass
-style (translucent panels, background blur, light borders) over a softly
-tinted page, with its own palette and typefaces. Other pages are unchanged.
+Every page uses a frosted-glass style: translucent panels with background
+blur and light borders, over a softly tinted page with two colour fields.
 
 What changed:
 
-- Palette as tokens in `frontend/app/globals.css` (`glass-primary` #1856FF,
-  `glass-secondary`, `glass-success`, `glass-canvas`, …), used through Tailwind
-  classes such as `bg-glass-primary`. Blue replaces the green accent on the
-  Chat page.
-- Plus Jakarta Sans for text and JetBrains Mono for SQL, loaded by
-  `frontend/app/chat/layout.tsx` for the Chat page only.
-- One recipe for the glass surface, hover, focus ring and primary button in
-  `frontend/components/chatPage/glass.ts`, applied to the composer, the
-  question bubble, the conversation list, the scroll button and result cards.
-- A single-value result (such as a total) shows as a card with a large figure.
+- **Surfaces**: two utilities in `frontend/app/globals.css`, `glass` for cards
+  and panels and `glass-strong` for menus, dialogs and side panels that float
+  over content. Page backgrounds are transparent so the tinted ground shows.
+- **Typefaces**: Plus Jakarta Sans for text and JetBrains Mono for code, loaded
+  in `frontend/app/layout.tsx` and mapped to Tailwind's `font-sans` and
+  `font-mono`.
+- **Controls**: rounder buttons (primary in bold), translucent inputs and select
+  fields, pill-shaped tabs, 28px page titles and a 20px card radius
+  (`rounded-card`).
+- **Code blocks** (SQL, raw results, copyable values) follow the theme: light
+  and translucent in light mode, dark in dark mode, with SQL keywords, strings,
+  numbers and comments highlighted (`frontend/lib/sqlHighlight.ts`).
+- **Sign-in, invite and OAuth pages** show their form in a glass card.
 - Visible keyboard focus on every control; text keeps the app's dark tones so
   it stays readable on the frosted surface.
 
-Other pages keep their solid surfaces for now; the accent colour is shared (see
-[Blue accent and neutral logo](#blue-accent-and-neutral-logo)).
+The Chat page keeps its own recipe in `frontend/components/chatPage/glass.ts`.
+The Exploration graph keeps an opaque canvas, because its labels are drawn
+against that exact colour.
+
+## Sidebar with search and account
+
+Upstream splits navigation between a top bar (logo, breadcrumbs, search,
+account) and an icon rail that opens over the page on hover.
+
+What changed:
+
+- The top bar is gone; the sidebar holds the logo, a **Search…** field (also
+  opened with **Ctrl+K**, or **⌘K** on a Mac), the navigation, and the signed-in
+  **account at the bottom**, whose menu opens upward.
+- A toggle at the top switches the sidebar between **open** (icons and labels)
+  and **collapsed** (icons only). The choice is stored per browser.
+- Breadcrumbs show in a slim line above the content, only when a page goes
+  below its section (a database, a term, a tag).
+
+Code: `frontend/common/NavRail.tsx`, `frontend/common/UserMenu.tsx`,
+`frontend/common/PageBar.tsx`, `frontend/lib/navRail.ts`.
+
+## Page redesigns
+
+- **Terms**: compact cards in two columns and a side panel for the selected
+  term (description, first column attributes, counts, tags), with **Open term**
+  for the full page. Double-click or Enter opens a term directly.
+- **Analysis**: cards in two columns, folded to the title and one line of
+  description; the full description and SQL open on demand.
+- **Analytics**: each question asked in chat is a card with its asker, source,
+  time and answer time, and its reasoning and SQL folded behind a toggle,
+  instead of a six-column table with truncated text.
+- **Discovery**: the search sits in a glass bar, and results are cards with a
+  coloured type badge.
+- **Exploration**: the legend lists only the node kinds on the graph, with
+  their counts, and updates as nodes are expanded or collapsed. Terms are blue
+  and column attributes gold in the graph.
 
 ## Light/dark theme switcher
 
@@ -173,8 +213,8 @@ to override it in the app.
 
 What changed:
 
-- **Theme choice in the user menu**: a System / Light / Dark control at the
-  bottom of the avatar menu. The default is System.
+- **Theme choice in the account menu**: a System / Light / Dark control in the
+  menu of the account at the bottom of the sidebar. The default is System.
 - **Stored per browser** (`localStorage`), not per account: no database or API
   change. If storage is blocked, the app falls back to System.
 - **No flash on load**: a small inline script in the root layout sets the
@@ -190,21 +230,6 @@ Code: `frontend/lib/theme.ts`, `frontend/common/ThemeSwitcher.tsx`,
 `frontend/app/globals.css`, `frontend/common/UserMenu.tsx`,
 `frontend/components/explorationPage/graph/GraphCanvas.tsx`.
 
-## Collapsible navigation
-
-Upstream's left navigation is an icon rail that opens over the page on hover
-and closes as soon as the pointer leaves, so the labels cannot stay visible.
-
-What changed:
-
-- A toggle at the top of the rail switches it between **open** (icons and
-  labels) and **collapsed** (icons only), as in common chat apps. The page
-  always sits beside it; the hover overlay is gone.
-- Stored per browser (`localStorage`), like the theme, and shared between tabs.
-  If storage is blocked, the rail stays collapsed.
-
-Code: `frontend/common/NavRail.tsx`, `frontend/lib/navRail.ts`.
-
 ## Blue accent and neutral logo
 
 The upstream green accent and the NVIDIA logo are replaced everywhere, so the
@@ -219,8 +244,9 @@ What changed:
   whole app is now a one-line edit.
 - Every hard-coded green (`#76b900` and its lighter and darker shades, about
   250 uses in 63 files) now uses those tokens.
-- A neutral logo (three linked nodes) replaces the NVIDIA logo in the top bar,
-  the chat, the login and invite pages, and the browser tab icon.
+- A neutral logo (three linked nodes) replaces the NVIDIA logo in the sidebar,
+  the chat, the login and invite pages, the browser tab icon and the MCP
+  server's icon.
 
 Code: `frontend/app/globals.css`, `frontend/common/icons/svg/app-logo.svg`,
 `frontend/public/favicon.svg`, and the class names across `frontend/`.
