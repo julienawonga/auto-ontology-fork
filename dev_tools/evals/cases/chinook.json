@@ -48,7 +48,7 @@
       "gold": [
         {
           "label": "primary",
-          "sql": "SELECT SUM(Total) FROM Invoice",
+          "sql": "SELECT ROUND(SUM(Total), 2) FROM Invoice",
           "expected": [
             [
               2328.6
@@ -66,10 +66,10 @@
       "gold": [
         {
           "label": "primary",
-          "sql": "SELECT AVG(Total) FROM Invoice",
+          "sql": "SELECT ROUND(AVG(Total), 4) FROM Invoice",
           "expected": [
             [
-              5.651941747572815
+              5.6519
             ]
           ]
         }
@@ -86,7 +86,7 @@
       "gold": [
         {
           "label": "primary",
-          "sql": "SELECT SUM(Total) FROM Invoice WHERE InvoiceDate >= '2023-01-01' AND InvoiceDate < '2024-01-01'",
+          "sql": "SELECT ROUND(SUM(Total), 2) FROM Invoice WHERE InvoiceDate >= '2023-01-01' AND InvoiceDate < '2024-01-01'",
           "expected": [
             [
               469.58
@@ -107,7 +107,7 @@
       "gold": [
         {
           "label": "primary",
-          "sql": "SELECT strftime('%Y', InvoiceDate) AS year, SUM(Total) AS sales FROM Invoice GROUP BY year ORDER BY year",
+          "sql": "SELECT strftime('%Y', InvoiceDate) AS year, ROUND(SUM(Total), 2) AS sales FROM Invoice GROUP BY year ORDER BY year",
           "expected": [
             [
               "2021",
@@ -146,7 +146,7 @@
       "gold": [
         {
           "label": "primary",
-          "sql": "SELECT BillingCountry, SUM(Total) AS sales FROM Invoice GROUP BY BillingCountry ORDER BY sales DESC LIMIT 5",
+          "sql": "SELECT BillingCountry, ROUND(SUM(Total), 2) AS sales FROM Invoice GROUP BY BillingCountry ORDER BY sales DESC LIMIT 5",
           "expected": [
             [
               "USA",
@@ -453,7 +453,7 @@
       "gold": [
         {
           "label": "full_name_spend",
-          "sql": "SELECT c.FirstName || ' ' || c.LastName AS customer, SUM(i.Total) AS spent FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY spent DESC LIMIT 1",
+          "sql": "SELECT c.FirstName || ' ' || c.LastName AS customer, ROUND(SUM(i.Total), 2) AS spent FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY spent DESC LIMIT 1",
           "expected": [
             [
               "Helena Hol\u00fd",
@@ -463,7 +463,7 @@
         },
         {
           "label": "split_name_spend",
-          "sql": "SELECT c.FirstName, c.LastName, SUM(i.Total) AS spent FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY spent DESC LIMIT 1",
+          "sql": "SELECT c.FirstName, c.LastName, ROUND(SUM(i.Total), 2) AS spent FROM Customer c JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId ORDER BY spent DESC LIMIT 1",
           "expected": [
             [
               "Helena",
