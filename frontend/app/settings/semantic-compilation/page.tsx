@@ -4,6 +4,7 @@
 
 import { connectionsApi } from '@/api/connections';
 import { requireAdmin } from '@/auth/auth-guards';
+import { userCan } from '@/auth/permissions';
 import { getPrisma } from '@/lib/prisma';
 import { DISTINCT_VALUE_PROBING_ENABLED_KEY, readOptOutFlag } from '@/lib/configurations';
 import { readConnectionsEnvSource } from '@/lib/server/connections';
@@ -13,7 +14,7 @@ const CONFIG_KEY = 'semantic_compilation_enabled';
 const PROBING_CONFIG_KEY = DISTINCT_VALUE_PROBING_ENABLED_KEY;
 
 const SemanticCompilationPage = async () => {
-	await requireAdmin();
+	const session = await requireAdmin();
 	// Fetch on the server so the toggles (and the connected-database hint)
 	// render in the correct state on first paint, with no client-side flash.
 	const [row, probingRow, connections, isEnvSource] = await Promise.all([
@@ -37,6 +38,11 @@ const SemanticCompilationPage = async () => {
 			// ingestion service about what the stored value means.
 			initialProbingEnabled={readOptOutFlag(probingRow?.value)}
 			hasDatabases={hasDatabases}
+			// Decided here, where the role is authoritative; the proxy enforces it again.
+			canManage={userCan(
+				{ id: session.user.id, role: session.user.role ?? null },
+				{ semanticCompilation: ['manage'] },
+			)}
 		/>
 	);
 };

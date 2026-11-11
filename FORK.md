@@ -327,6 +327,11 @@ is first compiled.
 - **Chat** logs a warning when retrieval finds nothing for a database whose index holds none of its Terms, instead of silently
   answering from the raw schema.
 
+On Settings > Semantic Compilation, each database shows its index status (complete, or "N of M missing", in a warning
+style) with a **Rebuild index** button that calls the reindex route. The button needs the `manage` permission and is
+disabled while a compilation runs; a partial result, a 409 (compilation running), a 503 (embedding not configured) and a
+404 are reported in plain text.
+
 Run the reindex after any ingestion that was made while the embedding endpoint was failing, and whenever `missing` is not 0.
 
 ## Matching question wording to stored values
