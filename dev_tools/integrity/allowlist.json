@@ -25,6 +25,126 @@
       "value": "Latin",
       "path": "frontend/app/layout.tsx",
       "reason": "Chinook genre (expected answer of chinook.tracks_per_genre). Reviewed 2026-11-10: the only hits are the Next.js font option subsets: ['latin'] in the root layout, unrelated to the evaluation."
+    },
+    {
+      "value": "United States",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table (US, USA, United States). The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "China",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "India",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "United Kingdom",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Russian Federation",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Netherlands",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Mexico",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Germany",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "France",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Canada",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Brazil",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Norway",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Japan",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Czech Republic",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "A row of the ISO table. The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Western",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "The first word of the ISO row for Western Sahara (EH|ESH). The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Helena",
+      "path": "auto_ontology/retrieval/text_to_sql/value_aliases.py",
+      "reason": "The second word of the ISO row for Saint Helena (SH|SHN). The file is the generic ISO 3166-1 reference table (every country with its alpha-2, alpha-3 and common names) plus the US state postal codes, written as data and checked by a test against an independently written list of all 249 codes. Reviewed 2026-11-11: every hit is a row of that table, none is an answer copied from an evaluation case. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "United States",
+      "path": "auto_ontology/retrieval/text_to_sql/value_linking.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "India",
+      "path": "auto_ontology/retrieval/text_to_sql/value_linking.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "PG-13",
+      "path": "auto_ontology/retrieval/text_to_sql/value_linking.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "Comedy",
+      "path": "auto_ontology/retrieval/text_to_sql/value_linking.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "United States",
+      "path": "auto_ontology/semantic/value_index.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "India",
+      "path": "auto_ontology/semantic/value_index.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "United States",
+      "path": "auto_ontology/server/semantic_compilation/router.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
+    },
+    {
+      "value": "India",
+      "path": "auto_ontology/server/semantic_compilation/router.py",
+      "reason": "Development example quoted in documentation. Reviewed 2026-11-11: in this file the value appears only inside docstrings and comments that explain what the lookup does (checked with the parser: no executable line contains it), so no code path depends on it. Scoped to this file; a copy of this value elsewhere is still detected."
     }
   ]
 }
