@@ -17,7 +17,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from dev_tools.evals.compare import compare_rows
 
@@ -44,6 +44,9 @@ class Case:
     # Sent with the question as the chat request's ``evidence``: context a
     # benchmark supplies (business definitions), never the expected answer.
     evidence: str = ""
+    # The catalog database the question is asked of, for a file that mixes
+    # databases. An explicit ``--target-db`` on the command line wins.
+    target_db: str = ""
 
     def accepted(self) -> dict[str, list[list[Any]]]:
         """Label -> expected rows for every accepted answer."""
@@ -75,7 +78,18 @@ def parse_case(raw: dict[str, Any]) -> Case:
         tags=tuple(raw.get("tags", ())),
         description=raw.get("description", ""),
         evidence=str(raw.get("evidence") or ""),
+        target_db=str(raw.get("database") or ""),
     )
+
+
+def load_many(paths: Sequence[Path]) -> list[Case]:
+    """Load several case files as one list; ids must be unique across them."""
+    cases = [c for path in paths for c in load_cases(path)]
+    ids = [c.id for c in cases]
+    if len(set(ids)) != len(ids):
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        raise ValueError(f"duplicate case ids across the case files: {dupes}")
+    return cases
 
 
 def load_cases(path: Path) -> list[Case]:
