@@ -53,6 +53,31 @@ python -m dev_tools.evals merge main.json rerun.json --out merged.json
 python -m dev_tools.evals compare main.json candidate.json --margin 0.02
 ```
 
+### What `run` checks and records
+
+Before the first question, `run` reads `GET /api/semantic-compilation/status`
+and **refuses to start** (exit 2) when the ontology index is empty or
+incomplete for the target database (`--target-db`; without it, for every
+database), when the target is not in the list, when the endpoint cannot be read,
+or when the backend does not report `index` (an older backend). Fix the index
+(`POST /api/semantic-compilation/reindex?database_name=...`), or pass
+`--allow-empty-index` to measure anyway; the report then says so.
+
+Every report records in its `meta`: `ontology_index` (per database `expected`,
+`indexed`, `missing`), `allow_empty_index` and `ontology_index_problems` when
+overridden, `backend_url`, `git_sha` (of this checkout, not of the backend),
+`cases_file` and `cases_sha256` (a hash of the cases, independent of
+formatting). No documented endpoint reports the backend's version or image, so
+that is not recorded: note the image you ran against in the `--label`.
+
+`compare` refuses (exit 2) to compare two reports whose index state differs
+(for example one populated, one empty) or whose cases files differ; `merge`
+keeps every part's cases hash and index entries, and a part without them makes
+the merged report unknown. `--force` compares anyway and prints the mismatch in
+the output. A report written before these fields existed is "unknown": it is
+compared with a warning. `rescore` stamps the report with the hash of the cases
+file it scored against.
+
 `compare` pairs the two reports question by question. A candidate is accepted
 when its score gains at least `--margin` **and** no question regresses by more
 than `--tolerance`. An improvement on one question does not hide a regression
@@ -99,6 +124,27 @@ Conventions: a ranking question expects the item and its value; a person's
 name may be one column or two, and both are accepted as separate gold answers.
 A case `description` states what the question means where that is not obvious.
 
+### Freezing a case file
+
+A case file may declare `frozen_at` and `frozen_sha256` (a hash of its `cases`).
+`chinook.json` is frozen; `pagila.json` is not. The integrity check
+(`python -m dev_tools.integrity`, run by CI) fails when a frozen file's cases no
+longer match the hash, so editing a held-out set after the fact is a visible,
+reviewable act. To freeze a file, or to accept a deliberate change to one (say
+why in the pull request):
+
+```bash
+python -m dev_tools.integrity freeze dev_tools/evals/cases/chinook.json
+```
+
+The same check scans the shipped code, prompts and frontend for the cases'
+questions, expected values and gold-SQL literals, which would let the engine
+pass by remembering the test. Questions always fail it. A value that is only a
+common word can be listed in `dev_tools/integrity/allowlist.json` with a written
+reason; each entry is reviewed like code, and one without a reason is rejected.
+See [verification-status.md](./verification-status.md) for what has and has not
+been verified for real.
+
 ## Rules for an honest measurement
 
 These exist because each of them was broken at least once.
@@ -115,7 +161,8 @@ These exist because each of them was broken at least once.
 5. **Check that the ontology is in use.** If the backend logs
    `Retrieved 0 ColumnAttributes ... subject Term None` for every question, the
    semantic index is empty and the run measures the raw schema, not the
-   ontology.
+   ontology. `run` now enforces this: it refuses an empty or partial index, and
+   `compare` refuses reports with different index states.
 6. **Keep the machine awake.** A suspended Docker VM stalls the run without
    failing it.
 7. **Small differences are noise.** With 13 questions and three runs, one run

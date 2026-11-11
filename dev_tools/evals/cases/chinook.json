@@ -1,6 +1,8 @@
 {
   "dataset": "chinook",
   "description": "Held-out questions over the Chinook fixture (SQLite, built from dev_tools/fixtures/sql/chinook.sql). Written and frozen before any measurement: do not edit a case after seeing a result. Gold SQL is the source of truth; `expected` rows are a snapshot of it (python -m dev_tools.evals snapshot --dsn sqlite:///...). Invoices span 2021-01-01..2025-12-22.",
+  "frozen_at": "2026-11-10",
+  "frozen_sha256": "4fbe2a00a4b9cffbceae636770bef430135f29e968948b6694a59729adb32a53",
   "cases": [
     {
       "id": "chinook.customer_count",

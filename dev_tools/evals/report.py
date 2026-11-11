@@ -94,8 +94,38 @@ def merge_reports(label: str, reports: list[Report]) -> Report:
     cases: dict[str, CaseResult] = {}
     for report in reports:
         cases.update(report.cases)
-    meta = new_meta(label, merged_from=[r.meta.get("label") for r in reports])
+    meta = new_meta(
+        label,
+        merged_from=[r.meta.get("label") for r in reports],
+        **_merged_provenance(reports),
+    )
     return Report(meta=meta, cases=cases)
+
+
+def _merged_provenance(reports: list[Report]) -> dict[str, Any]:
+    """Keep what every part recorded about its conditions, and drop the rest.
+
+    A merged report is only as well documented as its least documented part, so a
+    field missing from any part is left out (reads as "unknown") rather than
+    letting the parts that have it vouch for the whole.
+    """
+    out: dict[str, Any] = {}
+    if all("cases_sha256" in r.meta for r in reports):
+        hashes = sorted(
+            {
+                h
+                for r in reports
+                for h in (
+                    [r.meta["cases_sha256"]]
+                    if isinstance(r.meta["cases_sha256"], str)
+                    else r.meta["cases_sha256"]
+                )
+            }
+        )
+        out["cases_sha256"] = hashes[0] if len(hashes) == 1 else hashes
+    if all(isinstance(r.meta.get("ontology_index"), list) for r in reports):
+        out["ontology_index"] = [e for r in reports for e in r.meta["ontology_index"]]
+    return out
 
 
 def git_sha() -> str | None:

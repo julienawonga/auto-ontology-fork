@@ -16,6 +16,10 @@ on:
       - 'auto_ontology/**'
       - 'dev_tools/**'
       - 'alembic/**'
+      # The integrity check scans what ships, and the register is checked there too.
+      - 'frontend/**'
+      - 'mcp/**'
+      - 'docs/verification-status.md'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/ci-python.yml'
@@ -128,6 +132,13 @@ jobs:
       # the base tree, so this costs a few seconds and needs no index access.
       - name: Install dependencies
         run: uv sync --locked --extra kumo
+
+      # Fails when the shipped code or prompts contain an eval question or answer
+      # (fitting the test), a frozen case file was edited, or the verification
+      # register is malformed. Standard library only, so it runs before anything
+      # is seeded and fails fast.
+      - name: Integrity checks (no fitted evaluation, valid verification register)
+        run: uv run --no-sync python -m dev_tools.integrity
 
       # Everything below is the documented local setup from
       # dev_tools/fixtures/sql/README.md, in the same order. No credentials:

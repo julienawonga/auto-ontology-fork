@@ -300,6 +300,14 @@ database user's grants. Details: [docs/query-safety.md](./docs/query-safety.md).
 
 Code: `auto_ontology/retrieval/text_to_sql/sql_guard.py`, `chat_sql.py`, `auto_ontology/connectors/*.py`.
 
+## Verification register and integrity checks
+
+[docs/verification-status.md](./docs/verification-status.md) lists every capability above with the level it was actually
+verified at (`REAL-E2E`, `REAL-ENGINE`, `FAKES` or `UNVERIFIED`) and the evidence. `python -m dev_tools.integrity`, run in
+CI, fails when the shipped code contains an eval question or answer, when a frozen case file was edited, or when a
+register row is malformed. The eval harness refuses an empty semantic index and refuses to compare reports taken under
+different conditions.
+
 ## Evaluation harness
 
 `dev_tools/evals` scores a running backend against questions with known answers by comparing the rows the generated SQL
