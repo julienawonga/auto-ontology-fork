@@ -121,6 +121,20 @@ def test_ask_reads_the_stream_over_http() -> None:
     assert sent["body"] == {"question": "How many customers?", "target_db": "pagila"}
 
 
+def test_ask_sends_case_evidence_with_the_question() -> None:
+    """Benchmark definitions travel as the chat's ``evidence`` field."""
+    sent: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent["body"] = json.loads(request.content)
+        return httpx.Response(200, text="\n".join(_frames({"type": "result"})))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        ask(client, "http://backend:3001", "Count VIPs", evidence="VIP: spend > 15")
+
+    assert sent["body"] == {"question": "Count VIPs", "evidence": "VIP: spend > 15"}
+
+
 def test_ask_reports_http_errors() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(409, text="semantic layer missing")

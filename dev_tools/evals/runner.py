@@ -113,12 +113,15 @@ def ask(
     question: str,
     *,
     target_db: str | None = None,
+    evidence: str = "",
     timeout: float = DEFAULT_TIMEOUT_S,
 ) -> Answer:
     """Send one question and fold the stream into an ``Answer``."""
     body: dict[str, Any] = {"question": question}
     if target_db:
         body["target_db"] = target_db
+    if evidence:
+        body["evidence"] = evidence
     started = time.perf_counter()
     try:
         with client.stream(
@@ -198,6 +201,7 @@ def run_cases(
                         base_url,
                         case.question,
                         target_db=target_db,
+                        evidence=case.evidence,
                         timeout=timeout,
                     ),
                 )
