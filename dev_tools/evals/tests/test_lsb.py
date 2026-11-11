@@ -26,6 +26,7 @@ from dev_tools.evals.lsb import (
     build_cases,
     format_knowledge,
     mcnemar_exact,
+    merge_scores,
     normalize_sql,
     normalize_value,
     official_clean,
@@ -450,6 +451,37 @@ def test_score_report_refuses_a_case_with_no_database_anywhere() -> None:
         )
 
 
+def test_same_label_reports_score_on_their_own_databases() -> None:
+    """A run saved as one report per database: each report's target_db
+    fallback must be applied before the scores are merged, or every database's
+    questions would run against the first report's database."""
+    cases = [_case("a", db=""), _case("b", db="")]  # frozen-report cases
+    one = _report("eng", {"a": ["good"]})
+    one.meta["target_db"] = "alien"
+    two = _report("eng", {"b": ["good"]})
+    two.meta["target_db"] = "museum"
+    db = FakeDb({GOLD_SQL: [[1]], "good": [[1]]})
+    scores = merge_scores(
+        [
+            score_report(one, cases, db, mode=CLEAN),
+            score_report(two, cases, db, mode=CLEAN),
+        ]
+    )
+    assert len(scores) == 1 and scores[0].tier_scores()["Overall"] == (2, 1.0)
+    assert [d for d, _ in db.calls] == ["alien", "alien", "museum", "museum"]
+
+
+def test_merged_scores_refuse_the_same_question_twice() -> None:
+    one = score_report(
+        _report("eng", {"a": ["good"]}), [_case("a")], FakeDb({}), mode=CLEAN
+    )
+    two = score_report(
+        _report("eng", {"a": ["good"]}), [_case("a")], FakeDb({}), mode=CLEAN
+    )
+    with pytest.raises(ValueError, match="own --label"):
+        merge_scores([one, two])
+
+
 def test_official_mode_breaks_a_gold_query_that_uses_is_distinct_from() -> None:
     """The official rewrite mangles IS DISTINCT FROM; the gold then scores 0
     for everyone, exactly as the benchmark's own harness would score it."""
@@ -681,6 +713,17 @@ def test_cli_build_refuses_an_output_inside_the_repository(tmp_path: Path) -> No
 def test_executor_needs_a_database_placeholder() -> None:
     with pytest.raises(ValueError, match=r"\{db\}"):
         PostgresExecutor("postgresql://u:p@h/fixed")
+
+
+def test_executor_refuses_an_empty_database_name() -> None:
+    """An empty name would connect to a default database (the user's name)
+    and score one database's questions on another."""
+    executor = PostgresExecutor("postgresql://u:p@h/{db}")
+    try:
+        with pytest.raises(ValueError, match="no database named"):
+            executor("", "SELECT 1")
+    finally:
+        executor.close()
 
 
 def test_cli_build_needs_kb_dir_only_with_oracle(

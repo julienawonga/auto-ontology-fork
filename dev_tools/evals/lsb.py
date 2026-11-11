@@ -491,6 +491,10 @@ class PostgresExecutor:
                 self._discard(conn)  # unusable: the next call reconnects
 
     def __call__(self, database: str, sql: str) -> list[list[Any]]:
+        if not database:
+            # an empty name would silently connect to a default database
+            # (the user's name), scoring one database's questions on another
+            raise ValueError("no database named: the case or report names none")
         assert_single_statement(sql)
         conn = self._connect(database)
         try:
@@ -714,6 +718,34 @@ def paired_counts(a: OfficialScore, b: OfficialScore) -> Paired:
         only_b += pb and not pa
         neither += not pa and not pb
     return Paired(both, only_a, only_b, neither, mcnemar_exact(only_a, only_b))
+
+
+def merge_scores(scores: Sequence[OfficialScore]) -> list[OfficialScore]:
+    """Combine the scores of reports that share a label into one score.
+
+    A benchmark run is often saved as one report per database under the same
+    label (``main-alien.json``, ``main-museum.json``, ...); each report resolves
+    its own ``target_db`` fallback first, so the merge cannot send one
+    database's questions to another database. Two reports with the same label
+    that hold the same question are an error: relabel one.
+    """
+    merged: dict[str, OfficialScore] = {}
+    for score in scores:
+        combined = merged.setdefault(
+            score.label, OfficialScore(score.label, {}, {}, {})
+        )
+        overlap = sorted(combined.outcomes.keys() & score.outcomes.keys())
+        if overlap:
+            raise ValueError(
+                f"reports labelled {score.label!r} both hold "
+                f"{', '.join(overlap[:5])}"
+                + (" ..." if len(overlap) > 5 else "")
+                + "; give one of them its own --label"
+            )
+        combined.outcomes.update(score.outcomes)
+        combined.tiers.update(score.tiers)
+        combined.gold_problems.update(score.gold_problems)
+    return list(merged.values())
 
 
 def render_scores(scores: Sequence[OfficialScore]) -> str:

@@ -51,6 +51,7 @@ from dev_tools.evals.lsb import (
     PostgresExecutor,
     build_cases,
     load_jsonl,
+    merge_scores,
     render_scores,
     score_report,
     write_case_files,
@@ -274,31 +275,6 @@ def _cmd_lsb_build(args: argparse.Namespace) -> int:
     return 0
 
 
-def _merge_same_label(reports: list[Report]) -> list[Report]:
-    """Combine the reports that share a label into one, cases unioned.
-
-    A benchmark run is often saved as one report per database under the same
-    label (``main-alien.json``, ``main-museum.json``, ...); scoring them as one
-    report gives one set of tier numbers and one paired comparison. Two reports
-    with the same label that hold the same question are an error: relabel one.
-    """
-    merged: dict[str, Report] = {}
-    for report in reports:
-        label = str(report.meta.get("label", "?"))
-        if label not in merged:
-            merged[label] = Report(meta={**report.meta}, cases={})
-        combined = merged[label]
-        overlap = sorted(combined.cases.keys() & report.cases.keys())
-        if overlap:
-            raise ValueError(
-                f"reports labelled {label!r} both hold {', '.join(overlap[:5])}"
-                + (" ..." if len(overlap) > 5 else "")
-                + "; give one of them its own --label"
-            )
-        combined.cases.update(report.cases)
-    return list(merged.values())
-
-
 def _cmd_lsb_score(args: argparse.Namespace) -> int:
     if "{db}" not in args.dsn_template:
         print("error: --dsn-template must contain {db}", file=sys.stderr)
@@ -332,19 +308,18 @@ def _cmd_lsb_score(args: argparse.Namespace) -> int:
                 )
                 return 2
             print(f"WARNING (--allow-cases-mismatch): {message}", file=sys.stderr)
-    try:
-        reports = _merge_same_label(reports)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
     fetch_cap = OFFICIAL_FETCH_CAP if args.mode == OFFICIAL else None
     executor = PostgresExecutor(args.dsn_template, args.timeout_s, fetch_cap=fetch_cap)
     gold_cache: dict[str, Any] = {}
     try:
-        scores = [
-            score_report(r, cases, executor, mode=args.mode, gold_cache=gold_cache)
-            for r in reports
-        ]
+        # each report resolves its own target_db fallback before the scores of
+        # reports that share a label are combined into one
+        scores = merge_scores(
+            [
+                score_report(r, cases, executor, mode=args.mode, gold_cache=gold_cache)
+                for r in reports
+            ]
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

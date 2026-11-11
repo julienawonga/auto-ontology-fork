@@ -278,9 +278,10 @@ What each step does and decides:
   (`simple`, `moderate`, `challenging`) are accepted like `tier:` tags, and a
   case that names no database falls back to the report's `meta.target_db`
   (frozen reports were run per database with `--target-db`). Reports that
-  share a label are scored as one report, so a run saved as one file per
-  database still gives one set of numbers and one paired comparison; two
-  same-label reports holding the same question are refused. A report whose
+  share a label are scored as one -- each report's `target_db` fallback
+  applied first, so a run saved as one file per database still gives one set
+  of numbers and one paired comparison -- and two same-label reports holding
+  the same question are refused. A report whose
   `meta.cases_sha256` matches none of the `--cases` files is refused (it was
   measured on different questions) unless `--allow-cases-mismatch` is passed.
   Both queries run in a read-only, statement-timeout-bounded Postgres session
