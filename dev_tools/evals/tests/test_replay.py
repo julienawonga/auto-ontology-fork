@@ -7,13 +7,20 @@ import time
 from pathlib import Path
 from typing import Any
 
+from dataclasses import replace
+
 import pytest
 
 from dev_tools.evals import __main__ as cli
 from dev_tools.evals import replay as replay_mod
 from dev_tools.evals import runner
 from dev_tools.evals.cases import Case, GoldAnswer
-from dev_tools.evals.replay import apply_replay, replay_report, select_replay
+from dev_tools.evals.replay import (
+    apply_replay,
+    is_infrastructure_failure,
+    replay_report,
+    select_replay,
+)
 from dev_tools.evals.report import CaseResult, Report, Run
 from dev_tools.evals.runner import MAX_WORKERS, Answer, Job, clamp_workers, run_jobs
 
@@ -26,27 +33,41 @@ def _run(
     passed: bool = False,
     sql: str | None = None,
     seconds: float = 0.1,
-    reason: str = "x",
+    reason: str = "error",
+    error: str | None = "boom",
 ) -> Run:
-    return Run(passed, reason, sql=sql, seconds=seconds)
+    return Run(passed, reason, sql=sql, seconds=seconds, error=error)
 
 
 def _report(label: str = "eng") -> Report:
     report = Report(meta={"label": label, "backend_url": "http://x"})
     report.cases = {
-        "infra": CaseResult("q", [_run()]),  # no sql, instant: replay
-        "slow": CaseResult("q", [_run(seconds=30.0)]),  # no sql but took long
-        "wrong": CaseResult("q", [_run(sql="SELECT 1", seconds=0.2)]),  # real answer
+        "infra": CaseResult("q", [_run()]),  # errored, no sql, instant: replay
+        "slow": CaseResult("q", [_run(seconds=30.0)]),  # errored but took long
+        "wrong": CaseResult("q", [_run(sql="SELECT 1", seconds=0.2)]),  # answer
         "ok": CaseResult("q", [_run(passed=True, sql="SELECT 1")]),
         "edge": CaseResult("q", [_run(seconds=5.0)]),  # exactly the limit: kept
+        "quiet": CaseResult("q", [_run(reason="values", error=None)]),
         "mixed": CaseResult("q", [_run(passed=True, sql="S"), _run(seconds=1.0)]),
     }
     return report
 
 
-def test_select_replay_picks_failed_no_sql_runs_under_the_limit() -> None:
+def test_select_replay_picks_errored_no_sql_runs_under_the_limit() -> None:
     assert select_replay(_report(), 5.0) == [("infra", 0), ("mixed", 1)]
     assert select_replay(_report(), 6.0) == [("infra", 0), ("edge", 0), ("mixed", 1)]
+
+
+def test_an_instant_failure_without_an_error_is_not_infrastructure() -> None:
+    """No SQL in under 5 s alone is not enough: it must have errored.
+
+    A run that failed without recording an error (a scoring verdict, say) says
+    something about the engine; re-running it would bias the comparison.
+    """
+    quiet = Run(False, "values", seconds=0.1)  # no error, no sql, instant
+    assert not is_infrastructure_failure(quiet, 5.0)
+    assert is_infrastructure_failure(replace(quiet, error="pool exhausted"), 5.0)
+    assert is_infrastructure_failure(replace(quiet, reason="error"), 5.0)
 
 
 def test_the_rule_is_independent_of_the_engine() -> None:
@@ -190,6 +211,26 @@ def test_run_jobs_never_exceeds_the_cap(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(runner, "ask", _fake_ask([], gauge))
     run_jobs([Job(_case(f"c{i}"), 0) for i in range(30)], "http://x", workers=100)
     assert gauge["peak"] <= MAX_WORKERS
+
+
+def test_run_jobs_records_an_unexpected_exception_as_that_cases_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-HTTP exception in one worker (a bug, a case without a snapshot)
+    must not abort the whole run: it becomes that case's error."""
+
+    def ask(client: Any, url: str, question: str, **kw: Any) -> runner.Answer:
+        if question == "question bad":
+            raise RuntimeError("scoring bug")
+        return Answer(sql="S", rows=[[1]], seconds=0.1)
+
+    monkeypatch.setattr(runner, "ask", ask)
+    runs = run_jobs(
+        [Job(_case("bad"), 0), Job(_case("good"), 1)], "http://x", workers=2
+    )
+    assert [r.reason for r in runs] == ["error", "match"]
+    assert runs[0].sql is None and "RuntimeError: scoring bug" in (runs[0].error or "")
+    assert runs[1].passed  # the other worker's result survived
 
 
 def test_run_cases_keeps_repeat_order_and_routes_each_case_to_its_database(

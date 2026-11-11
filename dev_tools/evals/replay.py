@@ -3,12 +3,13 @@
 """Re-run the runs that failed because of the infrastructure, not the engine.
 
 Under load the backend can fail a question instantly (an exhausted connection
-pool, a refused connection): no SQL, a few milliseconds. That says nothing
-about the engine. One rule picks those runs, the same for every engine: a run
-that **failed with no SQL in under ``max_seconds``**. They are run again and
-replace their slot in a copy of the report; the runs they replace stay in the
-report's ``meta.replay`` so nothing is lost. A run that produced SQL, or took
-longer, is never touched, however it scored.
+pool, a refused connection): an **error**, no SQL, a few milliseconds. That says
+nothing about the engine. One rule picks those runs, the same for every engine:
+a run that **errored** (``error`` set, or reason ``"error"``), **produced no
+SQL** and took **under ``max_seconds``**. They are run again and replace their
+slot in a copy of the report; the runs they replace stay in the report's
+``meta.replay`` so nothing is lost. A run that produced SQL, that recorded no
+error, or that took longer, is never touched, however it scored.
 """
 
 from __future__ import annotations
@@ -24,7 +25,9 @@ DEFAULT_MAX_SECONDS = 5.0
 
 
 def is_infrastructure_failure(run: Run, max_seconds: float) -> bool:
-    return not run.passed and not run.sql and run.seconds < max_seconds
+    """An errored run with no SQL in under *max_seconds*: infrastructure, not an answer."""
+    errored = run.error is not None or run.reason == "error"
+    return errored and not run.passed and not run.sql and run.seconds < max_seconds
 
 
 def select_replay(
@@ -58,7 +61,7 @@ def apply_replay(
     meta = {
         **report.meta,
         "replay": {
-            "rule": f"failed, no SQL, under {max_seconds:g}s",
+            "rule": f"errored, no SQL, under {max_seconds:g}s",
             "replaced": history,
         },
     }

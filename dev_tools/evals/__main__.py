@@ -26,6 +26,7 @@ python -m dev_tools.evals run --cases lsb/*.json --workers 4 --label main --out 
 python -m dev_tools.evals replay main.json --cases lsb/*.json
 python -m dev_tools.evals lsb-score --reports main.replayed.json cand.replayed.json \
     --cases lsb/*.json --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
+#   (official metric by default; --mode clean for our stricter reading of it)
 """
 
 from __future__ import annotations
@@ -43,6 +44,10 @@ from dev_tools.evals.cases import (
     snapshot_file,
 )
 from dev_tools.evals.lsb import (
+    CLEAN,
+    MODES,
+    OFFICIAL,
+    OFFICIAL_FETCH_CAP,
     PostgresExecutor,
     build_cases,
     load_jsonl,
@@ -235,7 +240,7 @@ def _cmd_lsb_build(args: argparse.Namespace) -> int:
         result = build_cases(
             load_jsonl(Path(args.public)),
             load_jsonl(Path(args.gt)),
-            Path(args.kb_dir),
+            Path(args.kb_dir) if args.kb_dir else None,
             oracle=args.oracle,
         )
     except (ValueError, OSError) as exc:
@@ -269,27 +274,75 @@ def _cmd_lsb_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _merge_same_label(reports: list[Report]) -> list[Report]:
+    """Combine the reports that share a label into one, cases unioned.
+
+    A benchmark run is often saved as one report per database under the same
+    label (``main-alien.json``, ``main-museum.json``, ...); scoring them as one
+    report gives one set of tier numbers and one paired comparison. Two reports
+    with the same label that hold the same question are an error: relabel one.
+    """
+    merged: dict[str, Report] = {}
+    for report in reports:
+        label = str(report.meta.get("label", "?"))
+        if label not in merged:
+            merged[label] = Report(meta={**report.meta}, cases={})
+        combined = merged[label]
+        overlap = sorted(combined.cases.keys() & report.cases.keys())
+        if overlap:
+            raise ValueError(
+                f"reports labelled {label!r} both hold {', '.join(overlap[:5])}"
+                + (" ..." if len(overlap) > 5 else "")
+                + "; give one of them its own --label"
+            )
+        combined.cases.update(report.cases)
+    return list(merged.values())
+
+
 def _cmd_lsb_score(args: argparse.Namespace) -> int:
     if "{db}" not in args.dsn_template:
         print("error: --dsn-template must contain {db}", file=sys.stderr)
         return 2
-    cases = load_many(_case_paths(args.cases))
+    paths = _case_paths(args.cases)
+    try:
+        cases = load_many(paths)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     reports = [Report.load(Path(p)) for p in args.reports]
-    labels = [str(r.meta.get("label", "?")) for r in reports]
-    for i, report in enumerate(reports):
-        if labels.count(labels[i]) > 1:
-            report.meta["label"] = f"{labels[i]}#{i + 1}"
-    executor = PostgresExecutor(args.dsn_template, args.timeout_s)
+    # A report measured on a different cases file must not be scored silently
+    # against this one: its runs answer different questions.
+    hashes = {file_cases_sha256(p): p.name for p in paths}
+    for name, report in zip(args.reports, reports):
+        label = str(report.meta.get("label") or Path(name).name)
+        recorded = report.meta.get("cases_sha256")
+        if recorded is None:
+            continue
+        wanted = recorded if isinstance(recorded, list) else [recorded]
+        unknown = [h for h in wanted if h not in hashes]
+        if unknown:
+            message = (
+                f"{label}: the report was measured on a cases file that is not "
+                f"among --cases ({len(unknown)} of its hashes match none of them)"
+            )
+            if not args.allow_cases_mismatch:
+                print(
+                    f"error: {message}; pass --allow-cases-mismatch to score anyway",
+                    file=sys.stderr,
+                )
+                return 2
+            print(f"WARNING (--allow-cases-mismatch): {message}", file=sys.stderr)
+    try:
+        reports = _merge_same_label(reports)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    fetch_cap = OFFICIAL_FETCH_CAP if args.mode == OFFICIAL else None
+    executor = PostgresExecutor(args.dsn_template, args.timeout_s, fetch_cap=fetch_cap)
     gold_cache: dict[str, Any] = {}
     try:
         scores = [
-            score_report(
-                r,
-                cases,
-                executor,
-                strip_aggregate_distinct=args.strip_aggregate_distinct,
-                gold_cache=gold_cache,
-            )
+            score_report(r, cases, executor, mode=args.mode, gold_cache=gold_cache)
             for r in reports
         ]
     except ValueError as exc:
@@ -297,6 +350,7 @@ def _cmd_lsb_score(args: argparse.Namespace) -> int:
         return 2
     finally:
         executor.close()
+    print(f"mode: {args.mode}")
     print(render_scores(scores))
     return 0
 
@@ -441,7 +495,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build.add_argument("--public", required=True, help="livesqlbench_data.jsonl")
     build.add_argument("--gt", required=True, help="ground-truth jsonl (kept private)")
-    build.add_argument("--kb-dir", required=True, help="dir holding <db>/<db>_kb.jsonl")
+    build.add_argument(
+        "--kb-dir", help="dir holding <db>/<db>_kb.jsonl; required with --oracle"
+    )
     build.add_argument("--out", required=True, help="output dir, outside this repo")
     build.add_argument(
         "--oracle",
@@ -468,15 +524,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout-s", type=float, default=60.0, help="statement timeout per query"
     )
     lsb.add_argument(
-        "--strip-aggregate-distinct",
+        "--mode",
+        choices=MODES,
+        default=OFFICIAL,
+        help=f"'{OFFICIAL}' (default) transcribes the benchmark's own metric, "
+        f"quirks included; '{CLEAN}' is our more careful reading of the same "
+        "published rule (see docs/evaluation.md for every difference)",
+    )
+    lsb.add_argument(
+        "--allow-cases-mismatch",
         action="store_true",
-        help="also strip DISTINCT inside aggregates such as COUNT(DISTINCT x)",
+        help="score although a report's cases_sha256 matches none of the --cases "
+        "files (the report was measured on different questions)",
     )
     lsb.set_defaults(func=_cmd_lsb_score)
 
     rep = sub.add_parser(
         "replay",
-        help="re-run runs that failed with no SQL in under N seconds",
+        help="re-run runs that errored with no SQL in under N seconds",
     )
     rep.add_argument("reports", nargs="+", help="reports; originals are not modified")
     rep.add_argument("--cases", nargs="+", required=True)

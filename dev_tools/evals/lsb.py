@@ -8,16 +8,27 @@ writes them to, the repository: every function takes paths, and ``lsb-build``
 refuses an output directory inside the checkout.
 
 ``build_cases`` turns the SELECT ("Query") tasks into one case file per database.
-``official_match`` re-implements the benchmark's SELECT metric (our own code):
+There are two scoring modes (``lsb-score --mode``):
 
-1. strip comments, ``DISTINCT`` (but not ``DISTINCT ON``) and ``ROUND(x, n)`` from
-   the predicted *and* the gold query,
-2. run both in a read-only transaction under a statement timeout,
-3. normalise the rows (dates to ``YYYY-MM-DD``, every number to 2 decimals with
-   ROUND_HALF_UP, nested values as JSON text),
-4. compare as sets, or as lists when the task requires an order.
+``official`` (the default) transcribes the benchmark's SELECT metric as it is
+written, quirks included: a plain-regex rewrite that also strips
+``COUNT(DISTINCT x)`` and breaks ``IS DISTINCT FROM`` (the official code does
+both), ``ROUND(x)`` and ``ROUND(x, n)`` replaced by the bare first argument with
+no added parentheses, whitespace collapsed to single spaces even inside string
+literals, at most 10,000 rows read, and numbers rounded to 2 decimals
+ROUND_HALF_UP before comparison, including numbers nested in arrays and JSON.
 
-An error or an empty result on either side scores 0.
+``clean`` is our own, more careful reading of the same published rule: only the
+``SELECT DISTINCT`` modifier is stripped (``DISTINCT ON``, ``COUNT(DISTINCT x)``
+and ``IS DISTINCT FROM`` keep their meaning), ``ROUND(x, n)`` becomes ``(x)``
+so precedence is kept, comments are removed by a quote-aware tokenizer, string
+literals are never touched, and non-finite numbers compare as text instead of
+erroring. `docs/evaluation.md` lists every difference.
+
+Both modes run the rewritten queries in a read-only, statement-timeout-bounded
+Postgres session, turn dates into ``YYYY-MM-DD``, compare the rows as sets, or
+as lists when the task requires an order, and score 0 for an error or an empty
+result on either side.
 """
 
 from __future__ import annotations
@@ -26,7 +37,7 @@ import datetime as dt
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import ROUND_HALF_UP, Context, Decimal
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
@@ -37,8 +48,21 @@ from dev_tools.evals.report import Report
 SOURCE = "livesqlbench-base-lite"
 TIERS = ("Simple", "Moderate", "Challenging")
 TIER_TAG = "tier:"
+# Frozen reports use plain lowercase tier tags; lsb-build writes "tier:Simple".
+PLAIN_TIERS = {tier.lower(): tier for tier in TIERS}
 GOLD_LABEL = "gold"
 DEFAULT_STATEMENT_TIMEOUT_S = 60.0
+
+# Scoring modes: "official" transcribes the benchmark's own metric (default),
+# "clean" is our more careful reading of the same published rule.
+OFFICIAL = "official"
+CLEAN = "clean"
+MODES = (OFFICIAL, CLEAN)
+# The benchmark's own harness reads at most 10,000 rows per query.
+OFFICIAL_FETCH_CAP = 10_000
+# Report ids (and lsb-build case ids) may carry an "lsb." prefix the other
+# side lacks; matching ignores it.
+ID_PREFIX = "lsb."
 
 # ---------------------------------------------------------------- SQL rewriting
 
@@ -82,12 +106,13 @@ def strip_comments(sql: str) -> str:
     )
 
 
-def strip_distinct(sql: str, *, aggregates: bool = False) -> str:
+def strip_distinct(sql: str) -> str:
     """Drop the ``SELECT DISTINCT`` modifier; ``DISTINCT ON`` stays.
 
     ``COUNT(DISTINCT x)`` and ``IS DISTINCT FROM`` are left alone: removing them
-    changes what the query computes, not just its row set. ``aggregates=True``
-    also strips the aggregate form, for a benchmark rule that does.
+    changes what the query computes, not just its row set. The official metric
+    strips them anyway; ``lsb-score --mode official`` does, ``--mode clean``
+    uses this function.
     """
     tokens = tokenize(sql)
     for i, (kind, text) in enumerate(tokens):
@@ -98,9 +123,28 @@ def strip_distinct(sql: str, *, aggregates: bool = False) -> str:
         after = tokens[nxt][1].upper() if nxt is not None else ""
         if after == "ON":
             continue
-        if before == "SELECT" or (aggregates and before == "("):
+        if before == "SELECT":
             tokens[i] = ("ws", "")
     return _join(tokens)
+
+
+def assert_single_statement(sql: str) -> None:
+    """Raise ``ValueError`` unless *sql* is exactly one SQL statement.
+
+    psycopg runs multi-statement strings in one ``execute`` call, so
+    ``SELECT 1; COMMIT; <anything>`` would escape a read-only transaction.
+    A semicolon inside a string literal, a quoted identifier, a dollar-quoted
+    block or a comment is not a separator: the tokenizer knows those. A single
+    trailing semicolon is fine.
+    """
+    seen_separator = False
+    for kind, text in tokenize(sql):
+        if (kind, text) == ("other", ";"):
+            seen_separator = True
+        elif kind not in ("ws", "comment") and seen_separator:
+            raise ValueError(
+                "multiple statements in one query are not allowed: " + sql[:120]
+            )
 
 
 def _matching_paren(tokens: Sequence[Token], open_at: int) -> int | None:
@@ -158,12 +202,97 @@ def strip_round(sql: str) -> str:
     return _join(_strip_round(tokenize(sql)))
 
 
-def normalize_sql(sql: str, *, strip_aggregate_distinct: bool = False) -> str:
-    """The query as the benchmark's metric runs it."""
-    out = strip_round(
-        strip_distinct(strip_comments(sql), aggregates=strip_aggregate_distinct)
-    )
-    return out.strip().rstrip(";").strip()
+# ------------------------------------------------------- the official rewrites
+# A transcription of the benchmark's own SELECT-metric rewrite (its logic, our
+# code; quirks reproduced on purpose so ``--mode official`` scores exactly as
+# the official harness does).
+
+_OFFICIAL_DISTINCT_RE = re.compile(r"\bDISTINCT\b(?![^()]*\bON\b)", re.IGNORECASE)
+_OFFICIAL_ROUND_RE = re.compile(r"ROUND\s*\(", re.IGNORECASE)
+
+
+def official_strip_comments(sql: str) -> str:
+    """Plain-regex comment removal, exactly as the official code does it.
+
+    Not quote-aware: a ``--`` inside a string literal still starts a "comment",
+    and a ``--`` comment with no newline after it is **not** removed.
+    """
+    s = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
+    s = re.sub(r"--.*?(\r\n|\r|\n)", r"\1", s)
+    s = re.sub(r"\n\s*\n+", "\n", s)
+    return s.strip()
+
+
+def official_strip_distinct(sql: str) -> str:
+    """Remove every ``DISTINCT`` that is not (soon) followed by ``ON``.
+
+    ``COUNT(DISTINCT x)`` loses its ``DISTINCT`` and ``a IS DISTINCT FROM b``
+    becomes a syntax error -- exactly like the official code. All whitespace,
+    including inside string literals, collapses to single spaces.
+    """
+    q = _OFFICIAL_DISTINCT_RE.sub("", sql)
+    return re.sub(r"\s+", " ", q).strip()
+
+
+def _official_matching_paren(s: str, open_at: int) -> int:
+    depth = 0
+    for i in range(open_at, len(s)):
+        if s[i] == "(":
+            depth += 1
+        elif s[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+    return -1
+
+
+def _official_first_arg_end(s: str, start: int) -> int:
+    """End of the first argument: the first top-level comma, else the paren."""
+    depth = 0
+    for i in range(start, len(s)):
+        if s[i] == "(":
+            depth += 1
+        elif s[i] == ")":
+            if depth == 0:
+                return i
+            depth -= 1
+        elif s[i] == "," and depth == 0:
+            return i
+    return len(s)
+
+
+def official_strip_round(s: str) -> str:
+    """Replace ``ROUND(x, n)`` **and** ``ROUND(x)`` by the bare ``x``.
+
+    No parentheses are added, so ``2 * ROUND(a + b, 2)`` becomes
+    ``2 * a + b`` and changes meaning -- as in the official code. Unbalanced
+    parentheses leave the rest of the string alone.
+    """
+    while True:
+        m = _OFFICIAL_ROUND_RE.search(s)
+        if m is None:
+            return s
+        op = m.end() - 1
+        cp = _official_matching_paren(s, op)
+        if cp == -1:
+            return s
+        e1 = _official_first_arg_end(s, op + 1)
+        s = s[: m.start()] + s[op + 1 : e1].strip() + s[cp + 1 :]
+
+
+def official_clean(sql: str) -> str:
+    """The query as the benchmark's own metric runs it."""
+    return official_strip_round(official_strip_distinct(official_strip_comments(sql)))
+
+
+def normalize_sql(sql: str, *, mode: str = OFFICIAL) -> str:
+    """The query as the chosen metric runs it (``official`` by default)."""
+    if mode == OFFICIAL:
+        return official_clean(sql)
+    if mode == CLEAN:
+        out = strip_round(strip_distinct(strip_comments(sql)))
+        return out.strip().rstrip(";").strip()
+    raise ValueError(f"unknown mode {mode!r}; expected one of {MODES}")
 
 
 def repair_trailing_comma(sql: str) -> str:
@@ -191,8 +320,32 @@ _CENTS = Decimal("0.01")
 _PRECISE = Context(prec=100)
 
 
-def normalize_value(value: Any) -> Any:
-    """One cell as the metric sees it: hashable, dates as text, numbers to cents."""
+def _official_round_number(value: Decimal | float) -> float:
+    """2 decimals ROUND_HALF_UP as a float, as the benchmark's normaliser does.
+
+    It quantizes with the default decimal context (precision 28), so infinity
+    and a number too large for it raise ``InvalidOperation`` (the run then
+    scores 0 as an error) while NaN flows through as a float that equals
+    nothing, not even itself. Reproduced on purpose.
+    """
+    if isinstance(value, Decimal):
+        return float(value.quantize(_CENTS, rounding=ROUND_HALF_UP))
+    return float(Decimal(str(value)).quantize(_CENTS, rounding=ROUND_HALF_UP))
+
+
+def _official_round_nested(value: Any) -> Any:
+    """Round every number, also inside arrays and objects, before JSON dumps."""
+    if isinstance(value, (Decimal, float)):
+        return _official_round_number(value)
+    if isinstance(value, (list, tuple)):
+        return type(value)(_official_round_nested(v) for v in value)
+    if isinstance(value, dict):
+        return {k: _official_round_nested(v) for k, v in value.items()}
+    return value
+
+
+def _normalize_value_clean(value: Any) -> Any:
+    """One cell as our own careful metric sees it: hashable, dates as text."""
     if value is None or isinstance(value, bool):
         return value
     if isinstance(value, (dt.datetime, dt.date)):
@@ -212,8 +365,29 @@ def normalize_value(value: Any) -> Any:
     return value if isinstance(value, str) else str(value)
 
 
-def normalize_result(rows: Sequence[Sequence[Any]]) -> list[tuple[Any, ...]]:
-    return [tuple(normalize_value(cell) for cell in row) for row in rows]
+def normalize_value(value: Any, *, mode: str = OFFICIAL) -> Any:
+    """One cell as the chosen metric sees it (``official`` by default).
+
+    Official: dates as ``YYYY-MM-DD``, floats and Decimals rounded to 2 decimals
+    as floats (infinity and oversized ones raise), ints/strings/bools/None as
+    they are, arrays and objects with their numbers rounded, dumped as JSON.
+    """
+    if mode == OFFICIAL:
+        if isinstance(value, (dt.datetime, dt.date)):
+            return value.strftime("%Y-%m-%d")
+        prepared = _official_round_nested(value)
+        if isinstance(prepared, (dict, list)):
+            return json.dumps(prepared, sort_keys=True)
+        return prepared
+    if mode == CLEAN:
+        return _normalize_value_clean(value)
+    raise ValueError(f"unknown mode {mode!r}; expected one of {MODES}")
+
+
+def normalize_result(
+    rows: Sequence[Sequence[Any]], *, mode: str = OFFICIAL
+) -> list[tuple[Any, ...]]:
+    return [tuple(normalize_value(cell, mode=mode) for cell in row) for row in rows]
 
 
 def rows_match(
@@ -221,8 +395,12 @@ def rows_match(
     gold: Sequence[Sequence[Any]],
     *,
     ordered: bool,
+    mode: str = OFFICIAL,
 ) -> bool:
-    pred, want = normalize_result(predicted), normalize_result(gold)
+    pred, want = (
+        normalize_result(predicted, mode=mode),
+        normalize_result(gold, mode=mode),
+    )
     return pred == want if ordered else set(pred) == set(want)
 
 
@@ -239,35 +417,90 @@ class Outcome:
 
 
 class PostgresExecutor:
-    """Run SQL read-only under a statement timeout; one connection per database."""
+    """Run one read-only, timeout-bounded statement; one connection per database.
+
+    Read-only and the statement timeout are set on the **connection** with
+    ``options=`` at connect time (``default_transaction_read_only`` and
+    ``statement_timeout``), not only inside a transaction: a multi-statement
+    string could otherwise ``COMMIT`` its way out of a read-only transaction,
+    and multi-statement strings are rejected outright by
+    ``assert_single_statement`` before anything reaches the server. A
+    connection that died (server restart, idle timeout) is dropped from the
+    cache and reopened, so one dead connection does not score every later
+    query on that database 0.
+    """
 
     def __init__(
-        self, dsn_template: str, timeout_s: float = DEFAULT_STATEMENT_TIMEOUT_S
+        self,
+        dsn_template: str,
+        timeout_s: float = DEFAULT_STATEMENT_TIMEOUT_S,
+        *,
+        fetch_cap: int | None = OFFICIAL_FETCH_CAP,
     ) -> None:
         if "{db}" not in dsn_template:
             raise ValueError("the DSN template must contain {db}")
         self.dsn_template = dsn_template
         self.timeout_ms = int(timeout_s * 1000)
+        self.fetch_cap = fetch_cap
+        self._options = (
+            f"-c default_transaction_read_only=on "
+            f"-c statement_timeout={self.timeout_ms}"
+        )
         self._connections: dict[str, Any] = {}
 
     def _connect(self, database: str) -> Any:
         if database not in self._connections:
             import psycopg
 
-            conn = psycopg.connect(self.dsn_template.format(db=database))
-            conn.read_only = True  # BEGIN READ ONLY: a write fails in the server
+            conn = psycopg.connect(
+                self.dsn_template.format(db=database), options=self._options
+            )
             self._connections[database] = conn
         return self._connections[database]
 
-    def __call__(self, database: str, sql: str) -> list[list[Any]]:
-        conn = self._connect(database)
+    def _discard(self, conn: Any) -> None:
+        for db, cached in list(self._connections.items()):
+            if cached is conn:
+                del self._connections[db]
+        try:
+            conn.close()
+        except Exception:
+            pass  # already gone; the cache entry is what mattered
+
+    @staticmethod
+    def _is_broken(conn: Any, exc: BaseException) -> bool:
+        import psycopg
+
+        if getattr(conn, "closed", False) or getattr(conn, "broken", False):
+            return True
+        return isinstance(exc, (psycopg.OperationalError, psycopg.InterfaceError))
+
+    def _fetch(self, conn: Any, sql: str) -> list[list[Any]]:
         try:
             with conn.cursor() as cur:
-                cur.execute(f"SET LOCAL statement_timeout = {self.timeout_ms}")
                 cur.execute(sql)  # type: ignore[arg-type]
-                return [list(row) for row in cur.fetchall()]
+                if self.fetch_cap is None:
+                    rows: list[tuple[Any, ...]] = cur.fetchall()
+                else:
+                    rows = cur.fetchmany(self.fetch_cap)
+                return [list(row) for row in rows]
         finally:
-            conn.rollback()  # ends the transaction, success or not
+            try:
+                conn.rollback()  # ends the transaction, success or not
+            except Exception:
+                self._discard(conn)  # unusable: the next call reconnects
+
+    def __call__(self, database: str, sql: str) -> list[list[Any]]:
+        assert_single_statement(sql)
+        conn = self._connect(database)
+        try:
+            return self._fetch(conn, sql)
+        except Exception as exc:
+            if not self._is_broken(conn, exc):
+                raise
+            self._discard(conn)
+            conn = self._connect(database)  # reopen; if this fails, it raises
+            return self._fetch(conn, sql)
 
     def close(self) -> None:
         for conn in self._connections.values():
@@ -281,14 +514,15 @@ class GoldResult:
     error: str | None = None
 
 
-def run_gold_once(
-    case: Case, execute: Executor, *, strip_aggregate_distinct: bool = False
-) -> GoldResult:
-    sql = normalize_sql(
-        case.gold[0].sql, strip_aggregate_distinct=strip_aggregate_distinct
-    )
+def run_gold_once(case: Case, execute: Executor, *, mode: str = OFFICIAL) -> GoldResult:
+    """Run (and probe) one case's gold query once, under the chosen metric."""
+    sql = normalize_sql(case.gold[0].sql, mode=mode)
     try:
-        return GoldResult(execute(case.target_db, sql))
+        rows = execute(case.target_db, sql)
+        # Probe the values too: in official mode a cell the metric cannot
+        # normalise (a non-finite number) is a gold problem, not a pred error.
+        normalize_result(rows, mode=mode)
+        return GoldResult(rows)
     except Exception as exc:  # any database error is a gold problem, not a score
         return GoldResult(None, f"{type(exc).__name__}: {exc}"[:300])
 
@@ -299,7 +533,7 @@ def score_sql(
     gold: GoldResult,
     execute: Executor,
     *,
-    strip_aggregate_distinct: bool = False,
+    mode: str = OFFICIAL,
 ) -> Outcome:
     """Score one predicted query against one case's gold result."""
     if gold.rows is None:
@@ -309,20 +543,20 @@ def score_sql(
     if not predicted_sql or not predicted_sql.strip():
         return Outcome(False, "no_sql")
     try:
-        rows = execute(
-            case.target_db,
-            normalize_sql(
-                predicted_sql, strip_aggregate_distinct=strip_aggregate_distinct
-            ),
-        )
+        rows = execute(case.target_db, normalize_sql(predicted_sql, mode=mode))
     except Exception:
         return Outcome(False, "pred_error")
     if not rows:
         return Outcome(False, "pred_empty")
-    if rows_match(rows, gold.rows, ordered=case.ordered):
-        return Outcome(True, "match")
-    if case.ordered and rows_match(rows, gold.rows, ordered=False):
-        return Outcome(False, "order")
+    try:
+        if rows_match(rows, gold.rows, ordered=case.ordered, mode=mode):
+            return Outcome(True, "match")
+        if case.ordered and rows_match(rows, gold.rows, ordered=False, mode=mode):
+            return Outcome(False, "order")
+    except Exception:
+        # Official behaviour: a value the metric cannot normalise (a
+        # non-finite number, say) makes the run an error, score 0.
+        return Outcome(False, "pred_error")
     return Outcome(False, "values")
 
 
@@ -363,9 +597,31 @@ class OfficialScore:
 
 
 def case_tier(case: Case) -> str:
-    return next(
-        (t[len(TIER_TAG) :] for t in case.tags if t.startswith(TIER_TAG)), "unknown"
-    )
+    """The tier of a case: a ``tier:`` tag, or a plain ``simple``/``moderate``/…"""
+    for tag in case.tags:
+        if tag.startswith(TIER_TAG):
+            return tag[len(TIER_TAG) :]
+    for tag in case.tags:
+        tier = PLAIN_TIERS.get(tag.lower())
+        if tier is not None:
+            return tier
+    return "unknown"
+
+
+def match_key(case_id: str) -> str:
+    """The id as reports and case files are matched: the ``lsb.`` prefix is noise."""
+    return case_id[len(ID_PREFIX) :] if case_id.startswith(ID_PREFIX) else case_id
+
+
+def _cases_by_key(cases: Sequence[Case]) -> dict[str, Case]:
+    by_key: dict[str, Case] = {}
+    for case in cases:
+        other = by_key.setdefault(match_key(case.id), case)
+        if other.id != case.id:
+            raise ValueError(
+                f"{case.id} and {other.id} differ only by the {ID_PREFIX!r} prefix"
+            )
+    return by_key
 
 
 def score_report(
@@ -373,41 +629,46 @@ def score_report(
     cases: Sequence[Case],
     execute: Executor,
     *,
-    strip_aggregate_distinct: bool = False,
+    mode: str = OFFICIAL,
     gold_cache: dict[str, GoldResult] | None = None,
 ) -> OfficialScore:
-    """Score every run of *report* with the benchmark's metric.
+    """Score every run of *report* with the chosen metric.
+
+    Case ids are matched with the ``lsb.`` prefix ignored. A case that names no
+    database falls back to the report's ``meta.target_db`` (frozen reports were
+    run with ``--target-db`` per database and their cases carry no ``database``
+    field); that name must then be the Postgres database name.
 
     The gold query of a case runs once however many reports or runs there are
     (*gold_cache* is shared between reports).
     """
-    by_id = {c.id: c for c in cases}
+    by_key = _cases_by_key(cases)
+    fallback_db = str(report.meta.get("target_db") or "")
     cache = gold_cache if gold_cache is not None else {}
     outcomes: dict[str, list[Outcome]] = {}
+    tiers: dict[str, str] = {}
     for cid, result in report.cases.items():
-        case = by_id.get(cid)
+        case = by_key.get(match_key(cid))
         if case is None:
             raise ValueError(f"{cid}: not in the cases files")
         if not case.target_db:
-            raise ValueError(f"{cid}: the case names no database")
-        if cid not in cache:
-            cache[cid] = run_gold_once(
-                case, execute, strip_aggregate_distinct=strip_aggregate_distinct
-            )
-        outcomes[cid] = [
-            score_sql(
-                case,
-                run.sql,
-                cache[cid],
-                execute,
-                strip_aggregate_distinct=strip_aggregate_distinct,
-            )
+            if not fallback_db:
+                raise ValueError(
+                    f"{cid}: the case names no database and the report "
+                    "records no target_db"
+                )
+            case = replace(case, target_db=fallback_db)
+        if case.id not in cache:
+            cache[case.id] = run_gold_once(case, execute, mode=mode)
+        tiers[case.id] = case_tier(case)
+        outcomes[case.id] = [
+            score_sql(case, run.sql, cache[case.id], execute, mode=mode)
             for run in result.runs
         ]
     return OfficialScore(
         label=str(report.meta.get("label", "?")),
         outcomes=outcomes,
-        tiers={cid: case_tier(by_id[cid]) for cid in outcomes},
+        tiers=tiers,
         gold_problems={
             cid: cache[cid].error or "empty result"
             for cid in outcomes

@@ -7,7 +7,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 import math
-from decimal import Decimal
+import os
+from dataclasses import replace
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -16,13 +18,20 @@ import pytest
 from dev_tools.evals import __main__ as cli
 from dev_tools.evals.cases import Case, GoldAnswer, load_cases
 from dev_tools.evals.lsb import (
+    CLEAN,
+    OFFICIAL,
     GoldResult,
     PostgresExecutor,
+    assert_single_statement,
     build_cases,
     format_knowledge,
     mcnemar_exact,
     normalize_sql,
     normalize_value,
+    official_clean,
+    official_strip_comments,
+    official_strip_distinct,
+    official_strip_round,
     paired_counts,
     render_scores,
     repair_trailing_comma,
@@ -79,6 +88,15 @@ def test_strip_round_with_unbalanced_parentheses_is_left_alone() -> None:
     assert strip_round("SELECT ROUND(a, 2") == "SELECT ROUND(a, 2"
 
 
+def test_official_round_strips_both_arities_and_adds_no_parentheses() -> None:
+    assert official_strip_round("SELECT ROUND(a)") == "SELECT a"
+    assert official_strip_round("SELECT round (price , 2)") == "SELECT price"
+    # no parentheses are added, so precedence can change: official behaviour
+    assert official_strip_round("SELECT 2 * ROUND(a + b, 2)") == "SELECT 2 * a + b"
+    assert official_strip_round("SELECT ROUND(ROUND(a, 3) + b, 1)") == "SELECT a + b"
+    assert official_strip_round("SELECT ROUND(a, 2") == "SELECT ROUND(a, 2"
+
+
 def test_strip_distinct_removes_the_select_modifier_only() -> None:
     assert strip_distinct("SELECT DISTINCT a FROM t").replace("  ", " ") == (
         "SELECT a FROM t"
@@ -92,22 +110,65 @@ def test_strip_distinct_keeps_distinct_on() -> None:
     assert strip_distinct(sql) == sql
 
 
-def test_strip_distinct_keeps_aggregates_and_is_distinct_from_by_default() -> None:
+def test_strip_distinct_keeps_aggregates_and_is_distinct_from() -> None:
+    # clean mode: only the SELECT modifier goes; official mode breaks both,
+    # exactly like the benchmark's own regex (tested below).
     assert "COUNT(DISTINCT x)" in strip_distinct("SELECT COUNT(DISTINCT x) FROM t")
     assert "IS DISTINCT FROM" in strip_distinct("SELECT 1 WHERE a IS DISTINCT FROM b")
     assert "'DISTINCT'" in strip_distinct("SELECT 'DISTINCT' FROM t")
 
 
-def test_strip_distinct_inside_aggregates_is_opt_in() -> None:
-    out = strip_distinct("SELECT COUNT(DISTINCT x) FROM t", aggregates=True)
-    assert "DISTINCT" not in out and "COUNT(" in out
+def test_official_distinct_regex_strips_aggregates_and_breaks_is_distinct_from() -> (
+    None
+):
+    # The benchmark's own rule: any DISTINCT not followed (parens excluded) by
+    # ON goes, so COUNT(DISTINCT x) loses it and IS DISTINCT FROM stops parsing.
+    assert "DISTINCT" not in official_strip_distinct("SELECT COUNT(DISTINCT x) FROM t")
+    broken = official_strip_distinct("SELECT 1 WHERE a IS DISTINCT FROM b")
+    assert broken == "SELECT 1 WHERE a IS FROM b"  # a syntax error when run
 
 
-def test_normalize_sql_applies_everything_and_drops_the_semicolon() -> None:
+def test_official_distinct_regex_keeps_distinct_on_and_collapses_whitespace() -> None:
+    sql = "SELECT DISTINCT ON (a) a, b FROM t ORDER BY a, b"
+    assert "DISTINCT ON" in official_strip_distinct(sql)
+    # whitespace collapses everywhere, string literals included
+    assert official_strip_distinct("SELECT 'a \n  b'\nFROM t") == "SELECT 'a b' FROM t"
+
+
+def test_official_comments_are_regexes_not_quote_aware() -> None:
+    # a -- comment without a newline is NOT removed, and -- inside a literal
+    # still eats to the end of the line: both quirks of the official code
+    assert official_strip_comments("SELECT 1 -- note").endswith("-- note")
+    assert official_strip_comments("SELECT '-- x', 2\nFROM t") == "SELECT '\nFROM t"
+    assert "/* gone */" not in official_strip_comments("SELECT /* gone */ 1")
+
+
+def test_normalize_sql_official_is_the_default_and_matches_the_benchmark() -> None:
     sql = "SELECT DISTINCT ROUND(AVG(x), 2) -- note\nFROM t;"
-    out = normalize_sql(sql)
+    # comments removed, DISTINCT and both ROUND forms stripped, whitespace
+    # collapsed, the trailing semicolon kept (the official code keeps it too)
+    assert normalize_sql(sql) == "SELECT AVG(x) FROM t;"
+
+
+def test_normalize_sql_clean_is_our_stricter_reading() -> None:
+    sql = "SELECT DISTINCT ROUND(AVG(x), 2) -- note\nFROM t;"
+    out = normalize_sql(sql, mode=CLEAN)
+    # DISTINCT and both comments gone, ROUND parenthesised, semicolon dropped;
+    # the whitespace they leave behind stays (SQL does not care)
     assert "DISTINCT" not in out and "ROUND" not in out and "note" not in out
-    assert not out.endswith(";")
+    assert "(AVG(x))" in out and not out.endswith(";")
+
+
+def test_normalize_sql_rejects_an_unknown_mode() -> None:
+    with pytest.raises(ValueError, match="unknown mode"):
+        normalize_sql("SELECT 1", mode="strict")  # type: ignore[arg-type]
+
+
+def test_official_clean_pipeline_matches_the_benchmark_order() -> None:
+    # comments, then DISTINCT+whitespace, then ROUND -- in that order
+    assert (
+        official_clean("SELECT DISTINCT ROUND(x, 2) -- c\nFROM t") == "SELECT x FROM t"
+    )
 
 
 def test_repair_trailing_comma_only_before_from() -> None:
@@ -116,44 +177,99 @@ def test_repair_trailing_comma_only_before_from() -> None:
     assert repair_trailing_comma("SELECT ', FROM' FROM t") == "SELECT ', FROM' FROM t"
 
 
+def test_single_statement_guard_blocks_the_commit_escape() -> None:
+    assert_single_statement("SELECT 1")  # fine
+    assert_single_statement("SELECT 1;")  # a trailing semicolon is fine
+    assert_single_statement("SELECT ';' -- ; not a separator\n")
+    assert_single_statement("SELECT $tag$ ; $tag$")
+    with pytest.raises(ValueError, match="multiple statements"):
+        assert_single_statement("SELECT 1; COMMIT; DROP TABLE x")
+    with pytest.raises(ValueError, match="multiple statements"):
+        assert_single_statement("SELECT 1; -- done\nSELECT 2")
+
+
 # ------------------------------------------------------------ value normalising
 
 
 def test_two_decimal_rounding_is_half_up_and_absorbs_float_noise() -> None:
+    # clean mode: every number becomes a Decimal at cents
+    v = lambda x: normalize_value(x, mode=CLEAN)  # noqa: E731
     # The motivating pair: the same number computed two ways.
-    assert normalize_value(-2.2765) == normalize_value(-2.27650000000004)
-    assert normalize_value(-2.2765) == Decimal("-2.28")
-    assert normalize_value(2.675) == Decimal("2.68")  # half up, not binary float
-    assert normalize_value(Decimal("0.005")) == Decimal("0.01")
-    assert normalize_value(0.004999) == Decimal("0.00")
-    assert normalize_value(0.0049999999) != normalize_value(0.005)
+    assert v(-2.2765) == v(-2.27650000000004)
+    assert v(-2.2765) == Decimal("-2.28")
+    assert v(2.675) == Decimal("2.68")  # half up, not binary float
+    assert v(Decimal("0.005")) == Decimal("0.01")
+    assert v(0.004999) == Decimal("0.00")
+    assert v(0.0049999999) != v(0.005)
 
 
-def test_numbers_of_every_type_meet() -> None:
-    assert (
-        normalize_value(3) == normalize_value(3.0) == normalize_value(Decimal("3.001"))
-    )
-    assert hash(normalize_value(3)) == hash(normalize_value(Decimal("3.00")))
-    assert normalize_value(-0.001) == normalize_value(0)
+def test_official_values_are_rounded_floats_and_ints_stay_ints() -> None:
+    v = normalize_value  # official is the default mode
+    assert v(-2.2765) == -2.28 and isinstance(v(-2.2765), float)
+    assert v(2.675) == 2.68
+    assert v(Decimal("0.005")) == 0.01
+    assert v(3) == 3 and isinstance(v(3), int)  # ints are not touched
+    assert v(3) == v(3.0)  # 3.0 rounds to the float 3.0, still equal
 
 
-def test_huge_and_non_finite_numbers_do_not_raise() -> None:
-    assert normalize_value(Decimal("1" + "0" * 40 + ".555")) is not None
-    assert normalize_value(float("nan")) == "nan"
-    assert normalize_value(float("inf")) == "inf"
-    assert normalize_value(Decimal("NaN")) == "NaN"
+def test_official_rounds_numbers_nested_in_arrays_and_json() -> None:
+    # before json.dumps, exactly like the benchmark's own normaliser
+    assert normalize_value({"a": [1.005, "x"]}) == '{"a": [1.01, "x"]}'
+    assert normalize_value([2.675, [3]]) == "[2.68, [3]]"
+    # clean mode dumps the values as they came, without rounding
+    assert normalize_value({"a": [1.005]}, mode=CLEAN) == '{"a": [1.005]}'
 
 
-def test_dates_become_plain_dates() -> None:
-    assert normalize_value(dt.date(2024, 3, 5)) == "2024-03-05"
-    assert normalize_value(dt.datetime(2024, 3, 5, 13, 45, 1)) == "2024-03-05"
+def test_official_infinities_are_errors_and_nan_never_matches() -> None:
+    # the benchmark's quantize raises for infinity and for numbers too large
+    # for the default decimal context, so the run scores 0 as an error;
+    # NaN flows through as a float that equals nothing, not even itself
+    with pytest.raises(InvalidOperation):
+        normalize_value(float("inf"))
+    with pytest.raises(InvalidOperation):
+        normalize_value(Decimal("Infinity"))
+    with pytest.raises(InvalidOperation):
+        normalize_value(Decimal("1" + "0" * 40 + ".555"))
+    nan = normalize_value(float("nan"))
+    assert math.isnan(nan) and nan != nan
+    # clean mode turns all of them into text instead
+    assert normalize_value(float("inf"), mode=CLEAN) == "inf"
+    assert normalize_value(float("nan"), mode=CLEAN) == "nan"
+
+
+def test_numbers_of_every_type_meet_in_clean_mode() -> None:
+    v = lambda x: normalize_value(x, mode=CLEAN)  # noqa: E731
+    assert v(3) == v(3.0) == v(Decimal("3.001"))
+    assert hash(v(3)) == hash(v(Decimal("3.00")))
+    assert v(-0.001) == v(0)
+
+
+def test_huge_and_non_finite_numbers_do_not_raise_in_clean_mode() -> None:
+    v = lambda x: normalize_value(x, mode=CLEAN)  # noqa: E731
+    assert v(Decimal("1" + "0" * 40 + ".555")) is not None
+    assert v(float("nan")) == "nan"
+    assert v(float("inf")) == "inf"
+    assert v(Decimal("NaN")) == "NaN"
+
+
+def test_dates_become_plain_dates_in_both_modes() -> None:
+    for mode in (OFFICIAL, CLEAN):
+        assert normalize_value(dt.date(2024, 3, 5), mode=mode) == "2024-03-05"
+        assert (
+            normalize_value(dt.datetime(2024, 3, 5, 13, 45, 1), mode=mode)
+            == "2024-03-05"
+        )
 
 
 def test_nested_values_are_json_dumped_and_bool_stays_bool() -> None:
-    assert normalize_value({"b": 1, "a": [1, 2]}) == '{"a": [1, 2], "b": 1}'
-    assert normalize_value([1, "x"]) == '[1, "x"]'
-    assert normalize_value(True) is True and normalize_value(None) is None
-    assert normalize_value("Text ") == "Text "  # strings are not folded
+    for mode in (OFFICIAL, CLEAN):
+        assert (
+            normalize_value({"b": 1, "a": [1, 2]}, mode=mode) == '{"a": [1, 2], "b": 1}'
+        )
+        assert normalize_value([1, "x"], mode=mode) == '[1, "x"]'
+        assert normalize_value(True, mode=mode) is True
+        assert normalize_value(None, mode=mode) is None
+        assert normalize_value("Text ", mode=mode) == "Text "  # not folded
 
 
 # ------------------------------------------------------------------- comparing
@@ -183,7 +299,7 @@ def _case(
     return Case(
         id=cid,
         question="q",
-        gold=(GoldAnswer("gold", "SELECT DISTINCT ROUND(x, 2) FROM t -- c"),),
+        gold=(GoldAnswer("gold", GOLD),),
         ordered=ordered,
         tags=(f"tier:{tier}",),
         target_db=db,
@@ -205,7 +321,9 @@ class FakeDb:
         return outcome
 
 
-GOLD_SQL = normalize_sql("SELECT DISTINCT ROUND(x, 2) FROM t -- c")
+GOLD = "SELECT DISTINCT ROUND(x, 2) FROM t"
+GOLD_SQL = normalize_sql(GOLD, mode=CLEAN)  # what clean mode runs: SELECT  (x) FROM t
+GOLD_SQL_OFFICIAL = normalize_sql(GOLD)  # what official mode runs: SELECT x FROM t
 
 
 def test_score_sql_reasons() -> None:
@@ -238,11 +356,18 @@ def test_score_sql_order_and_gold_problems() -> None:
 
 def test_predicted_sql_is_normalised_and_run_on_the_cases_database() -> None:
     case = _case(db="archeology")
-    db = FakeDb({"SELECT  (x) FROM t": [[1]]})
-    out = score_sql(case, "SELECT DISTINCT ROUND(x, 2) FROM t;", GoldResult([[1]]), db)
-    assert out.passed
-    assert db.calls[0][0] == "archeology"
-    assert "DISTINCT" not in db.calls[0][1] and "ROUND" not in db.calls[0][1]
+    for mode, key in ((OFFICIAL, "SELECT x FROM t;"), (CLEAN, "SELECT  (x) FROM t")):
+        db = FakeDb({key: [[1]]})
+        out = score_sql(
+            case,
+            "SELECT DISTINCT ROUND(x, 2) FROM t;",
+            GoldResult([[1]]),
+            db,
+            mode=mode,
+        )
+        assert out.passed
+        assert db.calls[0][0] == "archeology"
+        assert "DISTINCT" not in db.calls[0][1] and "ROUND" not in db.calls[0][1]
 
 
 def _report(label: str, sqls: dict[str, list[str | None]]) -> Report:
@@ -262,7 +387,7 @@ def test_score_report_tiers_runs_and_gold_executed_once() -> None:
     ]
     db = FakeDb({GOLD_SQL: [[1]], "good": [[1]], "bad": [[9]]})
     report = _report("eng", {"a": ["good"], "b": ["bad"], "c": ["good", "bad", "good"]})
-    score = score_report(report, cases, db)
+    score = score_report(report, cases, db, mode=CLEAN)
     tiers = score.tier_scores()
     assert tiers["Simple"] == (2, 0.5)
     assert tiers["Challenging"][0] == 1 and math.isclose(tiers["Challenging"][1], 2 / 3)
@@ -272,17 +397,95 @@ def test_score_report_tiers_runs_and_gold_executed_once() -> None:
     assert score.question_passed("c") and not score.question_passed("b")
 
 
+def test_score_report_accepts_plain_lowercase_tier_tags() -> None:
+    case = replace(_case("a"), tags=("moderate", "gold-fixed"))
+    db = FakeDb({GOLD_SQL: [[1]], "good": [[1]]})
+    score = score_report(_report("e", {"a": ["good"]}), [case], db, mode=CLEAN)
+    assert "Moderate" in score.tier_scores()
+
+
 def test_score_report_rejects_unknown_case() -> None:
     with pytest.raises(ValueError, match="not in the cases"):
-        score_report(_report("e", {"zzz": ["x"]}), [_case("a")], FakeDb({}))
+        score_report(_report("e", {"zzz": ["x"]}), [_case("a")], FakeDb({}), mode=CLEAN)
 
 
 def test_unusable_gold_scores_zero_and_is_reported() -> None:
     db = FakeDb({GOLD_SQL: RuntimeError("syntax error")})
-    score = score_report(_report("e", {"a": ["x"]}), [_case("a")], db)
+    score = score_report(_report("e", {"a": ["x"]}), [_case("a")], db, mode=CLEAN)
     assert score.tier_scores()["Overall"] == (1, 0.0)
     assert "a" in score.gold_problems
     assert "gold unusable" in render_scores([score])
+
+
+def test_score_report_matches_ids_with_or_without_the_lsb_prefix() -> None:
+    db = FakeDb({GOLD_SQL: [[1]], "good": [[1]]})
+    # frozen reports say "lsb.alien_1", lsb-build case files say "alien_1"
+    one = score_report(
+        _report("e", {"lsb.alien_1": ["good"]}), [_case("alien_1")], db, mode=CLEAN
+    )
+    assert one.question_passed("alien_1")
+    two = score_report(
+        _report("e", {"alien_1": ["good"]}), [_case("lsb.alien_1")], db, mode=CLEAN
+    )
+    assert two.question_passed("lsb.alien_1")
+    # both spellings at once are ambiguous, not two questions
+    with pytest.raises(ValueError, match="differ only by"):
+        score_report(_report("e", {"a": ["good"]}), [_case("a"), _case("lsb.a")], db)
+
+
+def test_score_report_falls_back_to_the_reports_target_db() -> None:
+    """Frozen reports were run per database; their cases carry no database."""
+    case = _case("a", db="")
+    report = _report("e", {"a": ["good"]})
+    report.meta["target_db"] = "museum"
+    db = FakeDb({GOLD_SQL: [[1]], "good": [[1]]})
+    score_report(report, [case], db, mode=CLEAN)
+    assert [d for d, _ in db.calls] == ["museum", "museum"]
+
+
+def test_score_report_refuses_a_case_with_no_database_anywhere() -> None:
+    with pytest.raises(ValueError, match="no database"):
+        score_report(
+            _report("e", {"a": ["good"]}), [_case("a", db="")], FakeDb({}), mode=CLEAN
+        )
+
+
+def test_official_mode_breaks_a_gold_query_that_uses_is_distinct_from() -> None:
+    """The official rewrite mangles IS DISTINCT FROM; the gold then scores 0
+    for everyone, exactly as the benchmark's own harness would score it."""
+    case = Case(
+        id="a",
+        question="q",
+        gold=(GoldAnswer("gold", "SELECT 1 WHERE a IS DISTINCT FROM b"),),
+        tags=("tier:Simple",),
+        target_db="d1",
+    )
+    score = score_report(_report("e", {"a": ["SELECT 1"]}), [case], FakeDb({}))
+    assert "a" in score.gold_problems
+    assert score.tier_scores()["Overall"] == (1, 0.0)
+
+
+def test_count_distinct_is_noise_in_official_mode_and_meaning_in_clean() -> None:
+    case = Case(
+        id="a",
+        question="q",
+        gold=(GoldAnswer("gold", "SELECT COUNT(DISTINCT x) FROM t"),),
+        tags=("tier:Simple",),
+        target_db="d1",
+    )
+    db = FakeDb(
+        {
+            "SELECT COUNT( x) FROM t": [[5]],  # what official mode runs
+            "SELECT COUNT(DISTINCT x) FROM t": [[7]],  # what clean mode runs
+            "SELECT COUNT(x) FROM t": [[5]],
+        }
+    )
+    official = score_report(_report("e", {"a": ["SELECT COUNT(x) FROM t"]}), [case], db)
+    assert official.question_passed("a")  # DISTINCT is stripped from both sides
+    clean = score_report(
+        _report("e", {"a": ["SELECT COUNT(x) FROM t"]}), [case], db, mode=CLEAN
+    )
+    assert not clean.question_passed("a")  # 5 against 7: the meaning differs
 
 
 # ------------------------------------------------------------------- statistics
@@ -307,9 +510,13 @@ def test_paired_counts_use_the_shared_questions() -> None:
         _report("one", {"a": ["good"], "b": ["good"], "c": ["bad"], "d": ["good"]}),
         cases,
         db,
+        mode=CLEAN,
     )
     two = score_report(
-        _report("two", {"a": ["good"], "b": ["bad"], "c": ["bad"]}), cases, db
+        _report("two", {"a": ["good"], "b": ["bad"], "c": ["bad"]}),
+        cases,
+        db,
+        mode=CLEAN,
     )
     p = paired_counts(one, two)
     assert (p.both, p.only_a, p.only_b, p.neither) == (1, 1, 0, 1)
@@ -474,3 +681,266 @@ def test_cli_build_refuses_an_output_inside_the_repository(tmp_path: Path) -> No
 def test_executor_needs_a_database_placeholder() -> None:
     with pytest.raises(ValueError, match=r"\{db\}"):
         PostgresExecutor("postgresql://u:p@h/fixed")
+
+
+def test_cli_build_needs_kb_dir_only_with_oracle(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    public, gt = tmp_path / "pub.jsonl", tmp_path / "gt.jsonl"
+    public.write_text("\n".join(json.dumps(r) for r in PUBLIC[:2]) + "\n")
+    gt.write_text("\n".join(json.dumps(r) for r in GT[:2]) + "\n")
+    out = tmp_path / "out"
+    # no --kb-dir, no --oracle: fine
+    assert (
+        cli.main(
+            ["lsb-build", "--public", str(public), "--gt", str(gt), "--out", str(out)]
+        )
+        == 0
+    )
+    assert [p.name for p in out.iterdir()] == ["alpha.json"]
+    # no --kb-dir but --oracle: refused with a message, not a crash
+    code = cli.main(
+        [
+            "lsb-build",
+            "--public",
+            str(public),
+            "--gt",
+            str(gt),
+            "--out",
+            str(out),
+            "--oracle",
+        ]
+    )
+    assert code == 2
+    assert "knowledge-base directory" in capsys.readouterr().err
+
+
+# --------------------------------------------------- lsb-score against reports
+
+
+class RecordingExecutor:
+    """Stands in for PostgresExecutor in CLI tests: maps SQL to rows."""
+
+    def __init__(
+        self, dsn_template: str, timeout_s: float = 60.0, *, fetch_cap: int | None = 0
+    ) -> None:
+        assert "{db}" in dsn_template
+        self.fetch_cap = fetch_cap
+        self.results: dict[str, Any] = {}
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, database: str, sql: str) -> list[list[Any]]:
+        self.calls.append((database, sql))
+        outcome = self.results[sql]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    def close(self) -> None:
+        pass
+
+
+def _cases_file(tmp_path: Path, *raw_cases: dict[str, Any]) -> Path:
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps({"cases": list(raw_cases)}), encoding="utf-8")
+    return path
+
+
+COUNT_DISTINCT_CASE = {
+    "id": "a",
+    "question": "q",
+    "tags": ["simple"],  # frozen reports use plain lowercase tier tags
+    "gold": [{"label": "gold", "sql": "SELECT COUNT(DISTINCT x) FROM t"}],
+}
+
+
+def _lsb_report(tmp_path: Path, label: str, cid: str, sql: str) -> Path:
+    report = Report(meta={"label": label, "target_db": "d1"})
+    report.cases[cid] = CaseResult("q", [Run(False, "values", sql=sql, seconds=9.0)])
+    path = tmp_path / f"{label}-{cid}.json"
+    report.save(path)
+    return path
+
+
+def test_cli_lsb_score_official_by_default_clean_opt_in(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cases = _cases_file(tmp_path, COUNT_DISTINCT_CASE)
+    report = _lsb_report(tmp_path, "eng", "lsb.a", "SELECT COUNT(x) FROM t")
+    executor = RecordingExecutor("postgresql://u:p@h/{db}")
+    executor.results = {
+        "SELECT COUNT( x) FROM t": [[5]],  # what official mode runs
+        "SELECT COUNT(DISTINCT x) FROM t": [[7]],  # what clean mode runs
+        "SELECT COUNT(x) FROM t": [[5]],
+    }
+    monkeypatch.setattr(cli, "PostgresExecutor", lambda *a, **k: executor)
+    common = ["lsb-score", "--reports", str(report), "--cases", str(cases)]
+
+    assert cli.main([*common, "--dsn-template", "postgresql://u:p@h/{db}"]) == 0
+    out = capsys.readouterr().out
+    assert "mode: official" in out and "100.0%" in out  # DISTINCT is noise
+    assert all(db == "d1" for db, _ in executor.calls)  # meta.target_db fallback
+
+    assert cli.main([*common, "--mode", "clean", "--dsn-template", "x/{db}"]) == 0
+    out = capsys.readouterr().out
+    assert "mode: clean" in out and "0.0%" in out  # 5 against 7: different meaning
+
+
+def test_cli_lsb_score_refuses_a_report_measured_on_other_cases(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cases = _cases_file(tmp_path, COUNT_DISTINCT_CASE)
+    report = _lsb_report(tmp_path, "eng", "lsb.a", "SELECT COUNT(x) FROM t")
+    loaded = Report.load(report)
+    loaded.meta["cases_sha256"] = "0" * 64  # not the hash of these cases
+    loaded.save(report)
+    executor = RecordingExecutor("postgresql://u:p@h/{db}")
+    monkeypatch.setattr(cli, "PostgresExecutor", lambda *a, **k: executor)
+    common = [
+        "lsb-score",
+        "--reports",
+        str(report),
+        "--cases",
+        str(cases),
+        "--dsn-template",
+        "postgresql://u:p@h/{db}",
+    ]
+
+    assert cli.main(common) == 2
+    err = capsys.readouterr().err
+    assert "not among --cases" in err and "--allow-cases-mismatch" in err
+    assert not executor.calls  # nothing was scored
+    assert cli.main([*common, "--allow-cases-mismatch"]) == 0
+    err = capsys.readouterr().err
+    assert "WARNING" in err and executor.calls  # scored anyway, with a warning
+
+
+def test_cli_lsb_score_merges_the_reports_that_share_a_label(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other = dict(COUNT_DISTINCT_CASE, id="b")
+    cases = _cases_file(tmp_path, COUNT_DISTINCT_CASE, other)
+    one = _lsb_report(tmp_path, "eng", "lsb.a", "SELECT COUNT(x) FROM t")
+    two = _lsb_report(tmp_path, "eng", "lsb.b", "SELECT COUNT(DISTINCT x) FROM t")
+    executor = RecordingExecutor("postgresql://u:p@h/{db}")
+    executor.results = {
+        "SELECT COUNT( x) FROM t": [[5]],
+        "SELECT COUNT(DISTINCT x) FROM t": [[7]],
+        "SELECT COUNT(x) FROM t": [[5]],
+    }
+    monkeypatch.setattr(cli, "PostgresExecutor", lambda *a, **k: executor)
+    code = cli.main(
+        [
+            "lsb-score",
+            "--reports",
+            str(one),
+            str(two),
+            "--cases",
+            str(cases),
+            "--dsn-template",
+            "postgresql://u:p@h/{db}",
+        ]
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    assert out.count("eng") == 1 and "(2 questions)" in out
+
+    # two same-label reports holding the same question are an error, not a merge
+    clash = _lsb_report(tmp_path, "eng", "lsb.a", "SELECT COUNT(x) FROM t")
+    code = cli.main(
+        [
+            "lsb-score",
+            "--reports",
+            str(one),
+            str(clash),
+            "--cases",
+            str(cases),
+            "--dsn-template",
+            "postgresql://u:p@h/{db}",
+        ]
+    )
+    assert code == 2
+    assert "own --label" in capsys.readouterr().err
+
+
+# ------------------------------------------------------- live Postgres executor
+
+
+def _live_dsn_or_skip() -> str:
+    if not os.environ.get("POSTGRES_USER"):
+        pytest.skip("POSTGRES_* not set")
+    host = os.environ.get("POSTGRES_HOST", "localhost")
+    port = os.environ.get("POSTGRES_PORT", "5432")
+    user = os.environ["POSTGRES_USER"]
+    password = os.environ["POSTGRES_PASSWORD"]
+    dsn = f"postgresql://{user}:{password}@{host}:{port}/{{db}}"
+    executor = PostgresExecutor(dsn)
+    try:
+        executor("postgres", "SELECT 1")
+    except Exception as exc:  # noqa: BLE001 — any failure means "no fixture DB"
+        pytest.skip(f"postgres not reachable: {exc}")
+    finally:
+        executor.close()
+    return dsn
+
+
+def test_live_executor_rejects_multi_statement_strings() -> None:
+    """The COMMIT escape: read-only must not rely on the transaction alone."""
+    executor = PostgresExecutor(_live_dsn_or_skip())
+    try:
+        with pytest.raises(ValueError, match="multiple statements"):
+            executor("postgres", "SELECT 1; COMMIT; CREATE TABLE lsb_probe (v int)")
+    finally:
+        executor.close()
+
+
+def test_live_executor_refuses_a_single_write_without_any_transaction() -> None:
+    # read-only is set on the connection (default_transaction_read_only),
+    # so a write fails even though no BEGIN was ever issued
+    import psycopg
+
+    executor = PostgresExecutor(_live_dsn_or_skip())
+    try:
+        with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+            executor("postgres", "CREATE TABLE lsb_probe (v int)")
+    finally:
+        executor.close()
+
+
+def test_live_executor_enforces_the_statement_timeout() -> None:
+    import psycopg
+
+    executor = PostgresExecutor(_live_dsn_or_skip(), 0.3)
+    try:
+        with pytest.raises(psycopg.errors.QueryCanceled):
+            executor("postgres", "SELECT pg_sleep(5)")
+    finally:
+        executor.close()
+
+
+def test_live_executor_caps_the_rows_it_reads() -> None:
+    dsn = _live_dsn_or_skip()
+    executor = PostgresExecutor(dsn, fetch_cap=3)
+    uncapped = PostgresExecutor(dsn, fetch_cap=None)
+    try:
+        assert len(executor("postgres", "SELECT * FROM generate_series(1, 7)")) == 3
+        assert len(uncapped("postgres", "SELECT * FROM generate_series(1, 7)")) == 7
+    finally:
+        executor.close()
+        uncapped.close()
+
+
+def test_live_executor_reopens_a_dead_cached_connection() -> None:
+    executor = PostgresExecutor(_live_dsn_or_skip())
+    try:
+        assert executor("postgres", "SELECT 1") == [[1]]
+        executor._connections["postgres"].close()  # the server went away
+        assert executor("postgres", "SELECT 2") == [[2]]
+    finally:
+        executor.close()

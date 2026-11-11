@@ -196,22 +196,34 @@ def run_jobs(
     timeout: float = DEFAULT_TIMEOUT_S,
     on_run: Callable[[Case, int, Run], None] | None = None,
 ) -> list[Run]:
-    """Run every job, up to *workers* at a time; results are in job order."""
+    """Run every job, up to *workers* at a time; results are in job order.
+
+    A job that dies of an unexpected (non-HTTP) exception -- a case without a
+    snapshot, a bug in scoring -- is recorded as that case's error instead of
+    aborting the whole run.
+    """
     lock = threading.Lock()
     with httpx.Client() as client:
 
         def one(job: Job) -> Run:
-            run = score(
-                job.case,
-                ask(
-                    client,
-                    base_url,
-                    job.case.question,
-                    target_db=job.target_db,
-                    evidence=job.case.evidence,
-                    timeout=timeout,
-                ),
-            )
+            try:
+                run = score(
+                    job.case,
+                    ask(
+                        client,
+                        base_url,
+                        job.case.question,
+                        target_db=job.target_db,
+                        evidence=job.case.evidence,
+                        timeout=timeout,
+                    ),
+                )
+            except Exception as exc:  # one bad case must not abort the run
+                run = Run(
+                    passed=False,
+                    reason="error",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
             if on_run:
                 with lock:
                     on_run(job.case, job.slot, run)
