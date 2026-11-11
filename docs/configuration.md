@@ -93,3 +93,16 @@ connection instead of failing when many arrive at once. The limits are
 `SOURCE_POOL_MAX_SIZE`, `SOURCE_POOL_MAX_IDLE_S`, `SOURCE_MAX_CONNECTIONS` and
 `SOURCE_CONNECTION_WAIT_S`; see [source-connections.md](./source-connections.md) for
 defaults and how to size them against a source's `max_connections`.
+
+## Chat concurrency
+
+Every conversation runs in its own agent subprocess — a full Python process that imports
+the agent and opens its own database pools. `CHAT_MAX_CONCURRENT` (default 4) bounds how
+many conversations run at once **per backend process**: further requests wait up to
+`CHAT_WAIT_S` (default 120) for a free slot and are then refused with 503 and a
+`Retry-After` header instead of cold-starting one more subprocess. The single warm
+standby subprocess is extra, so at most `CHAT_MAX_CONCURRENT + 1` worker subprocesses
+exist in steady state (briefly one more while a cancelled worker is being killed and its
+replacement starts). Size it against the host's memory: each worker is roughly one copy
+of the backend's Python footprint. `GET /api/health` reports the current
+`chat_workers.in_use` and `chat_workers.cap`.

@@ -19,10 +19,21 @@ again. The cold-start cost is paid at server boot and at each cancel
 The router (see ``router.py``) now allows one in-flight stream *per
 conversation* rather than one globally, so any number of conversations may
 run concurrently. This pool still only keeps a single warm standby: the
-first conversation to ask finds it prewarmed, and any additional concurrent
-conversations simply pay a cold start (``acquire()`` spawns a fresh
-subprocess on demand) — there is no cap on how many can run at once, just
-no more than one pre-warmed spare at a time.
+first conversation to ask finds it prewarmed, and additional concurrent
+conversations pay a cold start (``acquire()`` spawns a fresh subprocess on
+demand).
+
+That "no cap" behaviour was a denial of service: every concurrent
+conversation was a full Python subprocess, and 18 of them at once exhausted
+the host. ``acquire()`` now takes a permit from a counting gate
+(:mod:`auto_ontology.server.chat.limits`) before handing out or
+cold-starting a worker: at most ``CHAT_MAX_CONCURRENT`` (default 4)
+conversations run at once per backend process, further requests wait up to
+``CHAT_WAIT_S`` (default 120) and then fail with a clear error instead of
+spawning yet another subprocess. The warm standby is extra — it never takes
+a permit — so the process bound is ``CHAT_MAX_CONCURRENT + 1`` in steady
+state (plus one transient replacement while a cancelled worker is being
+killed and its standby successor is starting).
 """
 
 from __future__ import annotations
@@ -32,6 +43,11 @@ import multiprocessing as mp
 import threading
 from queue import Empty
 from typing import Any, Generator
+
+from auto_ontology.server.chat.limits import (
+    ChatWorkerGate,
+    max_concurrent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -348,17 +364,25 @@ class PrewarmedWorker:
 
 
 class WarmPool:
-    """Maintains exactly one prewarmed standby worker.
+    """Maintains exactly one prewarmed standby worker, with a capped handout.
 
-    * ``acquire()`` — take the standby (or cold-start synchronously if it
-      isn't there yet); does NOT immediately spawn a replacement, since the
-      caller decides whether the acquired worker will be returned (natural
-      end) or killed (cancel).
-    * ``return_alive(w)`` — request finished naturally; if ``w`` is still
-      alive, put it back as the standby (no fresh spawn needed). Otherwise
-      spawn a new standby.
-    * ``replace(w)`` — request was cancelled; kill ``w`` and spawn a new
-      standby in the background.
+    * ``acquire()`` — take a permit (waiting up to ``CHAT_WAIT_S``), then
+      take the standby (or cold-start synchronously if it isn't there yet);
+      does NOT immediately spawn a replacement, since the caller decides
+      whether the acquired worker will be returned (natural end) or killed
+      (cancel). Raises :class:`ChatBusyTimeout` when no permit became free.
+    * ``return_alive(w)`` — request finished naturally; give the permit
+      back, and if ``w`` is still alive put it back as the standby (no fresh
+      spawn needed). Otherwise spawn a new standby.
+    * ``replace(w)`` — request was cancelled; give the permit back, kill
+      ``w`` and spawn a new standby in the background.
+
+    Permit bookkeeping is keyed by the worker object: a worker handed out
+    by ``acquire()`` is in ``_checked_out`` until it comes back through
+    ``return_alive``/``replace``, which give back exactly one permit (a
+    second call for the same acquisition is a no-op, so a double release
+    cannot inflate capacity). The standby and its spawns never take a
+    permit, so ``refresh_chat_workers()`` and ``shutdown()`` are unaffected.
 
     All spawn work happens off the request thread so we never block a POST
     on subprocess startup unless the standby genuinely isn't there yet.
@@ -367,37 +391,79 @@ class WarmPool:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._standby: PrewarmedWorker | None = None
+        # Workers currently handed out to requests; each holds one permit.
+        self._checked_out: set[PrewarmedWorker] = set()
+        # True while a background standby spawn is in flight, so concurrent
+        # cancels don't each start a replacement subprocess.
+        self._spawning = False
+        self._gate = ChatWorkerGate()
         self._spawn_async()
 
+    def slots_in_use(self) -> int:
+        """Permits currently held by in-flight requests (for health/stats)."""
+        return self._gate.in_use
+
     def _spawn_async(self) -> None:
+        with self._lock:
+            # A standby exists or one is already on its way: never more
+            # than one spare subprocess at a time.
+            if self._standby is not None or self._spawning:
+                return
+            self._spawning = True
         threading.Thread(target=self._spawn_sync, daemon=True).start()
 
     def _spawn_sync(self) -> None:
-        worker = PrewarmedWorker()
-        # Block here (off the request path) until imports complete, so
-        # ``acquire()`` is more likely to hand back a fully warm worker.
-        # We don't enforce a timeout — initial imports can be slow on
-        # cold caches and we'd rather wait than serve a half-warm one.
-        worker.drain_until_ready()
+        try:
+            worker = PrewarmedWorker()
+            # Block here (off the request path) until imports complete, so
+            # ``acquire()`` is more likely to hand back a fully warm worker.
+            # We don't enforce a timeout — initial imports can be slow on
+            # cold caches and we'd rather wait than serve a half-warm one.
+            worker.drain_until_ready()
+            with self._lock:
+                if self._standby is None:
+                    self._standby = worker
+                    return
+            # A concurrent return_alive filled the slot first; drop the spare.
+            worker.kill()
+        finally:
+            with self._lock:
+                self._spawning = False
+
+    def _give_back_permit(self, worker: PrewarmedWorker) -> None:
+        """Release the permit held for *worker*'s acquisition, if any.
+
+        Idempotent per acquisition: only the first ``return_alive``/
+        ``replace`` for a checked-out worker releases a permit, so a double
+        release cannot hand out more than the cap.
+        """
         with self._lock:
-            if self._standby is None:
-                self._standby = worker
-                return
-        # A concurrent return_alive filled the slot first; drop the spare.
-        worker.kill()
+            checked_out = worker in self._checked_out
+            self._checked_out.discard(worker)
+        if checked_out:
+            self._gate.release()
 
     def acquire(self) -> PrewarmedWorker:
+        # Permit first: nothing is handed out — warm or cold — above the cap.
+        self._gate.acquire()
+        try:
+            with self._lock:
+                w = self._standby
+                self._standby = None
+            if w is None or not w.is_alive():
+                # Standby missing/dead — pay cold start synchronously this once.
+                w = PrewarmedWorker()
+                w.drain_until_ready()
+        except BaseException:
+            # No worker was handed out, so the permit must go straight back.
+            self._gate.release()
+            raise
         with self._lock:
-            w = self._standby
-            self._standby = None
-        if w is not None and w.is_alive():
-            return w
-        # Standby missing/dead — pay cold start synchronously this once.
-        w = PrewarmedWorker()
-        w.drain_until_ready()
+            self._checked_out.add(w)
         return w
 
     def return_alive(self, worker: PrewarmedWorker) -> None:
+        self._give_back_permit(worker)
         if not worker.is_alive():
             self._spawn_async()
             return
@@ -408,10 +474,8 @@ class WarmPool:
         worker.kill()
 
     def replace(self, worker: PrewarmedWorker) -> None:
+        self._give_back_permit(worker)
         worker.kill()
-        with self._lock:
-            if self._standby is not None and self._standby.is_alive():
-                return
         self._spawn_async()
 
     def shutdown(self) -> None:
@@ -456,3 +520,15 @@ def refresh_chat_workers() -> None:
     if standby is not None:
         standby.kill()
     pool._spawn_async()
+
+
+def chat_worker_stats() -> dict[str, int]:
+    """Slots in use and the cap, for the health endpoint.
+
+    Deliberately does not create the pool (that would spawn a subprocess):
+    no chat has run yet simply means zero slots in use.
+    """
+    with _pool_lock:
+        pool = _pool
+    in_use = pool.slots_in_use() if pool is not None else 0
+    return {"in_use": in_use, "cap": max_concurrent()}

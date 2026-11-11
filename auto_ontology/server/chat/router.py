@@ -13,10 +13,12 @@ Concurrency model
 -----------------
 Each conversation gets its own warm agent subprocess and may only have one
 in-flight stream at a time; different conversations run fully independently
-(each `WarmPool.acquire()` cold-starts a fresh subprocess if no standby is
-free, so there's no cap on how many conversations can run concurrently).
-Slots are keyed by the authenticated user plus ``conversation_id``. Stateless
-calls (no ``conversation_id``, see ``ChatRequest``) get a fresh, unique key
+up to ``CHAT_MAX_CONCURRENT`` (default 4) at once per backend process —
+further conversations wait up to ``CHAT_WAIT_S`` (default 120) for a free
+slot and then get a 503, instead of cold-starting one more full Python
+subprocess (see :mod:`auto_ontology.server.chat.limits`). Slots are keyed
+by the authenticated user plus ``conversation_id``. Stateless calls (no
+``conversation_id``, see ``ChatRequest``) get a fresh, unique key
 per request instead and so never contend with anything.
 
 * If the conversation's slot is empty → request runs.
@@ -97,6 +99,7 @@ from auto_ontology.server.chat.helpers import (
     ChatRequest,
     build_result_message,
 )
+from auto_ontology.server.chat.limits import ChatBusyTimeout
 from auto_ontology.server.chat.clarification import (
     ClarificationStateError,
     answer_text,
@@ -170,6 +173,11 @@ _DISCONNECT_POLL_S = 0.1
 # has caught up to the live tail. Also the SSE heartbeat cadence.
 _BUFFER_POLL_S = 0.25
 
+# Sent with the 503 when every chat worker slot stayed busy for the whole
+# wait budget: retry soon (a slot usually frees up in seconds), and the
+# request itself will wait again up to CHAT_WAIT_S before giving up.
+_RETRY_AFTER_S = "5"
+
 # Headers every SSE response here carries. Shared so the two endpoints cannot
 # drift apart — ``/chat/watch`` is a GET, so it is the one a shared cache would
 # actually be willing to store.
@@ -181,6 +189,18 @@ _BUFFER_POLL_S = 0.25
 _SSE_HEADERS = {
     "Cache-Control": "no-store",
     "X-Accel-Buffering": "no",
+}
+
+# ``/chat/completions`` can also refuse before the stream starts when every
+# chat worker slot stayed busy for the whole ``CHAT_WAIT_S`` budget.
+_BUSY_RESPONSES: dict[int | str, dict[str, Any]] = {
+    **SSE_RESPONSES,
+    503: {
+        "description": (
+            "All CHAT_MAX_CONCURRENT chat slots stayed busy for CHAT_WAIT_S; "
+            "retry after the Retry-After header"
+        )
+    },
 }
 
 
@@ -284,7 +304,10 @@ def _release(slot: _Slot) -> None:
 
     Idempotent. ``slot.cancelled`` decides whether the worker is killed
     (cancel) or returned alive (natural end). The first caller wins; the
-    second is a no-op via ``slot.released``.
+    second is a no-op via ``slot.released``. Giving the worker back also
+    releases its ``CHAT_MAX_CONCURRENT`` permit (see ``limits.py``), so a
+    double release cannot inflate capacity and exactly one release per
+    request is what keeps the gate honest.
     """
 
     if slot.released.is_set():
@@ -567,7 +590,7 @@ def _stream_slot(slot: _Slot) -> Generator[str, None, None]:
 @router.post(
     "/chat/completions",
     response_class=EventStreamResponse,
-    responses=SSE_RESPONSES,
+    responses=_BUSY_RESPONSES,
 )
 async def chat_completions(
     request: ChatRequest, http_request: Request
@@ -590,6 +613,11 @@ async def chat_completions(
     request for the same conversation gets 409 too. Omitting ``conversation_id``
     runs the question statelessly: no history, no persisted turn, and no chart
     step (``_build_charts_event`` needs a conversation to save into).
+
+    At most ``CHAT_MAX_CONCURRENT`` conversations run at once in this backend
+    process; beyond that, requests wait up to ``CHAT_WAIT_S`` for a free
+    worker slot and are then refused with 503 and a ``Retry-After`` header —
+    before any stream starts, so the client sees an error instead of a hang.
     """
     logger.info("Chat completions request: %s", request.model_dump())
 
@@ -620,7 +648,26 @@ async def chat_completions(
     subject_token = _subject_token(http_request)
 
     pool = get_pool()
-    worker = await asyncio.to_thread(pool.acquire)
+    try:
+        worker = await asyncio.to_thread(pool.acquire)
+    except ChatBusyTimeout as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+            headers={"Retry-After": _RETRY_AFTER_S},
+        ) from exc
+
+    if await http_request.is_disconnected():
+        # The client went away while this request waited for a slot: hand
+        # the permit straight back rather than running a question nobody
+        # will read. The stream the dead client never sees just ends.
+        pool.return_alive(worker)
+        return StreamingResponse(
+            iter(["data: [DONE]\n\n"]),
+            media_type="text/event-stream",
+            headers=_SSE_HEADERS,
+        )
+
     slot = _Slot(
         key=key,
         worker=worker,
@@ -635,109 +682,114 @@ async def chat_completions(
     slot.client_alive.set()
 
     try:
+        # A 409 from here (a still-connected sibling holds the conversation)
+        # and every failure below flow to the single ``except`` at the bottom,
+        # which gives the slot back — no path out of this block leaks the
+        # worker permit it holds.
         displaced = _try_claim_slot(slot)
-    except HTTPException:
-        # Lost the race against a still-connected sibling — return the
-        # acquired worker to the pool so we don't waste its warm state.
-        pool.return_alive(worker)
+        if displaced is not None:
+            # Previous client was gone — replace the orphan via the pool so a
+            # fresh standby is on its way for the next request.
+            displaced.cancelled.set()
+            _release(displaced)
+
+        conversation_history: list[dict[str, str | None]] = []
+        agent_question = request.question
+        agent_evidence = request.evidence
+        detect_clarification = False
+        if request.conversation_id is not None and user_id is not None:
+            try:
+                prepared = await asyncio.to_thread(
+                    prepare_conversation,
+                    conversation_id=request.conversation_id,
+                    user_id=user_id,
+                    question=request.question,
+                    source=http_request.headers.get("x-auto-ontology-source") or "api",
+                    clarification=request.clarification,
+                )
+            except ClarificationStateError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except ConversationAccessError as exc:
+                raise HTTPException(
+                    status_code=404, detail="Conversation not found"
+                ) from exc
+            except Exception as exc:
+                logger.exception("Failed to prepare conversation history")
+                raise HTTPException(
+                    status_code=503, detail="Conversation storage unavailable"
+                ) from exc
+
+            slot.analytics_id = prepared.analytics_id
+            conversation_history = [
+                {
+                    "question": turn.question,
+                    "response": turn.response,
+                    "sql_code": turn.sql_code,
+                }
+                for turn in prepared.history
+            ]
+
+            pending = prepared.pending_clarification
+            if pending is not None and (
+                request.clarification is not None
+                or await asyncio.to_thread(
+                    is_clarification_answer,
+                    clarification=pending,
+                    reply=request.question,
+                    llm=_non_reasoning_llm or _reasoning_llm,
+                )
+            ):
+                # Resume: the run that asked has ended, so this request re-runs the
+                # question it asked about, with the answer as evidence. Its history
+                # stops before that turn, exactly as it did when the question was
+                # first asked, and it is never asked a second time.
+                answer = answer_text(pending, request.clarification, request.question)
+                agent_question = pending.original_question or request.question
+                agent_evidence = "\n".join(
+                    part
+                    for part in (request.evidence, definition_evidence(pending, answer))
+                    if part
+                )
+                conversation_history = conversation_history[:-1]
+                slot.question = agent_question
+                logger.info(
+                    "Clarification %s answered for term %r",
+                    pending.clarification_id,
+                    pending.term,
+                )
+            elif request.supports_clarification:
+                detect_clarification = await asyncio.to_thread(is_clarification_enabled)
+        elif user_id is not None:
+            try:
+                slot.analytics_id = await asyncio.to_thread(
+                    create_stateless_analytics,
+                    user_id=user_id,
+                    question=request.question,
+                    source=http_request.headers.get("x-auto-ontology-source") or "api",
+                )
+            except Exception:  # noqa: BLE001 — analytics is best-effort
+                logger.exception("Failed to create stateless conversation analytics")
+
+        worker.submit(
+            agent_question,
+            prediction=request.prediction,
+            target_db=target_db,
+            subject_token=subject_token,
+            conversation_history=conversation_history,
+            evidence=agent_evidence,
+            detect_clarification=detect_clarification,
+        )
+        threading.Thread(target=_pump, args=(slot,), daemon=True).start()
+    except BaseException:  # noqa: BLE001 — re-raised below; the slot must not leak
+        # Any failure between acquiring the worker and handing the slot to
+        # the pump must give the slot back: a leaked one would hold a
+        # worker permit for the life of the process. ``_release`` is
+        # idempotent (``slot.released``), so this cannot double-release
+        # against an inner path — and once the pump thread has started,
+        # its own ``finally`` owns the release.
+        _release(slot)
         raise
 
-    if displaced is not None:
-        # Previous client was gone — replace the orphan via the pool so a
-        # fresh standby is on its way for the next request.
-        displaced.cancelled.set()
-        _release(displaced)
-
-    conversation_history: list[dict[str, str | None]] = []
-    agent_question = request.question
-    agent_evidence = request.evidence
-    detect_clarification = False
-    if request.conversation_id is not None and user_id is not None:
-        try:
-            prepared = await asyncio.to_thread(
-                prepare_conversation,
-                conversation_id=request.conversation_id,
-                user_id=user_id,
-                question=request.question,
-                source=http_request.headers.get("x-auto-ontology-source") or "api",
-                clarification=request.clarification,
-            )
-        except ClarificationStateError as exc:
-            _release(slot)
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        except ConversationAccessError as exc:
-            _release(slot)
-            raise HTTPException(
-                status_code=404, detail="Conversation not found"
-            ) from exc
-        except Exception as exc:
-            logger.exception("Failed to prepare conversation history")
-            _release(slot)
-            raise HTTPException(
-                status_code=503, detail="Conversation storage unavailable"
-            ) from exc
-
-        slot.analytics_id = prepared.analytics_id
-        conversation_history = [
-            {
-                "question": turn.question,
-                "response": turn.response,
-                "sql_code": turn.sql_code,
-            }
-            for turn in prepared.history
-        ]
-
-        pending = prepared.pending_clarification
-        if pending is not None and (
-            request.clarification is not None
-            or await asyncio.to_thread(
-                is_clarification_answer,
-                clarification=pending,
-                reply=request.question,
-                llm=_non_reasoning_llm or _reasoning_llm,
-            )
-        ):
-            # Resume: the run that asked has ended, so this request re-runs the
-            # question it asked about, with the answer as evidence. Its history
-            # stops before that turn, exactly as it did when the question was
-            # first asked, and it is never asked a second time.
-            answer = answer_text(pending, request.clarification, request.question)
-            agent_question = pending.original_question or request.question
-            agent_evidence = "\n".join(
-                part
-                for part in (request.evidence, definition_evidence(pending, answer))
-                if part
-            )
-            conversation_history = conversation_history[:-1]
-            slot.question = agent_question
-            logger.info(
-                "Clarification %s answered for term %r",
-                pending.clarification_id,
-                pending.term,
-            )
-        elif request.supports_clarification:
-            detect_clarification = await asyncio.to_thread(is_clarification_enabled)
-    elif user_id is not None:
-        try:
-            slot.analytics_id = await asyncio.to_thread(
-                create_stateless_analytics,
-                user_id=user_id,
-                question=request.question,
-                source=http_request.headers.get("x-auto-ontology-source") or "api",
-            )
-        except Exception:  # noqa: BLE001 — analytics is best-effort
-            logger.exception("Failed to create stateless conversation analytics")
-
-    worker.submit(
-        agent_question,
-        prediction=request.prediction,
-        target_db=target_db,
-        subject_token=subject_token,
-        conversation_history=conversation_history,
-        evidence=agent_evidence,
-        detect_clarification=detect_clarification,
-    )
-    threading.Thread(target=_pump, args=(slot,), daemon=True).start()
     asyncio.create_task(_watch_disconnect(http_request, slot))
 
     return StreamingResponse(

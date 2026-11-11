@@ -6473,7 +6473,7 @@
     },
     "/api/chat/completions": {
       "post": {
-        "description": "Run the text-to-SQL agent and stream OpenAI-style SSE frames back.\n\nEmits a ``sql`` event once the agent has a validated query, just before it\nexecutes, so callers can show the SQL while it runs. Emits the final SQL\nand formatted answer as a ``result`` event, then \u2014 if that\nanswer has an executed result \u2014 generates and persists the chart/table\nbubble itself and streams it back as a ``charts`` event before the stream\ncloses with ``[DONE]``. Callers that only care about the text/SQL answer\ncan still stop reading after ``result``; the chart step and its\npersistence happen server-side regardless of whether anyone keeps\nlistening (see ``_build_charts_event``).\n\nRequires a compiled semantic layer; without one the request is rejected with\n409 rather than run against a bare schema. ``conversation_id`` persists the\nturn and claims that conversation's single run slot \u2014 a second concurrent\nrequest for the same conversation gets 409 too. Omitting ``conversation_id``\nruns the question statelessly: no history, no persisted turn, and no chart\nstep (``_build_charts_event`` needs a conversation to save into).",
+        "description": "Run the text-to-SQL agent and stream OpenAI-style SSE frames back.\n\nEmits a ``sql`` event once the agent has a validated query, just before it\nexecutes, so callers can show the SQL while it runs. Emits the final SQL\nand formatted answer as a ``result`` event, then \u2014 if that\nanswer has an executed result \u2014 generates and persists the chart/table\nbubble itself and streams it back as a ``charts`` event before the stream\ncloses with ``[DONE]``. Callers that only care about the text/SQL answer\ncan still stop reading after ``result``; the chart step and its\npersistence happen server-side regardless of whether anyone keeps\nlistening (see ``_build_charts_event``).\n\nRequires a compiled semantic layer; without one the request is rejected with\n409 rather than run against a bare schema. ``conversation_id`` persists the\nturn and claims that conversation's single run slot \u2014 a second concurrent\nrequest for the same conversation gets 409 too. Omitting ``conversation_id``\nruns the question statelessly: no history, no persisted turn, and no chart\nstep (``_build_charts_event`` needs a conversation to save into).\n\nAt most ``CHAT_MAX_CONCURRENT`` conversations run at once in this backend\nprocess; beyond that, requests wait up to ``CHAT_WAIT_S`` for a free\nworker slot and are then refused with 503 and a ``Retry-After`` header \u2014\nbefore any stream starts, so the client sees an error instead of a hang.",
         "operationId": "chat_completions_api_chat_completions_post",
         "requestBody": {
           "content": {
@@ -6505,6 +6505,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "description": "All CHAT_MAX_CONCURRENT chat slots stayed busy for CHAT_WAIT_S; retry after the Retry-After header"
           }
         },
         "summary": "Chat Completions",

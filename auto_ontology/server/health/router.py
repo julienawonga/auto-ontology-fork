@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from auto_ontology.server.chat.worker import chat_worker_stats
 from auto_ontology.server.health.checks import check_schema, check_store
 from auto_ontology.server.responses import HealthResponse
 
@@ -62,6 +63,10 @@ def health() -> JSONResponse:
         "status": "ok" if healthy else "degraded",
         "postgres": postgres,
         "migrations": migrations,
+        # Chat worker subprocess slots: how many conversations are running
+        # and the cap (CHAT_MAX_CONCURRENT). Zero until the first chat
+        # request creates the pool — reading it must never spawn one.
+        "chat_workers": chat_worker_stats(),
     }
     return JSONResponse(status_code=200 if healthy else 503, content=body)
 
