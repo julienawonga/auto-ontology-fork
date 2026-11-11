@@ -92,6 +92,10 @@ Cases live in `dev_tools/evals/cases/*.json`. Each one has a question, one or
 more gold SQL queries, and a snapshot of the rows those queries return.
 `snapshot --check` fails when the database no longer matches the snapshot.
 
+A case may also carry `evidence`: text sent with the question as the chat
+request's `evidence` field, for context a benchmark supplies (business
+definitions). It must never contain the expected answer.
+
 The Pagila set needs the fixture in `dev_tools/fixtures/sql/pagila.sql` loaded
 and ingested, with the semantic layer compiled.
 
@@ -183,3 +187,39 @@ Five questions improved and none regressed. The remaining failure is
 These numbers come from one clean demonstration database and from the
 questions that motivated the changes. They are a regression guard, not a claim
 about real, messier databases.
+
+### Held-out measurements (2026-11-11)
+
+Run on the local stack against `main` at d92eb4e7 and the code before the
+hardening work (81f02eb2), side by side. Neither set was used to change the
+engine.
+
+| Set | Before hardening | `main` | Note |
+|---|---|---|---|
+| Chinook, 20 questions x 3 runs | 70% | 100% | Every earlier failure had the right items and only lacked the value column. Too easy to judge accuracy. |
+| LiveSQLBench-Base-Lite, 180 SELECT tasks x 1 run | 54/180 (30.0%) | 47/180 (26.1%) | Knowledge entries sent as `evidence`; official metric. 15 vs 8 discordant questions, p about 0.21. |
+
+What this says: the hardening work (read-only enforcement, row cap, index
+health, key extraction, junction labels, ranking projection) made the engine
+safer and more reliable, not more accurate. The Pagila gain measured how well
+the changes fit Pagila. A second run of the same code is needed to know how
+much one run varies on its own before reading anything into 54 against 47.
+
+LiveSQLBench notes, for whoever runs it again:
+
+- Its gold SQL and knowledge mapping are sent by the BIRD team on request
+  (`bird.bench25@gmail.com`, subject `[livesqlbench-base-lite GT&Test Cases]`)
+  under a no-redistribution request: keep them, and any case file built from
+  them, outside this repository.
+- Without the knowledge entries both engines scored 0 on the first 20
+  questions: the questions name metrics that only the knowledge base defines.
+- Score with the benchmark's own rule, not the harness comparison: strip
+  `ROUND(...)` and `DISTINCT` from both queries, run them, round every number
+  to 2 decimals, compare rows as sets (as lists when the task requires order).
+  The harness rounds to 4 significant figures and fails values that sit on a
+  rounding boundary.
+- One official gold query (`archeology_7`) has a trailing comma before `FROM`
+  and fails on any PostgreSQL; removing that comma is the only fix needed.
+- More than about 6 concurrent chat requests on one local stack exhausts the
+  backend's database connections and fails questions instantly; replay any
+  question that failed in under 5 seconds without SQL, for both engines alike.

@@ -41,6 +41,9 @@ class Case:
     allow_missing_columns: bool = False
     tags: tuple[str, ...] = field(default_factory=tuple)
     description: str = ""
+    # Sent with the question as the chat request's ``evidence``: context a
+    # benchmark supplies (business definitions), never the expected answer.
+    evidence: str = ""
 
     def accepted(self) -> dict[str, list[list[Any]]]:
         """Label -> expected rows for every accepted answer."""
@@ -71,6 +74,7 @@ def parse_case(raw: dict[str, Any]) -> Case:
         allow_missing_columns=bool(raw.get("allow_missing_columns", False)),
         tags=tuple(raw.get("tags", ())),
         description=raw.get("description", ""),
+        evidence=str(raw.get("evidence") or ""),
     )
 
 
