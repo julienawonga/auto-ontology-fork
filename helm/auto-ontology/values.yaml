@@ -64,6 +64,10 @@ embedDimensions: ""
 embedExtraFields: ""
 # Ingestion targets - comma-separated list of PG URLs the worker reads from.
 connectionStrings: ""
+# Startup ingest pass scope: unset/"" = skip-ingested (only databases not
+# already in the catalog+embeddings are ingested at startup); "all" re-ingests
+# every connection on every pod start (the previous default).
+ingestOnStartup: ""
 # HashiCorp Vault (AppRole) credentials for pulling secrets at runtime.
 vaultAddr: ""
 vaultNamespace: ""

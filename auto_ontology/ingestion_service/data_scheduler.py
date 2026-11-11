@@ -8,6 +8,11 @@ Runs :func:`run_ingest` for every configured connection once at startup, then
 again every 24h measured from the end of the previous run. Connections are
 reloaded on every pass so newly added ones are picked up without a restart.
 
+The *startup* pass ingests only the databases the store does not already hold
+(see ``auto_ontology.ingestion_service.startup_skip``); the periodic and
+API-triggered passes re-ingest everything, which is how source changes are
+picked up without paying the embedding bill on every restart.
+
 A pass also replays the tagging rules, but only when semantic compilation is
 switched off — with it on, the semantic pass is the better moment and does it
 instead. See ``auto_ontology.ingestion_service.rules``.
@@ -28,6 +33,10 @@ from auto_ontology.ingestion_service.config import is_semantic_compilation_enabl
 from auto_ontology.ingestion_service.ingest import run_ingest
 from auto_ontology.ingestion_service.rules import replay_rules_in_thread
 from auto_ontology.ingestion_service.scheduler import IntervalScheduler
+from auto_ontology.ingestion_service.startup_skip import (
+    database_is_ingested,
+    startup_reingest_forced,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +70,26 @@ class DataScheduler(IntervalScheduler):
 
         logger.info("ingest: starting (%s connection(s))", len(connectors))
         started = time.monotonic()
-        succeeded = failed = 0
+        # Startup pass only: ``first_pass_done`` is set when this pass ends, so
+        # it is False exactly here. Every later pass — 24h tick or API trigger —
+        # re-ingests everything, which keeps a restart from turning into a
+        # change-detection freeze: a database whose source changed while the
+        # service was down is refreshed on the next scheduled pass.
+        skip_ingested = not self.first_pass_done and not startup_reingest_forced()
+        succeeded = failed = skipped = 0
         for connector in connectors:
             database_name = getattr(connector, "database_name", "?")
+            if skip_ingested and await asyncio.to_thread(
+                database_is_ingested, database_name
+            ):
+                skipped += 1
+                logger.info(
+                    "ingest: startup pass skipping %s — catalog and embeddings "
+                    "already present (force with INGEST_ON_STARTUP=all, "
+                    "POST /ingest, or the next scheduled pass)",
+                    database_name,
+                )
+                continue
             try:
                 await asyncio.to_thread(run_ingest, connector)
                 succeeded += 1
@@ -86,18 +112,21 @@ class DataScheduler(IntervalScheduler):
         # Report the tally rather than a bare "finished": the old line was
         # indistinguishable whether all connections ingested or all of them threw.
         elapsed = time.monotonic() - started
+        skipped_note = f", {skipped} skipped as already ingested" if skipped else ""
         if failed:
             logger.warning(
                 "ingest: finished with errors — %d of %d connection(s) succeeded, "
-                "%d failed in %.1fs",
+                "%d failed%s in %.1fs",
                 succeeded,
                 len(connectors),
                 failed,
+                skipped_note,
                 elapsed,
             )
         else:
             logger.info(
-                "ingest: finished successfully — %d connection(s) ingested in %.1fs",
+                "ingest: finished successfully — %d connection(s) ingested%s in %.1fs",
                 succeeded,
+                skipped_note,
                 elapsed,
             )
