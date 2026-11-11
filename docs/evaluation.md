@@ -315,7 +315,10 @@ Every difference between them:
 
 Use `official` for any number you want to compare with the benchmark's own
 results; `clean` when you want the metric to judge the query's meaning, not
-its spelling.
+its spelling. On the frozen held-out reports (re-scored 2026-11-12 with the
+fixed `lsb-score`) the two modes agreed on every one of the 180 questions for
+both engines; the five gold queries that are unusable (they return no rows)
+are the same in both.
 
 - This is our own implementation of the published rule (both modes), not the
   benchmark's code, and it has been checked against synthetic data and the
