@@ -12,9 +12,11 @@ never looks at the SQL text.
 from __future__ import annotations
 
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from typing import Any, Callable, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator, Sequence
 
 import httpx
 
@@ -167,6 +169,66 @@ def score(case: Case, answer: Answer) -> Run:
     )
 
 
+# More concurrent chat requests than this exhaust the backend's database
+# connections on one local stack and fail questions instantly (observed at ~6).
+MAX_WORKERS = 6
+
+
+def clamp_workers(requested: int) -> int:
+    """The worker count actually used: at least 1, at most ``MAX_WORKERS``."""
+    return max(1, min(requested, MAX_WORKERS))
+
+
+@dataclass(frozen=True)
+class Job:
+    """One run of one case; ``slot`` says which repeat it is."""
+
+    case: Case
+    slot: int
+    target_db: str | None = None
+
+
+def run_jobs(
+    jobs: Sequence[Job],
+    base_url: str,
+    *,
+    workers: int = 1,
+    timeout: float = DEFAULT_TIMEOUT_S,
+    on_run: Callable[[Case, int, Run], None] | None = None,
+) -> list[Run]:
+    """Run every job, up to *workers* at a time; results are in job order."""
+    lock = threading.Lock()
+    with httpx.Client() as client:
+
+        def one(job: Job) -> Run:
+            run = score(
+                job.case,
+                ask(
+                    client,
+                    base_url,
+                    job.case.question,
+                    target_db=job.target_db,
+                    evidence=job.case.evidence,
+                    timeout=timeout,
+                ),
+            )
+            if on_run:
+                with lock:
+                    on_run(job.case, job.slot, run)
+            return run
+
+        n = clamp_workers(workers)
+        if n == 1:
+            return [one(job) for job in jobs]
+        with ThreadPoolExecutor(max_workers=n) as pool:
+            return list(pool.map(one, jobs))
+
+
+def effective_target_db(case: Case, target_db: str | None) -> str | None:
+    """An explicit ``--target-db`` wins; otherwise the database the case names."""
+    return target_db or case.target_db or None
+
+
 def run_cases(
     cases: list[Case],
     base_url: str,
@@ -177,38 +239,33 @@ def run_cases(
     timeout: float = DEFAULT_TIMEOUT_S,
     on_run: Callable[[Case, int, Run], None] | None = None,
     provenance: dict[str, Any] | None = None,
+    workers: int = 1,
 ) -> Report:
     """Run every case ``repeats`` times against *base_url* and report.
 
     *provenance* (index state, cases hash, ...) is stored in the report meta.
+    With *workers* above 1 the runs go out concurrently (capped at
+    ``MAX_WORKERS``); each case keeps its runs in repeat order.
     """
     report = Report(
         meta=new_meta(
             label,
             repeats=repeats,
             target_db=target_db,
+            workers=clamp_workers(workers),
             **{"backend_url": base_url, **(provenance or {})},
         )
     )
-    with httpx.Client() as client:
-        for case in cases:
-            result = CaseResult(case.question)
-            for i in range(repeats):
-                run = score(
-                    case,
-                    ask(
-                        client,
-                        base_url,
-                        case.question,
-                        target_db=target_db,
-                        evidence=case.evidence,
-                        timeout=timeout,
-                    ),
-                )
-                result.runs.append(run)
-                if on_run:
-                    on_run(case, i, run)
-            report.cases[case.id] = result
+    jobs = [
+        Job(case, i, effective_target_db(case, target_db))
+        for case in cases
+        for i in range(repeats)
+    ]
+    runs = run_jobs(jobs, base_url, workers=workers, timeout=timeout, on_run=on_run)
+    for case in cases:
+        report.cases[case.id] = CaseResult(case.question)
+    for job, run in zip(jobs, runs):
+        report.cases[job.case.id].runs.append(run)
     return report
 
 

@@ -43,6 +43,12 @@ python -m dev_tools.evals snapshot --check --dsn ...
 # Score a running backend (about one hour for 13 questions x 3 runs)
 python -m dev_tools.evals run --url http://localhost:3001 --label main --out main.json
 
+# Several cases files, several questions at a time (workers capped at 6)
+python -m dev_tools.evals run --cases a.json b.json --workers 4 --label main --out main.json
+
+# Re-run only the runs that failed with no SQL in under 5 s (infrastructure)
+python -m dev_tools.evals replay main.json --cases a.json b.json
+
 # The same runs under strict scoring, without running anything again
 python -m dev_tools.evals rescore main.json --strict --out main-strict.json
 
@@ -205,21 +211,81 @@ safer and more reliable, not more accurate. The Pagila gain measured how well
 the changes fit Pagila. A second run of the same code is needed to know how
 much one run varies on its own before reading anything into 54 against 47.
 
-LiveSQLBench notes, for whoever runs it again:
+## LiveSQLBench-Base-Lite
 
-- Its gold SQL and knowledge mapping are sent by the BIRD team on request
-  (`bird.bench25@gmail.com`, subject `[livesqlbench-base-lite GT&Test Cases]`)
-  under a no-redistribution request: keep them, and any case file built from
-  them, outside this repository.
-- Without the knowledge entries both engines scored 0 on the first 20
-  questions: the questions name metrics that only the knowledge base defines.
-- Score with the benchmark's own rule, not the harness comparison: strip
-  `ROUND(...)` and `DISTINCT` from both queries, run them, round every number
-  to 2 decimals, compare rows as sets (as lists when the task requires order).
-  The harness rounds to 4 significant figures and fails values that sit on a
-  rounding boundary.
-- One official gold query (`archeology_7`) has a trailing comma before `FROM`
-  and fails on any PostgreSQL; removing that comma is the only fix needed.
-- More than about 6 concurrent chat requests on one local stack exhausts the
-  backend's database connections and fails questions instantly; replay any
-  question that failed in under 5 seconds without SQL, for both engines alike.
+The tooling is generic; the data is not ours to ship. The questions are public
+(`huggingface.co/datasets/birdsql/livesqlbench-base-lite`:
+`livesqlbench_data.jsonl` and `<db>/<db>_kb.jsonl`). The gold SQL and the
+knowledge-entry ids per task are sent by the BIRD team on request
+(`bird.bench25@gmail.com`, subject `[livesqlbench-base-lite GT&Test Cases]`)
+under a **no-redistribution** request. Keep them, and every file built from
+them (cases, expected rows, reports that quote gold), **outside this
+repository**. `lsb-build` refuses an `--out` inside the checkout. The LiveSQLBench
+databases must be loaded in a Postgres you can read.
+
+```bash
+# 1. One case file per database, SELECT ("Query") tasks only. --oracle sends each
+#    task's knowledge entries as `evidence` ("knowledge: description Definition: definition").
+#    --dsn-template also fills the expected rows with the snapshot logic.
+python -m dev_tools.evals lsb-build --public livesqlbench_data.jsonl --gt gt.jsonl \
+    --kb-dir kb --out ~/lsb --oracle --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
+
+# 2. Run, several questions at a time (--workers is capped at 6)
+python -m dev_tools.evals run --cases ~/lsb/*.json --workers 4 --repeats 1 \
+    --label main --out main.json
+
+# 3. Re-run the infrastructure failures, the same rule for every engine
+python -m dev_tools.evals replay main.json cand.json --cases ~/lsb/*.json
+
+# 4. Score with the benchmark's metric; two reports also get a paired test
+python -m dev_tools.evals lsb-score --reports main.replayed.json cand.replayed.json \
+    --cases ~/lsb/*.json --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
+```
+
+What each step does and decides:
+
+- **Build.** The question is copied verbatim; `ordered` is the task's
+  `conditions.order`; the gold is its single `sol_sql` (a task with several is
+  skipped and named in the output, so check the total, 180 for Base-Lite).
+  Without `--oracle` no case has `evidence`: the questions name metrics that
+  only the knowledge base defines, and without it both engines scored 0 on the
+  first 20 questions. One official gold query (`archeology_7`) has a comma
+  before `FROM` and fails on any PostgreSQL; the build removes that comma (it
+  cannot change a working query) and lists the repaired cases. A missing ground
+  truth row or knowledge id is an error, not a smaller test set.
+- **Run.** `--cases` takes several files (ids must be unique across them); each
+  case goes to the database it names, unless `--target-db` is given. More than
+  about 6 concurrent chat requests on one local stack exhaust the backend's
+  database connections and fail questions instantly, hence the cap. The report
+  stores `workers` and one hash per cases file.
+- **Replay.** A run that **failed, returned no SQL and took under 5 seconds**
+  (`--max-seconds`) is an infrastructure failure, not an answer. It is run
+  again, and only it. The result is written to `<report>.replayed.json` (the
+  original is never modified); each replaced run is kept under
+  `meta.replay.replaced`. It talks to the `backend_url` the report recorded
+  (`--url` overrides it), so run it against the same engine as the original.
+  Apply it to every engine you compare, or to none: a replay that only helps one
+  side biases the comparison.
+- **Score.** `lsb-score` re-implements the benchmark's SELECT metric. From both
+  the predicted and the gold query it strips comments, `SELECT DISTINCT` (kept:
+  `DISTINCT ON`, `COUNT(DISTINCT x)`, `IS DISTINCT FROM`; pass
+  `--strip-aggregate-distinct` to strip the aggregate form too) and
+  `ROUND(x, n)` (replaced by `(x)`). It runs them in a `READ ONLY` transaction
+  under a statement timeout (`--timeout-s`, 60), turns dates into
+  `YYYY-MM-DD`, rounds every number to 2 decimals ROUND_HALF_UP (so `-2.2765`
+  and `-2.27650000000004` agree), dumps nested values as JSON, and compares the
+  rows as sets, or as lists when the task requires an order. An error or an
+  empty result scores 0, and a gold query that errors or is empty is listed
+  and scores 0 for everyone. It prints Simple, Moderate, Challenging and
+  Overall; given several reports it adds, per pair, both/only/neither counts
+  and the exact two-sided McNemar p-value. A question counts as passed when
+  most of its runs did, which is exact for one run.
+- This is our implementation of the published rule, not the benchmark's code,
+  and it has been checked against synthetic data only. Before quoting a score
+  as "official", compare it on a few tasks with the benchmark's own harness; in
+  particular the treatment of `DISTINCT` inside aggregates is the point most
+  likely to differ.
+
+The harness's own comparison (`run`, `rescore`) rounds to 4 significant figures
+and fails values on a rounding boundary; use it for a quick signal and
+`lsb-score` for the number you report.
