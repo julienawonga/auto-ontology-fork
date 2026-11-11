@@ -39,6 +39,14 @@ PII_DETECTION_ENABLED_KEY = "pii_detection_enabled"
 # there is no settings control yet, so it is switched on by writing the row.
 CLARIFICATION_ENABLED_KEY = "clarification_enabled"
 
+# Lets semantic compilation mine past SQL queries (including the chat's own) and
+# write the SqlAttributes an LLM picks from them straight into the shared
+# ontology, with no human review. Opt-in: off by default because those writes
+# are unreviewed and, on an evaluation instance, they learn the test questions
+# (a threshold typed in a test query came back as an attribute). There is no
+# settings control yet, so it is switched on by writing the row.
+SQL_ATTRIBUTE_SUGGESTION_ENABLED_KEY = "sql_attribute_suggestion_enabled"
+
 # Written by the SQL Query Timeout field on Settings > Agent Settings: how long
 # a statement the text-to-SQL agent issues may run before it is cancelled. An
 # instance without the frontend never writes the row and gets the default.
@@ -136,6 +144,15 @@ def is_clarification_enabled() -> bool:
     chat answers exactly as it did before the feature existed.
     """
     return read_configuration_flag(CLARIFICATION_ENABLED_KEY, default=False)
+
+
+def is_sql_attribute_suggestion_enabled() -> bool:
+    """Whether compilation may write SqlAttributes mined from query history.
+
+    Opt-in, read per compilation: a missing row or any DB error means off, so
+    no attribute reaches the ontology unless an operator asked for it.
+    """
+    return read_configuration_flag(SQL_ATTRIBUTE_SUGGESTION_ENABLED_KEY, default=False)
 
 
 def read_configuration_int(
