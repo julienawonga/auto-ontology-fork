@@ -9,6 +9,8 @@ export type ChatMessage = {
 	sql?: string;
 	sqlResponse?: string;
 	thoughts?: string;
+	/** Set when this assistant turn is a clarification question rather than an answer. */
+	clarification?: ClarificationPart;
 	timestamp: number;
 };
 
@@ -23,6 +25,8 @@ export type ChatRequest = {
 	conversationId?: string | null;
 	/** Scope retrieval/SQL to one connected database when multiple are loaded. */
 	target_db?: string | null;
+	/** Answers the clarification question the previous assistant turn asked. */
+	clarification?: ClarificationReply;
 };
 
 /**
@@ -70,6 +74,8 @@ export type ResultEvent = {
 export type ErrorEvent = {
 	type: 'error';
 	message: string;
+	/** HTTP status when the request itself was refused before streaming. */
+	status?: number;
 };
 
 /**
@@ -85,7 +91,52 @@ export type ChartsEvent = {
 	sql_response?: string | null;
 };
 
-export type ChatStreamEvent = StepEvent | SqlEvent | ResultEvent | ErrorEvent | ChartsEvent;
+/** One choice offered by a clarification question. */
+export type ClarificationOption = {
+	id: string;
+	label: string;
+	description?: string;
+};
+
+/**
+ * The backend needs a business term defined before it can write the SQL
+ * ('VIP customers'). The stream ends normally after this event; the answer
+ * comes back as the next turn on the same conversation.
+ */
+export type ClarificationEvent = {
+	type: 'clarification';
+	clarification_id: string;
+	term: string;
+	question: string;
+	options: ClarificationOption[];
+	allow_other: boolean;
+};
+
+/** The answer, as sent in the next request: a chosen option or free text. */
+export type ClarificationReply =
+	| { clarification_id: string; option_id: string; text?: undefined }
+	| { clarification_id: string; text: string; option_id?: undefined };
+
+/** What the thread keeps of a clarification: the question and, once given, the answer. */
+export type ClarificationPart = {
+	id: string;
+	term: string;
+	question: string;
+	options: ClarificationOption[];
+	allowOther: boolean;
+	/** Absent while the question is waiting for an answer. */
+	answer?: { optionId?: string; text: string };
+	/** The backend refused answers to it (stale or already answered). */
+	closed?: boolean;
+};
+
+export type ChatStreamEvent =
+	| StepEvent
+	| SqlEvent
+	| ResultEvent
+	| ErrorEvent
+	| ChartsEvent
+	| ClarificationEvent;
 
 export type GraphStep = {
 	node: string;

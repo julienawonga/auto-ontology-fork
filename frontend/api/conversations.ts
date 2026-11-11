@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Conversation, ChatMessage } from '@/types/chat';
+import { answerFromUserText, parseClarificationFence } from '@/lib/clarification';
 
 export type ConversationSummary = {
 	id: string;
@@ -79,7 +80,7 @@ export function toConversation(detail: ConversationDetail): Conversation {
 		id: detail.id,
 		title: detail.title,
 		createdAt: new Date(detail.created_at).getTime(),
-		messages: detail.messages.map(toMessage),
+		messages: withClarifications(detail.messages.map(toMessage)),
 	};
 }
 
@@ -92,4 +93,19 @@ export function toMessage(msg: ConversationDetail['messages'][number]): ChatMess
 		sqlResponse: msg.sql_response ?? undefined,
 		timestamp: new Date(msg.created_at).getTime(),
 	};
+}
+
+// A clarification question is stored as an assistant message with a fenced
+// block. It is pending only while it is the last message; otherwise the user
+// message after it is the answer.
+function withClarifications(messages: ChatMessage[]): ChatMessage[] {
+	return messages.map((message, index) => {
+		if (message.role !== 'assistant') return message;
+		const parsed = parseClarificationFence(message.content);
+		if (!parsed) return message;
+		const next = messages[index + 1];
+		const part =
+			next?.role === 'user' ? answerFromUserText(parsed.part, next.content) : parsed.part;
+		return { ...message, content: parsed.text, clarification: part };
+	});
 }

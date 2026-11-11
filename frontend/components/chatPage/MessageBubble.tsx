@@ -5,7 +5,7 @@
 'use client';
 
 import { useId, useMemo, useState } from 'react';
-import type { ChatMessage } from '@/types/chat';
+import type { ChatMessage, ClarificationReply } from '@/types/chat';
 import { CopyButton } from '@/common/Button';
 import { formatDate } from '@/common/date';
 import { Icon, IconName } from '@/common/icons';
@@ -17,6 +17,7 @@ import {
 	codeSurfaceClass,
 	codeTextClass,
 } from '@/common/SqlBlock';
+import { ClarificationCard } from './ClarificationCard';
 import { DynamicTable } from './DynamicTable';
 import { FormattedContent } from './FormattedContent';
 import { glassFocus, glassSurface } from './glass';
@@ -78,6 +79,11 @@ type MessageBubbleProps = {
 	 * Settings). The user can still toggle each answer.
 	 */
 	detailsExpandedByDefault?: boolean;
+	/** Whether this is the newest message; only then can a clarification still be answered. */
+	isLatest?: boolean;
+	/** A turn is streaming, so a clarification answer cannot be sent yet. */
+	isRunning?: boolean;
+	onAnswerClarification?: (text: string, reply: ClarificationReply) => Promise<boolean>;
 };
 
 /** True when the assistant message embeds a ResultChart fence (illumex Message 2). */
@@ -87,6 +93,9 @@ const hasEmbeddedChart = (content: string): boolean =>
 export const MessageBubble = ({
 	message,
 	detailsExpandedByDefault = false,
+	isLatest = false,
+	isRunning = false,
+	onAnswerClarification,
 }: MessageBubbleProps) => {
 	const isUser = message.role === 'user';
 	// `null` until the user clicks, so the bubble follows the setting — which
@@ -115,6 +124,19 @@ export const MessageBubble = ({
 	// and the results (Message 2) are a separate bubble that always shows.
 	const collapsible = showSql;
 	const detailsExpanded = !collapsible || (detailsOpen ?? detailsExpandedByDefault);
+
+	if (message.clarification) {
+		return (
+			<div className="w-full">
+				<ClarificationCard
+					part={message.clarification}
+					isLatest={isLatest}
+					disabled={isRunning || !onAnswerClarification}
+					onAnswer={onAnswerClarification ?? (async () => false)}
+				/>
+			</div>
+		);
+	}
 
 	// Chat-app layout: the question sits in a bubble on the right, the answer
 	// reads as plain text across the whole column.

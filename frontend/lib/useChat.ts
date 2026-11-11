@@ -8,7 +8,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cancelChat, streamChat, watchChat } from '@/api/chat';
 import { conversationsApi, toConversation } from '@/api/conversations';
 import { GENERIC_ANSWER_ERROR, buildSqlAnswerMessage, isResultMessage } from '@/lib/answerMessages';
-import type { ChartsEvent, ChatMessage, GraphStep, ResultEvent, StepEvent } from '@/types/chat';
+import { clarificationRefusalMessage, toClarificationPart } from '@/lib/clarification';
+import type {
+	ChartsEvent,
+	ChatMessage,
+	ClarificationEvent,
+	ClarificationReply,
+	GraphStep,
+	ResultEvent,
+	StepEvent,
+} from '@/types/chat';
 
 let nextId = 0;
 const uid = () => `msg-${Date.now()}-${nextId++}`;
@@ -126,6 +135,20 @@ export const useChat = () => {
 		},
 		[appendAssistantMessage],
 	);
+
+	// A clarification question is an assistant turn of its own. Its text doubles
+	// as the message content so copy and any renderer that ignores the card
+	// still show the question.
+	const appendClarificationMessage = useCallback((event: ClarificationEvent) => {
+		const msg: ChatMessage = {
+			id: uid(),
+			role: 'assistant',
+			content: event.question,
+			clarification: toClarificationPart(event),
+			timestamp: Date.now(),
+		};
+		setMessages((prev) => [...prev, msg]);
+	}, []);
 
 	// Message 2 — the chart, or the fallback result table, that the backend
 	// already generated and persisted itself right after the SQL answer (see
@@ -287,6 +310,18 @@ export const useChat = () => {
 					]);
 				},
 
+				// Same replay caveat as `onResult`: history may already end with
+				// this very question.
+				onClarification(event) {
+					setMessages((prev) => {
+						let cut = prev.length;
+						while (cut > 0 && prev[cut - 1].role === 'assistant') cut -= 1;
+						return cut === prev.length ? prev : prev.slice(0, cut);
+					});
+					appendClarificationMessage(event);
+					updateLiveSql(null);
+				},
+
 				onCharts(event) {
 					appendChartsMessage(event, requestId);
 					if (requestId === requestIdRef.current) {
@@ -364,6 +399,7 @@ export const useChat = () => {
 			appendSqlAnswerMessage,
 			appendAssistantMessage,
 			appendChartsMessage,
+			appendClarificationMessage,
 			pollForPersistedAssistant,
 			updateLiveSql,
 		],
@@ -371,9 +407,15 @@ export const useChat = () => {
 
 	// Resolves true once the backend accepted the question, false if it was
 	// refused before the stream started — the caller uses that to decide
-	// whether the typed text can be discarded.
+	// whether the typed text can be discarded. `clarification` marks the turn as
+	// the answer to a clarification question; `text` is then what the user
+	// picked or typed, shown as their message and on the answered card.
 	const sendMessage = useCallback(
-		async (text: string, conversationId: string | null): Promise<boolean> => {
+		async (
+			text: string,
+			conversationId: string | null,
+			clarification?: ClarificationReply,
+		): Promise<boolean> => {
 			// A background resume may still be tailing this conversation (its
 			// `isLoading` only flips on the first step, so the input isn't locked).
 			// Drop it — this send supersedes it.
@@ -391,7 +433,21 @@ export const useChat = () => {
 			// bubble lag behind a post-cancel worker cold-start, so the input
 			// looked empty for a noticeable beat. On a pre-stream refusal we
 			// roll it back so the transcript still matches what was persisted.
+			// The card flips to its answered state together with the user bubble.
+			const setClarificationAnswer = (answered: boolean, closed = false) => {
+				if (!clarification) return;
+				setMessages((prev) =>
+					prev.map((m) => {
+						if (m.clarification?.id !== clarification.clarification_id) return m;
+						const answer = answered
+							? { optionId: clarification.option_id, text }
+							: undefined;
+						return { ...m, clarification: { ...m.clarification, answer, closed } };
+					}),
+				);
+			};
 			setMessages((prev) => [...prev, userMsg]);
+			setClarificationAnswer(true);
 			setSteps([]);
 			updateLiveSql(null);
 			setIsLoading(true);
@@ -417,7 +473,7 @@ export const useChat = () => {
 			});
 
 			const controller = streamChat(
-				{ question: text, conversationId },
+				{ question: text, conversationId, clarification },
 				{
 					onStart() {
 						settle(true);
@@ -429,6 +485,11 @@ export const useChat = () => {
 
 					onSql(event) {
 						updateLiveSql(event.sql);
+					},
+
+					onClarification(event) {
+						appendClarificationMessage(event);
+						updateLiveSql(null);
 					},
 
 					onResult(event) {
@@ -480,8 +541,20 @@ export const useChat = () => {
 						// the question in the input, and attach to the live run.
 						if (message === CONVERSATION_IN_PROGRESS && conversationId) {
 							setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+							setClarificationAnswer(false);
 							settle(false);
 							resumeIfRunning(conversationId);
+							return;
+						}
+
+						// The backend refused the answer (stale or already answered
+						// question, an option it never offered): nothing was submitted,
+						// so undo the optimistic turn and close the card for good.
+						if (clarification && event.status === 422) {
+							setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+							setClarificationAnswer(false, true);
+							appendAssistantMessage(clarificationRefusalMessage(message));
+							settle(false);
 							return;
 						}
 
@@ -503,6 +576,7 @@ export const useChat = () => {
 			appendAssistantMessage,
 			appendSqlAnswerMessage,
 			appendChartsMessage,
+			appendClarificationMessage,
 			resumeIfRunning,
 			updateLiveSql,
 		],

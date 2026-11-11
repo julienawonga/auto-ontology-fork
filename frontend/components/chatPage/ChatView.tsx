@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Spinner } from '@/common/Spinner';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/lib/useChat';
-import type { Conversation } from '@/types/chat';
+import type { ClarificationReply, Conversation } from '@/types/chat';
 import {
 	conversationsApi,
 	toConversation,
@@ -190,7 +190,7 @@ export const ChatView = () => {
 	);
 
 	const handleSend = useCallback(
-		async (text: string): Promise<boolean> => {
+		async (text: string, clarification?: ClarificationReply): Promise<boolean> => {
 			let convId = activeConvId;
 			if (!convId) {
 				try {
@@ -205,7 +205,7 @@ export const ChatView = () => {
 					return false;
 				}
 			}
-			return sendMessage(text, convId);
+			return sendMessage(text, convId, clarification);
 		},
 		[activeConvId, sendMessage, refreshConversations, updateFocusInUrl],
 	);

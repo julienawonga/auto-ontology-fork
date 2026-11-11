@@ -17,7 +17,7 @@ import {
 	type AppendMessage,
 	type ThreadMessageLike,
 } from '@assistant-ui/react';
-import type { ChatMessage, GraphStep } from '@/types/chat';
+import type { ChatMessage, ClarificationReply, GraphStep } from '@/types/chat';
 import { Icon, IconName } from '@/common/icons';
 import { SkeletonBlock } from '@/common/Skeleton';
 import { chatDisplayQueries } from '@/lib/queries/chatDisplay';
@@ -44,7 +44,7 @@ type ChatThreadProps = {
 	liveSql?: string | null;
 	messageListLoading?: boolean;
 	/** Resolves false when the question was refused, so the draft is restored. */
-	onSend: (text: string) => Promise<boolean>;
+	onSend: (text: string, clarification?: ClarificationReply) => Promise<boolean>;
 	onStop: () => void;
 };
 
@@ -77,13 +77,25 @@ const iconButtonClass = `flex h-7 w-7 items-center justify-center rounded-md tex
 const ThreadMessage = ({
 	message,
 	detailsExpandedByDefault,
+	isLatest,
+	isRunning,
+	onAnswerClarification,
 }: {
 	message: ChatMessage;
 	detailsExpandedByDefault: boolean;
+	isLatest: boolean;
+	isRunning: boolean;
+	onAnswerClarification: (text: string, reply: ClarificationReply) => Promise<boolean>;
 }) => (
 	<MessagePrimitive.Root className="group flex flex-col gap-1">
-		<MessageBubble message={message} detailsExpandedByDefault={detailsExpandedByDefault} />
-		{message.role === 'assistant' && (
+		<MessageBubble
+			message={message}
+			detailsExpandedByDefault={detailsExpandedByDefault}
+			isLatest={isLatest}
+			isRunning={isRunning}
+			onAnswerClarification={onAnswerClarification}
+		/>
+		{message.role === 'assistant' && !message.clarification && (
 			<ActionBarPrimitive.Root autohide="not-last" className="flex gap-1">
 				<ActionBarPrimitive.Copy
 					copiedDuration={1500}
@@ -246,6 +258,12 @@ export const ChatThread = ({
 													detailsExpandedByDefault={
 														detailsExpandedByDefault
 													}
+													isLatest={
+														chatMessage.id ===
+														messages[messages.length - 1]?.id
+													}
+													isRunning={isLoading}
+													onAnswerClarification={onSend}
 												/>
 											);
 										}}
