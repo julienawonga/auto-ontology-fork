@@ -122,6 +122,155 @@ def _source(monkeypatch: pytest.MonkeyPatch, values: list[Any]) -> list[str]:
     return ran
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "email",
+        "Email",
+        "customer_email",
+        "phone",
+        "mobile_number",
+        "password",
+        "passwd",
+        "api_key",
+        "access_token",
+        "first_name",
+        "FirstName",
+        "lastname",
+        "surname",
+        "username",
+        "address",
+        "street",
+        "postal_code",
+        "zipcode",
+        "ssn",
+        "iban",
+        "date_of_birth",
+    ],
+)
+def test_a_column_named_like_personal_data_is_skipped_without_any_pii_tag(
+    name: str,
+) -> None:
+    """Detection is off by default and nothing was tagged: the name decides."""
+    reason = column_skip_reason(_column(name), pii_detection_enabled=False)
+
+    assert reason is not None and reason.startswith("sensitive column name")
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["country", "city", "district", "title", "rating", "name", "language", "genre"],
+)
+def test_ordinary_label_columns_are_still_eligible(name: str) -> None:
+    assert column_skip_reason(_column(name), pii_detection_enabled=False) is None
+
+
+def test_the_columns_a_real_run_wrongly_indexed_are_now_skipped() -> None:
+    """The index of a stock demo database held these, e-mails and a password included."""
+    indexed_before = {
+        ("customer", "email"),
+        ("customer", "first_name"),
+        ("customer", "last_name"),
+        ("address", "address"),
+        ("address", "phone"),
+        ("address", "postal_code"),
+        ("actor", "first_name"),
+        ("actor", "last_name"),
+        ("staff", "email"),
+        ("staff", "username"),
+        ("staff", "password"),
+    }
+    for table, name in sorted(indexed_before):
+        assert (
+            column_skip_reason(_column(name, table=table), pii_detection_enabled=False)
+            is not None
+        ), f"{table}.{name}"
+    kept = [("city", "city"), ("address", "district"), ("country", "country")]
+    for table, name in kept:
+        assert (
+            column_skip_reason(_column(name, table=table), pii_detection_enabled=False)
+            is None
+        )
+
+
+def test_an_operator_can_re_allow_a_column_by_name_but_not_past_a_pii_tag() -> None:
+    column = _column("last_name", table="customer")
+    allow = frozenset({"customer.last_name"})
+
+    assert column_skip_reason(column, pii_detection_enabled=False) is not None
+    assert (
+        column_skip_reason(column, pii_detection_enabled=False, include_columns=allow)
+        is None
+    )
+    tagged = _column("last_name", table="customer", pii=True)
+    assert (
+        column_skip_reason(tagged, pii_detection_enabled=False, include_columns=allow)
+        == "tagged PII"
+    )
+
+
+def test_the_include_list_comes_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VALUE_INDEX_INCLUDE_COLUMNS", " Customer.Last_Name , staff.x ")
+
+    assert value_index.included_columns() == frozenset(
+        {"customer.last_name", "staff.x"}
+    )
+    monkeypatch.delenv("VALUE_INDEX_INCLUDE_COLUMNS")
+    assert value_index.included_columns() == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("values", "kind"),
+    [
+        (["a@example.com", "b@example.org", "Paris", "Lyon"], "email"),
+        (["+33 1 23 45 67 89", "01 23 45 67 89", "(555) 123-4567"], "phone"),
+        (
+            [
+                "5d41402abc4b2a76b9719d911017c592" * 1,
+                "e99a18c428cb38d5f260853678922e03",
+            ],
+            "hash",
+        ),
+        (["$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUV"], "hash"),
+        (["4111 1111 1111 1111", "5500-0000-0000-0004"], "card"),
+    ],
+)
+def test_values_that_look_like_contact_details_or_secrets_are_refused(
+    values: list[str], kind: str
+) -> None:
+    assert value_index.sensitive_shape(values) == f"values look like {kind} data"
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ["United States", "India", "France"],
+        ["35200", "62709", "75001"],
+        ["PG-13", "R", "NC-17"],
+        ["Nancy Edwards", "Jane Peacock"],
+        [],
+    ],
+)
+def test_ordinary_values_pass_the_shape_check(values: list[str]) -> None:
+    assert value_index.sensitive_shape(values) is None
+
+
+def test_a_column_whose_values_look_like_emails_is_skipped_under_a_harmless_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The name does not say it ("contact"); the values do."""
+    monkeypatch.setattr(
+        value_index,
+        "execute_chat_sql",
+        lambda *_a, **_k: pd.DataFrame({"contact": ["a@x.io", "b@y.io", "c@z.io"]}),
+    )
+
+    assert column_skip_reason(_column("contact"), pii_detection_enabled=False) is None
+    assert read_distinct_values(_Connector(), _column("contact"), _LIMITS) is None
+
+
 def test_values_are_read_with_a_bounded_distinct_select(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
