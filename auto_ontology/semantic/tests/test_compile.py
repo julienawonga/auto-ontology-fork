@@ -30,6 +30,7 @@ def _patch_stages(
     embedder: Any = object(),
     tables: int = 0,
     cancelled: bool = False,
+    suggestion_enabled: bool = True,
 ) -> list[str]:
     """Stub every stage; returns the stages that ran, in order."""
     ran: list[str] = []
@@ -54,6 +55,11 @@ def _patch_stages(
     )
     monkeypatch.setattr(compile_module, "is_cancelled", lambda: cancelled)
     monkeypatch.setattr(compile_module, "resolve_semantic_fks", _stage("fks", 0))
+    monkeypatch.setattr(
+        compile_module,
+        "is_sql_attribute_suggestion_enabled",
+        lambda: suggestion_enabled,
+    )
     monkeypatch.setattr(
         "auto_ontology.semantic.sql_attribute_suggester.suggest_sql_attributes",
         _stage("sql_attributes", 0),
@@ -85,6 +91,21 @@ def test_terms_missing_from_the_index_fail_the_run(
     # The verdict comes last: an empty index is no reason to skip the stages
     # that do not depend on it.
     assert ran == ["compile", "fks", "sql_attributes", "bridges", "index"]
+
+
+def test_query_history_suggestions_are_skipped_when_switched_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unreviewed attributes mined from past queries stay out by default."""
+    ran = _patch_stages(
+        monkeypatch,
+        index=SemanticIndexHealth("pagila", 80, 80),
+        tables=15,
+        suggestion_enabled=False,
+    )
+
+    assert run_semantic_compilation("pagila") == 15
+    assert ran == ["compile", "fks", "bridges", "index"]
 
 
 def test_a_pass_that_compiles_nothing_still_answers_for_the_index(

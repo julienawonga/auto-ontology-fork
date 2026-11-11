@@ -10,6 +10,10 @@ import logging
 import os
 import time
 
+from auto_ontology.infra.feature_flags import (
+    SQL_ATTRIBUTE_SUGGESTION_ENABLED_KEY,
+    is_sql_attribute_suggestion_enabled,
+)
 from auto_ontology.semantic.bridge_tables import build_bridge_tables_sql_attributes
 from auto_ontology.semantic.cancellation import is_cancelled
 from auto_ontology.semantic.domain import DomainSummary, load_domain_summary
@@ -105,13 +109,23 @@ def _run_semantic_compilation(
     fk_count = resolve_semantic_fks(database_name)
     logger.info("Semantic FK edges created: %d", fk_count)
 
-    from auto_ontology.semantic.sql_attribute_suggester import suggest_sql_attributes
+    attr_count = 0
+    if is_sql_attribute_suggestion_enabled():
+        from auto_ontology.semantic.sql_attribute_suggester import (
+            suggest_sql_attributes,
+        )
 
-    logger.info("=" * 60)
-    logger.info("Suggesting SqlAttributes from query history…")
-    logger.info("=" * 60)
-    attr_count = suggest_sql_attributes(database_name)
-    logger.info("New SqlAttribute nodes written: %d", attr_count)
+        logger.info("=" * 60)
+        logger.info("Suggesting SqlAttributes from query history…")
+        logger.info("=" * 60)
+        attr_count = suggest_sql_attributes(database_name)
+        logger.info("New SqlAttribute nodes written: %d", attr_count)
+    else:
+        logger.info(
+            "SqlAttribute suggestion from query history is off "
+            "(configuration %r); no attribute written",
+            SQL_ATTRIBUTE_SUGGESTION_ENABLED_KEY,
+        )
 
     logger.info("=" * 60)
     logger.info("Building bridge tables sql attributes")
