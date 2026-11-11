@@ -286,6 +286,10 @@ def _patch_data_scheduler(
     monkeypatch.setattr(
         mod, "is_semantic_compilation_enabled", lambda: semantic_enabled
     )
+    # These passes are not about the startup skip; stub it to "not ingested"
+    # so they exercise the plain ingest path (see test_startup_skip.py).
+    monkeypatch.setattr(mod, "database_is_ingested", lambda name: False)
+    monkeypatch.setattr(mod, "startup_reingest_forced", lambda: False)
     return _stub_rules(monkeypatch)
 
 
