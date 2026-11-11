@@ -14,10 +14,13 @@ be looked up (see ``auto_ontology.retrieval.text_to_sql.value_linking``). It is
 deliberately narrow about what it copies, because it moves data out of the
 source database:
 
-* only string-typed columns that are neither primary keys nor tagged ``PII``;
-* only columns with at most ``VALUE_INDEX_MAX_DISTINCT`` distinct values, so
-  names, emails, addresses and other high-cardinality columns never leave the
-  source;
+* only string-typed columns that are neither primary keys nor tagged ``PII``,
+  whose name does not say personal data or a secret (e-mail, phone, password,
+  address, first or last name, ...) and whose values do not look like contact
+  details or secrets (the name rule can be lifted per column with
+  ``VALUE_INDEX_INCLUDE_COLUMNS``, the value check never);
+* only columns with at most ``VALUE_INDEX_MAX_DISTINCT`` distinct values, which
+  also keeps most high-cardinality columns out;
 * not free text: a column whose values average more than
   ``VALUE_INDEX_MAX_AVG_LENGTH`` characters is skipped;
 * no NULL or empty values, and a per-database budget of
@@ -58,6 +61,60 @@ _STRING_TYPE = re.compile(r"char|text|string|citext|enum|user-defined", re.IGNOR
 
 # Longer than this is a sentence, not a label worth matching against.
 _MAX_VALUE_LENGTH = 100
+
+# Column names that say what the column holds. Automatic PII classification is
+# off by default and a hand-set tag is rarely there, so a column that is merely
+# "not tagged" is NOT known to be safe: on the first real run of this index a
+# stock demo database had customer e-mails, phone numbers, names and a staff
+# password column indexed (and sent to the embedding endpoint). The name is the
+# cheapest signal that does not depend on any setting. Matched on the name with
+# its separators removed, so ``first_name``, ``FirstName`` and ``firstname`` are
+# one thing. Deliberately conservative: a false hit only costs a column that
+# can be re-allowed by name (``VALUE_INDEX_INCLUDE_COLUMNS``).
+_SENSITIVE_NAME_PARTS = (
+    "password",
+    "passwd",
+    "passcode",
+    "pwd",
+    "secret",
+    "token",
+    "apikey",
+    "credential",
+    "ssn",
+    "socialsecurity",
+    "iban",
+    "creditcard",
+    "cardnumber",
+    "cvv",
+    "email",
+    "phone",
+    "mobile",
+    "fax",
+    "address",
+    "street",
+    "postal",
+    "postcode",
+    "zipcode",
+    "birth",
+    "dob",
+    "firstname",
+    "lastname",
+    "surname",
+    "fullname",
+    "username",
+    "login",
+    "ipaddress",
+)
+
+# The shape of what a column holds, checked on its values. This catches what the
+# name does not say (a column called ``contact`` full of e-mails) and is never
+# switched off by the include list: a column whose values look like secrets or
+# contact details is not indexed whatever it is called.
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_PHONE = re.compile(r"^\+?[\d\s().-]{7,25}$")
+_HASH = re.compile(r"^(?:[A-Fa-f0-9]{24,}|[A-Za-z0-9+/=_-]{32,}|\$[0-9a-z]{1,3}\$\S+)$")
+# Share of a column's values that must look like the thing for it to be skipped.
+_SHAPE_THRESHOLDS = {"email": 0.1, "phone": 0.3, "hash": 0.3, "card": 0.1}
 
 # A name for the id derivation, so the same value always gets the same id.
 _ID_NAMESPACE = uuid.UUID("6f1c9a4e-3b7d-5c2a-9e08-1d4b7a3c5f60")
@@ -113,16 +170,36 @@ class ValueIndexRebuild:
     columns_skipped: int
 
 
+def included_columns() -> frozenset[str]:
+    """``table.column`` names an operator re-allowed, from ``VALUE_INDEX_INCLUDE_COLUMNS``.
+
+    Comma separated, case-insensitive. It lifts the NAME rule only, never the
+    PII tag and never the shape check on the values.
+    """
+    raw = os.environ.get("VALUE_INDEX_INCLUDE_COLUMNS", "")
+    return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
+
+
+def _sensitive_name(column_name: str) -> str | None:
+    """The part of *column_name* that marks it as sensitive, if any."""
+    flat = re.sub(r"[^a-z0-9]", "", str(column_name).lower())
+    return next((part for part in _SENSITIVE_NAME_PARTS if part in flat), None)
+
+
 def column_skip_reason(
-    column: dict[str, Any], *, pii_detection_enabled: bool
+    column: dict[str, Any],
+    *,
+    pii_detection_enabled: bool,
+    include_columns: frozenset[str] = frozenset(),
 ) -> str | None:
     """Why *column* must not be indexed, or ``None`` when it may be.
 
-    A column that is not tagged ``PII`` is only known to be clean if automatic
-    classification has looked at it. When classification is on, an unclassified
-    column is therefore left out rather than assumed clean. When it is off,
-    nothing was ever classified, so the tag (set by hand) is all there is to go
-    on; the docs say so.
+    A column that is not tagged ``PII`` is not thereby known to be clean:
+    automatic classification is off by default and a tag is rarely set by hand.
+    So the column's name is checked as well (see ``_SENSITIVE_NAME_PARTS``), and
+    when classification is on, an unclassified column is left out rather than
+    assumed clean. The values themselves are checked once read, by
+    :func:`sensitive_shape`.
     """
     if not _STRING_TYPE.search(str(column.get("data_type") or "")):
         return "not a string column"
@@ -132,6 +209,36 @@ def column_skip_reason(
         return "tagged PII"
     if pii_detection_enabled and not column.get("pii_processed"):
         return "not yet classified for PII"
+    name = str(column.get("column_name") or "")
+    qualified = f"{column.get('table_name') or ''}.{name}".lower()
+    if (part := _sensitive_name(name)) and qualified not in include_columns:
+        return f"sensitive column name ({part})"
+    return None
+
+
+def sensitive_shape(values: list[str]) -> str | None:
+    """Why *values* look like contact details or secrets, or ``None``.
+
+    A share of e-mail addresses, phone numbers, card numbers or hashes and
+    tokens, whatever the column is called. Checked on the distinct values.
+    """
+    if not values:
+        return None
+    counts = {"email": 0, "phone": 0, "hash": 0, "card": 0}
+    for value in values:
+        digits = sum(ch.isdigit() for ch in value)
+        # A card number also fits the phone pattern: name it as a card.
+        if _EMAIL.match(value):
+            counts["email"] += 1
+        elif 13 <= digits <= 19 and re.fullmatch(r"[\d \-]+", value):
+            counts["card"] += 1
+        elif _PHONE.match(value) and digits >= 7:
+            counts["phone"] += 1
+        if _HASH.match(value):
+            counts["hash"] += 1
+    for kind, threshold in _SHAPE_THRESHOLDS.items():
+        if counts[kind] / len(values) >= threshold:
+            return f"values look like {kind} data"
     return None
 
 
@@ -175,6 +282,14 @@ def read_distinct_values(
     if not values:
         return None
     if sum(len(v) for v in values) / len(values) > limits.max_avg_length:
+        return None
+    if reason := sensitive_shape(values):
+        logger.info(
+            "Value index: skipped %s.%s (%s)",
+            column["table_name"],
+            column["column_name"],
+            reason,
+        )
         return None
     return values
 
@@ -252,12 +367,15 @@ def embed_column_values(
     database_name = embedder.database_name
     limits = value_index_limits()
     pii_detection = is_pii_detection_enabled()
+    include = included_columns()
 
     rows: list[dict[str, Any]] = []
     indexed = skipped = 0
     for column in fetch_value_index_candidates(database_name):
         label = f"{column['table_name']}.{column['column_name']}"
-        reason = column_skip_reason(column, pii_detection_enabled=pii_detection)
+        reason = column_skip_reason(
+            column, pii_detection_enabled=pii_detection, include_columns=include
+        )
         values = None if reason else read_distinct_values(connector, column, limits)
         if values is None or len(rows) + len(values) > limits.max_values:
             skipped += 1

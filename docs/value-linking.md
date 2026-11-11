@@ -32,8 +32,16 @@ A column is indexed only if all of these hold:
 - it is not a primary key;
 - it is not tagged `PII`. With automatic PII detection on (Settings > PII
   Settings), a column that detection has not classified yet is left out too;
+- its **name** does not say it holds personal data or secrets: a column named like
+  an e-mail, phone, password, token, address, street, postal code, first or last
+  name, user name, login, birth date, card or bank number is skipped, whatever its
+  tags (the name is matched with its separators removed, so `first_name`,
+  `FirstName` and `firstname` are one thing);
+- its **values** do not look like contact details or secrets: a column is skipped
+  when at least 10% of its distinct values look like e-mail addresses or card
+  numbers, or 30% like phone numbers or hashes and tokens, whatever it is called;
 - it has at most `VALUE_INDEX_MAX_DISTINCT` distinct values (2,000 by default),
-  so names, emails, addresses, phone numbers and the like never leave the source;
+  which also keeps most high-cardinality columns out;
 - it is not free text: the mean value length is at most `VALUE_INDEX_MAX_AVG_LENGTH`
   characters (40), and no single value over 100 characters is kept;
 - the database stays within `VALUE_INDEX_MAX_VALUES` rows in all (20,000). A
@@ -42,11 +50,21 @@ A column is indexed only if all of these hold:
 NULL and empty values are never indexed. Numbers, dates and other types are never
 read.
 
-**The PII protection depends on the tags.** If PII detection is off and nobody
-tagged a column by hand, nothing says that a small text column holds personal
-data; only the size limits stand between it and the index. Turn detection on (or
-tag the columns) and ingest before you build the index, and review the log, which
-names every column skipped and why.
+**The name and value checks are a safety net, not a guarantee.** They exist
+because the first real run of this index, on a stock demo database with PII
+detection off and nothing tagged, copied customer e-mails, phone numbers, names,
+addresses and a staff password column (and sent them to the embedding endpoint)
+under the size limits alone; those rows were deleted and the rules above were
+added. A personal value in a column with an ordinary name and ordinary-looking
+values, such as a surname stored in a column called `label`, is still not
+detected. Turn PII detection on (or tag the columns) and ingest before you build
+the index on real data, and review the log, which names every column skipped and
+why.
+
+To index a column the name rule skipped, list it in `VALUE_INDEX_INCLUDE_COLUMNS`
+(comma separated `table.column`, case-insensitive), for example
+`customer.last_name`. That lifts the name rule for that column only: a `PII` tag
+and the check on the values still apply.
 
 Values are read with a `SELECT DISTINCT ... LIMIT` that goes through the same
 read-only path as agent SQL (see [query-safety.md](./query-safety.md)) and the
