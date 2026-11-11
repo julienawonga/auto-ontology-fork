@@ -58,6 +58,15 @@ CONNECTOR_REGISTRY: dict[str, type[SQLDatabase]] = {
 _connectors: list[SQLDatabase] | None = None
 
 
+class ConnectorLoadError(RuntimeError):
+    """The configured connections could not be read, so no connector was built.
+
+    Distinct from "nothing is configured", which is a legitimate empty list:
+    returning ``[]`` for an unreadable store made every chat request fail later
+    with the unrelated "missing required 'connectors'" and hid the real cause.
+    """
+
+
 def parse_connection_strings(raw: str) -> list[str]:
     """Return connection URLs separated by commas, newlines, or both."""
     return [
@@ -272,6 +281,7 @@ def get_connectors() -> list[SQLDatabase]:
         # (Databricks, Snowflake, Kyuubi, and Trino); it is inert for retrieval,
         # which executes SQL rather than introspecting. The table filter is
         # likewise ingestion-only, but applies to every connector.
+        store_error: Exception | None = None
         try:
             specs: list[tuple[str, list[str] | None, TableFilter]] = [
                 (
@@ -281,8 +291,9 @@ def get_connectors() -> list[SQLDatabase]:
                 )
                 for conn in list_connections()
             ]
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to load connection strings from the catalog")
+            store_error = exc
             specs = []
         if not specs:
             # CONNECTION_STRINGS carries no connection dict, so an env-configured
@@ -292,6 +303,12 @@ def get_connectors() -> list[SQLDatabase]:
                 (connection_string, None, TableFilter())
                 for connection_string in parse_connection_strings(raw)
             ]
+        if not specs and store_error is not None:
+            # Not cached: the next call retries the store.
+            raise ConnectorLoadError(
+                "Could not load the configured source connections from the "
+                f"store: {store_error}"
+            ) from store_error
         if not specs:
             logger.warning(
                 "No connections configured. Add CONNECTION_STRINGS to your .env "

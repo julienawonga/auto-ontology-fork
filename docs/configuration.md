@@ -87,3 +87,9 @@ Add connections under **Settings → Connections**, or list them in `CONNECTION_
 (connections created that way cannot carry options such as **Exclude Views**). DuckDB and
 SQLite are connection-string only. See [connections.md](./connections.md) for URL schemes,
 scoping, and credential storage.
+
+Each source costs its database no connections while idle, and queries wait for a free
+connection instead of failing when many arrive at once. The limits are
+`SOURCE_POOL_MAX_SIZE`, `SOURCE_POOL_MAX_IDLE_S`, `SOURCE_MAX_CONNECTIONS` and
+`SOURCE_CONNECTION_WAIT_S`; see [source-connections.md](./source-connections.md) for
+defaults and how to size them against a source's `max_connections`.

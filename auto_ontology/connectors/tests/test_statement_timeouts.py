@@ -390,7 +390,7 @@ class _PgPool:
         self.conn = _PgConnection()
 
     @contextmanager
-    def connection(self) -> Iterator[_PgConnection]:
+    def connection(self, **kwargs: Any) -> Iterator[_PgConnection]:
         yield self.conn
 
 
@@ -398,6 +398,7 @@ def _fake_postgres() -> tuple[PostgresDatabase, _PgConnection]:
     database = PostgresDatabase.__new__(PostgresDatabase)
     pool = _PgPool()
     database._pool = pool  # noqa: SLF001 - test double for the pool
+    database._pool_lock = threading.Lock()  # noqa: SLF001
     return database, pool.conn
 
 

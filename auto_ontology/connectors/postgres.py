@@ -6,17 +6,22 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import uuid
 import weakref
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Optional
 
 import pandas as pd
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.conninfo import conninfo_to_dict
 from psycopg_pool import ConnectionPool
 
 from auto_ontology.catalog.constants import TableTypes
+from auto_ontology.connectors import source_limits
 from auto_ontology.connectors.base import SQLDatabase, StatementTimeout
 
 
@@ -83,30 +88,82 @@ class PostgresDatabase(SQLDatabase):
     supports_read_only_execution = True
     supports_row_limit = True
 
+    #: Per-source request limiter; ``None`` (class default) means "no per-source
+    #: queueing", which only unit-test doubles built without ``__init__`` rely on.
+    _limiter: source_limits.SourceLimiter | None = None
+
     def __init__(self, connection_string: str) -> None:
+        """Record the connection; open nothing.
+
+        No pool, no socket and no thread exist until the first statement, so a
+        registered-but-idle source costs the source database zero connections.
+        The pool is built on first use (:meth:`_get_pool`) with no minimum size
+        and a short idle timeout, so it also gives connections back.
+        """
         self._connection_string = connection_string
-        # Pool transparently replaces connections killed by server timeouts or
-        # network middleboxes. `check_connection` runs a quick liveness probe
-        # before handing a connection out; `max_idle`/`max_lifetime` cap how
-        # long a connection can live, so stale ones are recycled before any
-        # plausible firewall idle timeout fires.
-        self._pool: ConnectionPool = ConnectionPool(
-            connection_string,
-            kwargs={"autocommit": True},
-            min_size=1,
-            max_size=4,
-            max_idle=300.0,
-            max_lifetime=1800.0,
-            check=ConnectionPool.check_connection,
-            open=True,
+        self._pool: ConnectionPool | None = None
+        self._pool_lock = threading.Lock()
+        self._finalizer: weakref.finalize | None = None
+        self._limiter = source_limits.SourceLimiter(source_limits.pool_max_size())
+        # ``dbname`` in the URI is what ``current_database()`` reports, so the
+        # name is known without connecting. Only a URI that omits it falls back
+        # to asking the server, lazily, on first access.
+        self._database_name: str | None = (
+            str(conninfo_to_dict(connection_string).get("dbname") or "") or None
         )
-        # Close the pool at GC or interpreter exit (whichever comes first) so its
-        # worker/scheduler threads stop gracefully. Without this, psycopg_pool's
-        # own finalizer warns ("couldn't stop thread ... within 5.0 seconds") and
-        # stalls shutdown ~5s per thread when a caller forgets to close(). Binding
-        # ``self._pool.close`` (not ``self``) keeps the connector GC-eligible.
-        self._finalizer = weakref.finalize(self, self._pool.close)
-        self._database_name: str = self.execute("SELECT current_database()").iloc[0, 0]
+
+    def _get_pool(self) -> ConnectionPool:
+        with self._pool_lock:
+            if self._pool is None:
+                # Pool transparently replaces connections killed by server
+                # timeouts or network middleboxes. ``check_connection`` probes
+                # before handing one out; ``max_idle`` releases unused ones
+                # (``min_size=0``: all of them) and ``max_lifetime`` recycles
+                # before any plausible firewall idle timeout fires.
+                #
+                # A small pool rather than ``NullPool``-style connect-per-
+                # statement: the agent runs several statements per question and
+                # ingestion profiling hundreds per table, and each fresh
+                # connection costs a TCP + auth (+ TLS) round trip to what is
+                # often a remote warehouse. ``max_idle`` is what returns the
+                # connections, so idle cost still falls to zero.
+                self._pool = ConnectionPool(
+                    self._connection_string,
+                    kwargs={"autocommit": True},
+                    min_size=0,
+                    max_size=source_limits.pool_max_size(),
+                    max_idle=source_limits.pool_max_idle_s(),
+                    max_lifetime=1800.0,
+                    num_workers=1,
+                    check=ConnectionPool.check_connection,
+                    open=True,
+                )
+                # Close the pool at GC or interpreter exit (whichever comes
+                # first) so its worker/scheduler threads stop gracefully;
+                # otherwise psycopg_pool warns and stalls shutdown ~5s per
+                # thread. Binding ``pool.close`` (not ``self``) keeps the
+                # connector GC-eligible.
+                self._finalizer = weakref.finalize(self, self._pool.close)
+            return self._pool
+
+    @contextmanager
+    def _connection(self) -> Iterator[psycopg.Connection]:
+        """Check a connection out, waiting for a free slot rather than failing.
+
+        See :mod:`auto_ontology.connectors.source_limits`: the per-source and
+        process-wide slots are taken first, so the pool itself never blocks.
+        """
+        limiter = self._limiter
+        if limiter is None:
+            with self._get_pool().connection() as conn:
+                yield conn
+            return
+        with limiter.slot(self._label()):
+            with self._get_pool().connection() as conn:
+                yield conn
+
+    def _label(self) -> str:
+        return self._database_name or "<unnamed>"
 
     @property
     def dialect(self) -> str:
@@ -119,6 +176,10 @@ class PostgresDatabase(SQLDatabase):
 
     @property
     def database_name(self) -> str:
+        if self._database_name is None:
+            self._database_name = str(
+                self.execute("SELECT current_database()").iloc[0, 0]
+            )
         return self._database_name
 
     # ------------------------------------------------------------------
@@ -152,7 +213,7 @@ class PostgresDatabase(SQLDatabase):
         Raises:
             StatementTimeout: the server cancelled the statement at the cap.
         """
-        with self._pool.connection() as conn:
+        with self._connection() as conn:
             if timeout_s is None and not read_only and max_rows is None:
                 return _fetch_frame(conn, sql, parameters)
             started = time.monotonic()
@@ -409,13 +470,19 @@ class PostgresDatabase(SQLDatabase):
     # ------------------------------------------------------------------
 
     def ping(self) -> None:
-        """Verify connectivity and that the catalog is readable."""
-        with psycopg.connect(self._connection_string) as conn:
-            conn.execute("SELECT schema_name FROM information_schema.schemata")
+        """Verify connectivity and that the catalog is readable.
+
+        Opens a throwaway connection (this checks the credentials, not a pooled
+        session), but still under the process-wide cap.
+        """
+        with source_limits.global_slot(self._label()):
+            with psycopg.connect(self._connection_string) as conn:
+                conn.execute("SELECT schema_name FROM information_schema.schemata")
 
     def close(self) -> None:
-        finalizer = getattr(self, "_finalizer", None)
+        finalizer = self._finalizer
         if finalizer is not None:
             finalizer.detach()
-        if self._pool and not self._pool.closed:
-            self._pool.close()
+        pool = self._pool
+        if pool is not None and not pool.closed:
+            pool.close()
