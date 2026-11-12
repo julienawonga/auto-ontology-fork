@@ -41,6 +41,47 @@ Embedding requests carry three extra body fields by default (`input_type`, `trun
 `EMBED_EXTRA_FIELDS=false` if your endpoint rejects unknown fields, as most OpenAI-compatible
 gateways do (the older name `EMBED_NIM_FIELDS` is still accepted).
 
+## Rate limits and request caps
+
+A gateway answers HTTP 429 (or 503) when it is asked for too much at once, and an edge
+proxy in front of it may block a client that keeps hammering. Lexis protects the
+gateway at the HTTP transport, so LLM, embedding and rerank requests all share it:
+
+| Variable                       | Default | Meaning                                                                                      |
+| ------------------------------ | ------- | -------------------------------------------------------------------------------------------- |
+| `LLM_MAX_CONCURRENT_REQUESTS`  | `8`     | Max in-flight outbound requests per process (LLM, embedding and rerank together).            |
+| `LLM_RATE_LIMIT_BUDGET_S`      | `60`    | Total seconds one request may wait on 429/503 before the error is raised. `0` never waits.   |
+| `LLM_RATE_LIMIT_BASE_DELAY_S`  | `2`     | Ceiling of the first backoff; doubles per retry.                                             |
+| `LLM_RATE_LIMIT_MAX_DELAY_S`   | `30`    | Longest single backoff.                                                                      |
+| `EMBED_HTTP_CONCURRENCY`       | `4`     | Parallel embedding requests inside one embed call (was a fixed 32).                          |
+| `LLM_REQUEST_SLOT_TIMEOUT_S`   | `300`   | Longest a request waits for a free slot before failing with an error naming the cap.         |
+
+A wait for a slot longer than 5 s is logged at WARNING (saturation). An invalid value (not a number, or below the minimum) is ignored with a warning and the
+default is used.
+
+**Backoff.** On 429 or 503 the wait is a random time between 0 and
+`min(max delay, base * 2^retry)` (full jitter), or exactly the `Retry-After` /
+`Retry-After-Ms` the gateway sent. If the next wait would pass the budget (or after 8
+retries), the original error is raised. One WARNING is logged per wait, with the delay.
+The concurrency slot is released while waiting. Other errors (connection failures, 408,
+409, 500, 502, 504) keep their previous handling.
+
+**No nested retries.** The transport is the only layer that retries a 429/503. When its
+budget is spent it marks the response so the OpenAI SDK does not retry it, the LLM and
+embedding-query retry loops do not retry it, and a failed non-reasoning call does not fall
+back to the reasoning model through the same gateway. Before this, one logical call could
+make up to 18 HTTP attempts (SDK retries x application retries) within seconds; now it makes
+at most 9 requests (the first plus 8 retries), spread over at most `LLM_RATE_LIMIT_BUDGET_S`
+seconds of waiting. Ingest still retries a failed embedding chunk up to 4 times, 15 to 120
+seconds apart, on top of that.
+
+**Scope of the cap.** The cap is per process. Each chat conversation runs in its own worker
+subprocess, so the effective global bound is processes x `LLM_MAX_CONCURRENT_REQUESTS`;
+`CHAT_MAX_CONCURRENT` (when present in your version) bounds the number of processes. Model
+requests keep httpx's environment handling (`HTTP(S)_PROXY`, `ALL_PROXY`, `NO_PROXY`,
+`SSL_CERT_FILE`, `SSL_CERT_DIR`). `LLM_MAX_INFLIGHT` (a per-block bound on LLM invokes) still
+works and stacks with this cap.
+
 ## Model triplets
 
 Each model role is configured by a **triplet** of environment variables:

@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 import httpx
 from openai import APIStatusError, Omit, OpenAI
 
+from auto_ontology.utils.http_limits import embed_http_concurrency, shared_http_client
 from auto_ontology.utils.model_config import (
     ModelConfigError,
     embed_dimensions,
@@ -64,9 +65,10 @@ _EMBED_ENDPOINT = resolve("EMBED", "ENDPOINT")
 _EMBED_MODEL = resolve("EMBED", "MODEL")
 _EMBED_API_KEY = resolve("EMBED", "API_KEY")
 
-# Per-request retries inside the client, for 408/409/429/5xx and dropped
-# connections. They back off for seconds; the chunk-level retry below is the
-# slow one, for a rate limit that needs minutes to clear.
+# Per-request SDK retries, for 408/409/5xx and dropped connections. A 429/503 is
+# not retried here: the shared transport (utils/http_limits.py) backs those off
+# within its wait budget and tells the SDK to stop. The chunk-level retry below
+# is the slow one, for a rate limit that needs minutes to clear.
 _REQUEST_RETRIES = 5
 
 # Interactive writes (an edited column, a saved analysis) run inside a
@@ -101,7 +103,9 @@ class EmbedParams:
     api_key: str = field(default="", repr=False)
     embed_modality: str = "text"
     inference_batch_size: int = 32
-    http_max_concurrent: int = 32
+    # Parallel requests per embed_texts call. Default from EMBED_HTTP_CONCURRENCY
+    # (4); every request still counts against the process-wide cap in http_limits.
+    http_max_concurrent: int = field(default_factory=embed_http_concurrency)
     request_timeout_s: float = 600.0
     # Sent as ``dimensions`` when set, for models that can shorten their output.
     dimensions: int | None = None
@@ -158,8 +162,11 @@ def _new_client(params: EmbedParams, http_client: httpx.Client | None = None) ->
         # The client refuses to start without a key; a keyless endpoint gets a
         # placeholder here and no header at all, see _NO_AUTH.
         api_key=params.api_key or "unused",
+        # 429/503 are backed off in the shared transport and come back marked
+        # x-should-retry:false, so these retries cover only connection errors,
+        # 408/409 and 5xx other than 503.
         max_retries=_REQUEST_RETRIES,
-        http_client=http_client,
+        http_client=http_client or shared_http_client(),
     )
 
 

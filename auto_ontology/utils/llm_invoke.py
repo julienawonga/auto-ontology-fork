@@ -18,6 +18,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
+from auto_ontology.utils.http_limits import backoff_exhausted, shared_http_client
 from auto_ontology.utils.model_config import require, resolve
 
 logger = logging.getLogger(__name__)
@@ -177,7 +178,13 @@ _RETRYABLE_EXCEPTION_TYPES = frozenset(
 
 
 def _is_retryable(e: Exception) -> bool:
-    """Whether *e* signals a transient, retryable server condition."""
+    """Whether *e* signals a transient, retryable server condition.
+
+    A 429/503 whose backoff budget the HTTP transport already spent is not
+    retryable here: another loop would start a second budget (nested retries).
+    """
+    if backoff_exhausted(e):
+        return False
     return any(tok in str(e) for tok in _RETRYABLE_TOKENS) or (
         type(e).__name__ in _RETRYABLE_EXCEPTION_TYPES
     )
@@ -232,7 +239,10 @@ def _build_client(
         base_url=base_url,
         max_tokens=max_tokens,
         timeout=LLM_INVOKE_TIMEOUT_S,
+        # No SDK retries; 429/503 backoff lives in the shared transport
+        # (auto_ontology/utils/http_limits.py), which also caps in-flight requests.
         max_retries=0,
+        http_client=shared_http_client(),
         **extra,
     )
 
@@ -471,7 +481,7 @@ def invoke_text(llm: BaseChatModel, prompt: str) -> str:
         return _invoke_text_once(llm, prompt)
     except Exception as exc:
         fallback = _reasoning_fallback_client(llm)
-        if fallback is None:
+        if fallback is None or backoff_exhausted(exc):
             raise
         logger.warning(
             "Non-reasoning LLM call failed (%s: %s) — falling back to reasoning LLM",
@@ -524,7 +534,7 @@ def safe_invoke_text(llm: BaseChatModel, prompt: str) -> str:
         return _safe_invoke_text(llm, prompt)
     except Exception as exc:
         fallback = _reasoning_fallback_client(llm)
-        if fallback is None:
+        if fallback is None or backoff_exhausted(exc):
             raise
         _log_non_reasoning_fallback(exc)
         return _safe_invoke_text(fallback, prompt)
@@ -641,7 +651,7 @@ def invoke_with_structured_output(
         return safe_invoke_with_structured_output(llm, messages, schema)
     except Exception as e:
         fallback = _reasoning_fallback_client(llm)
-        if fallback is not None:
+        if fallback is not None and not backoff_exhausted(e):
             _log_non_reasoning_fallback(e, schema_name)
             try:
                 return safe_invoke_with_structured_output(fallback, messages, schema)
