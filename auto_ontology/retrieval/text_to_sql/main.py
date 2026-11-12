@@ -94,6 +94,7 @@ _FULL_RETRY_PATH_KEYS_TO_CLEAR = frozenset(
         "retrieved_sql_attributes",
         "retrieved_subject_term",
         "offered_terms",
+        "column_attribute_contexts",
         "candidates",
         "relevant_tables",
         "relevant_queries",

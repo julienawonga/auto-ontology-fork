@@ -126,10 +126,17 @@ certification). `used` is a text heuristic on the final SQL, not a proof:
 `true`, `false`, or `null` when it cannot decide. For a SqlAttribute or
 CustomAnalysis, its snippet appears in the SQL, or all its distinctive
 identifiers and literals do (some but not all gives `null`, none gives
-`false`). For a Term, an identifier or literal its definition names (backticked
-names, quoted literals, `snake_case`, `table.column`) appears in the SQL, or
-one of its SqlAttributes is used; a definition naming none gives `null`. For a
-ColumnAttribute, its name appears as an identifier (`true`), else `null`.
+`false`). For a Term, an identifier or literal its definition names appears in
+the SQL (`true`), or one of its SqlAttributes is used. Names are backticked
+words, quoted literals, `snake_case`, `table.column`, and bare words written as
+identifiers in prose or math (`TechSigProb`, `BWHz`: a capital after the first
+letter) that are real column names of the tables the generator was shown. A
+definition naming such identifiers none of which appear gives `false`; one
+naming none (pure prose, or only all-lowercase words) gives `null`. For a
+ColumnAttribute, the physical column it is attached to appears as an
+identifier in the SQL (`true`) or does not (`false`, including a column reached
+only through `SELECT *`); `null` when the column is unknown and the label is
+absent.
 `matched` lists what was found. The backend logs one line per answer
 (`Knowledge trace: offered N, used M, ...`).
 

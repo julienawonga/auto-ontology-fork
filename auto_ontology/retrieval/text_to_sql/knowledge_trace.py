@@ -25,13 +25,18 @@ SQL keywords and common functions ignored):
   appears whitespace- and case-insensitively inside the SQL -> used. Else if
   every distinctive token of the snippet is in the SQL -> used; none -> not
   used; some -> undecidable.
-* ``term``: tokens taken from its definition (backticked names, quoted
-  literals, ``snake_case`` and ``table.column`` identifiers). Any in the SQL ->
-  used; candidates but none present -> not used; no candidates (a purely
-  prose definition) -> undecidable. A term is also used when one of its own
-  SQL attributes is.
-* ``column_attribute``: its name, as an identifier, in the SQL -> used; else
-  undecidable (the column behind an attribute is not in the state).
+* ``term``: candidates taken from its definition: backticked names, quoted
+  literals, ``snake_case`` and ``table.column`` identifiers, plus bare words
+  written as identifiers in prose or math (``TechSigProb``, ``BWHz``: a word
+  with a capital after its first letter) that are real column names of the
+  tables the generator was shown. Any in the SQL -> used (``matched`` lists
+  them); candidates but none present -> not used; no candidates (a purely
+  prose definition, or one naming only all-lowercase words) -> undecidable. A
+  term is also used when one of its own SQL attributes is.
+* ``column_attribute``: the physical column it is attached to (when known)
+  appears as an identifier in the SQL -> used, absent -> not used, column
+  unknown -> its display name is tried and otherwise undecidable. A column
+  reached only through ``SELECT *`` counts as absent.
 """
 
 from __future__ import annotations
@@ -94,9 +99,28 @@ def _snippet_state(snippet: str, sql: str) -> tuple[bool | None, list[str]]:
     return None, hit
 
 
-def _term_candidates(description: str) -> set[str]:
+_WORD = re.compile(r"[A-Za-z][A-Za-z0-9_]{2,}")
+
+
+def _schema_words(description: str, columns: set[str]) -> set[str]:
+    """Words of a definition written as identifiers that are real columns.
+
+    Knowledge-base definitions put column names in prose or math without
+    quoting (``TOLS = TechSigProb * (1 - NatSrcProb)``). Only a word with a
+    capital after its first letter counts, so an ordinary word that happens to
+    be a column name (``status``) does not make a term look used.
+    """
+    out: set[str] = set()
+    for word in _WORD.findall(description):
+        low = word.lower()
+        if low in columns and low not in _STOP and word[1:] != word[1:].lower():
+            out.add(low)
+    return out
+
+
+def _term_candidates(description: str, columns: set[str] | None = None) -> set[str]:
     """Distinctive strings a definition names, for the term heuristic."""
-    cands: set[str] = set()
+    cands: set[str] = _schema_words(description, columns or set())
     for m in _BACKTICK.findall(description):
         cands |= _tokens(m) | {m.strip().lower()}
     for m in _STRING.findall(description):
@@ -109,8 +133,10 @@ def _term_candidates(description: str) -> set[str]:
     return {c for c in cands if c and c not in _STOP}
 
 
-def _term_state(description: str, sql: str) -> tuple[bool | None, list[str]]:
-    cands = _term_candidates(description)
+def _term_state(
+    description: str, sql: str, columns: set[str] | None = None
+) -> tuple[bool | None, list[str]]:
+    cands = _term_candidates(description, columns)
     if not cands:
         return None, []
     sql_tokens = _tokens(sql)
@@ -164,6 +190,14 @@ def build_knowledge_trace(
             return None, []
         return state_fn()
 
+    columns = {
+        str(c.get("name") or "").lower()
+        for t in path_state.get("relevant_tables") or []
+        if isinstance(t, dict)
+        for c in t.get("columns") or []
+        if isinstance(c, dict) and c.get("name")
+    }
+    contexts = path_state.get("column_attribute_contexts") or {}
     sa_used_terms: set[str] = set()
     retrieved_sa = list(path_state.get("retrieved_sql_attributes") or [])
     for a in path_state.get("sql_attributes") or []:
@@ -214,9 +248,14 @@ def build_knowledge_trace(
         name = str(h.get("name") or "")
         used: bool | None = None
         matched: list[str] = []
-        key = re.sub(r"\W+", "_", name.strip().lower()).strip("_")
-        if sql and len(key) >= 3 and key in _tokens(sql):
-            used, matched = True, [key]
+        ctx = contexts.get(str(h["id"])) or {}
+        col = str(ctx.get("col_name") or "").strip().lower()
+        key = col or re.sub(r"\W+", "_", name.strip().lower()).strip("_")
+        if sql and len(key) >= 3:
+            if key in _tokens(sql):
+                used, matched = True, [key]
+            elif col:
+                used = False
         entries.append(
             {
                 "kind": "column_attribute",
@@ -224,7 +263,8 @@ def build_knowledge_trace(
                 "name": name,
                 "database": h.get("database_name") or db,
                 "certified": None,
-                "reason": "retrieved for the question; chooses tables and columns shown",
+                "reason": "retrieved for the question; chooses tables and columns shown"
+                + (f"; column {col!r}" if col else ""),
                 "used": used,
                 "matched": matched,
             }
@@ -234,7 +274,7 @@ def build_knowledge_trace(
         if not isinstance(t, dict) or not t.get("id"):
             continue
         used, matched = used_for(
-            lambda t=t: _term_state(t.get("description") or "", sql)
+            lambda t=t: _term_state(t.get("description") or "", sql, columns)
         )
         reason = (
             "retrieved for the question"

@@ -800,6 +800,14 @@ class CandidatePreparationAgent(BaseAgent):
                 "primary_attribute": primary_attribute,
                 "attribute_join_paths": attribute_join_paths,
                 "term_synonyms": term_synonyms,
+                # Observational copy for the knowledge-use trace.
+                "column_attribute_contexts": {
+                    aid: {
+                        "col_name": ctx.get("col_name") or "",
+                        "table_name": ctx.get("table_name") or "",
+                    }
+                    for aid, ctx in attr_contexts.items()
+                },
             }
         }
         if incoming_anchors:

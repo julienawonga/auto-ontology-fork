@@ -189,6 +189,131 @@ def test_summary_counts() -> None:
     assert "term=2/1" in line
 
 
+# --- a real case: definitions written as prose and math, no backticks ------
+
+ALIEN_SQL = (
+    "SELECT sc.category, AVG(signal.bwhz / (signal.centerfreqmhz * 1000000)) AS bfr, "
+    "STDDEV(probability.anomscore) AS sd, "
+    "AVG(probability.techsigprob * (1 - probability.natsrcprob) * "
+    "probability.sigunique * (0.5 + (probability.anomscore / 10))) AS tols "
+    "FROM signal JOIN probability ON probability.signalref = signal.signalid "
+    "GROUP BY 1"
+)
+ALIEN_TABLES = [
+    {
+        "name": "signal",
+        "columns": [
+            {"name": n} for n in ("signalid", "bwhz", "centerfreqmhz", "status")
+        ],
+    },
+    {
+        "name": "probability",
+        "columns": [
+            {"name": n}
+            for n in (
+                "signalref",
+                "techsigprob",
+                "natsrcprob",
+                "sigunique",
+                "anomscore",
+                "lastseen",
+            )
+        ],
+    },
+]
+
+
+def _alien_terms() -> list[dict[str, Any]]:
+    def term(i: str, name: str, desc: str) -> dict[str, Any]:
+        return {
+            "id": i,
+            "name": name,
+            "description": desc,
+            "certified": True,
+            "depth": 0,
+        }
+
+    return [
+        term(
+            "tols",
+            "Technological Origin Likelihood Score (TOLS)",
+            "TOLS = TechSigProb × (1 − NatSrcProb) × SigUnique × (0.5 + AnomScore/10)",
+        ),
+        term(
+            "bfr1",
+            "Bandwidth-Frequency Ratio (BFR)",
+            "BFR = BWHz / (CenterFreqMHz × 10^6), a dimensionless ratio.",
+        ),
+        term(
+            "bfr2",
+            "Bandwidth-to-Frequency Ratio (BFR)",
+            "Bandwidth in Hz divided by CenterFreqMHz converted to Hz.",
+        ),
+        term("neg", "Last Contact", "Time since LastSeen, in days."),
+        term("prose", "Detection", "Whether the signal status is open."),
+    ]
+
+
+def _alien_state() -> dict[str, Any]:
+    return _state(
+        offered_terms=_alien_terms(),
+        relevant_tables=ALIEN_TABLES,
+        retrieved_column_attributes=[
+            {"id": "ca1", "name": "Anomaly Score", "database_name": "alien"},
+            {"id": "ca2", "name": "Bandwidth", "database_name": "alien"},
+            {"id": "ca3", "name": "Last seen", "database_name": "alien"},
+            {"id": "ca4", "name": "Mystery", "database_name": "alien"},
+        ],
+        column_attribute_contexts={
+            "ca1": {"col_name": "AnomScore", "table_name": "probability"},
+            "ca2": {"col_name": "BWHz", "table_name": "signal"},
+            "ca3": {"col_name": "LastSeen", "table_name": "probability"},
+        },
+    )
+
+
+def test_prose_and_math_definitions_are_matched_to_schema_identifiers() -> None:
+    out = {
+        e["id"]: e
+        for e in kt.build_knowledge_trace(
+            _alien_state(), ALIEN_SQL, certified_lookup=_no_cert
+        )
+    }
+    assert out["tols"]["used"] is True
+    assert {"techsigprob", "natsrcprob", "sigunique", "anomscore"} <= set(
+        out["tols"]["matched"]
+    )
+    assert out["bfr1"]["used"] is True and "bwhz" in out["bfr1"]["matched"]
+    assert out["bfr2"]["used"] is True and out["bfr2"]["matched"] == ["centerfreqmhz"]
+    # names a schema column (LastSeen) the SQL never touches
+    assert out["neg"]["used"] is False
+    # only an all-lowercase word that is a column name: not enough to decide
+    assert out["prose"]["used"] is None
+
+
+def test_column_attributes_match_the_physical_column_not_the_label() -> None:
+    out = {
+        e["id"]: e
+        for e in kt.build_knowledge_trace(
+            _alien_state(), ALIEN_SQL, certified_lookup=_no_cert
+        )
+    }
+    assert out["ca1"]["used"] is True and out["ca1"]["matched"] == ["anomscore"]
+    assert out["ca2"]["used"] is True
+    assert out["ca3"]["used"] is False  # known column, absent from the SQL
+    assert out["ca4"]["used"] is None  # column unknown, label not in the SQL
+
+
+def test_without_schema_information_bare_words_are_not_guessed() -> None:
+    state = _alien_state()
+    state.pop("relevant_tables")
+    out = {
+        e["id"]: e
+        for e in kt.build_knowledge_trace(state, ALIEN_SQL, certified_lookup=_no_cert)
+    }
+    assert out["tols"]["used"] is None
+
+
 # --- in the streamed result -------------------------------------------------
 
 
