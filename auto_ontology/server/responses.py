@@ -57,6 +57,8 @@ from auto_ontology.server.models import (
     TagItem,
     Term,
     TermCountEntry,
+    TermCreated,
+    TermDeleted,
     TermDetail,
     TermExplorationDetails,
     TermListItem,
@@ -127,6 +129,8 @@ __all__ = [
     "TagItemPageResponse",
     "TagPageResponse",
     "TagResponse",
+    "TermCreatedResponse",
+    "TermDeletedResponse",
     "TermDetailResponse",
     "TermExplorationDetailsResponse",
     "TermResponse",
@@ -379,6 +383,8 @@ PqlAnalysisPageResponse = PagedListResponse[PqlAnalysis]
 
 # Terms and attributes
 TermResponse = DataResponse[Term]
+TermCreatedResponse = DataResponse[TermCreated]
+TermDeletedResponse = DataResponse[TermDeleted]
 TermDetailResponse = DataResponse[TermDetail]
 ColumnAttributeResponse = DataResponse[ColumnAttribute]
 ColumnAttributePageResponse = PagedListResponse[ColumnAttribute]

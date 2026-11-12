@@ -555,6 +555,32 @@ class Term(TermSummary):
     zones: list[ZoneChip] | None = None
 
 
+class TermCreated(Term):
+    """A Term just created: its links, and what the index and linker did.
+
+    ``linked_by`` is ``explicit`` (the caller named the tables), ``matched``
+    (the text named a table or column) or ``fallback`` (nothing matched, so the
+    first table by name scopes it to the database). ``embedded`` is false when
+    the semantic index row could not be written; the Term still exists and a
+    reindex repairs the index.
+    """
+
+    created_by: str | None = None
+    database_name: str | None = None
+    table_ids: list[str] = Field(default_factory=list)
+    linked_by: str
+    embedded: bool
+
+
+class TermDeleted(ApiModel):
+    """What a Term delete removed."""
+
+    id: str
+    name: str | None = None
+    column_attributes_deleted: int
+    vector_rows_deleted: int
+
+
 class TermTable(ApiModel):
     """A table that REPRESENTS a Term, with its catalog path ids."""
 

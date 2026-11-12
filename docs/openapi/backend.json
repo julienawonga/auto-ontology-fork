@@ -1537,6 +1537,32 @@
         "title": "DataResponse[Tag]",
         "type": "object"
       },
+      "DataResponse_TermCreated_": {
+        "additionalProperties": true,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TermCreated"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[TermCreated]",
+        "type": "object"
+      },
+      "DataResponse_TermDeleted_": {
+        "additionalProperties": true,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TermDeleted"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[TermDeleted]",
+        "type": "object"
+      },
       "DataResponse_TermDetail_": {
         "additionalProperties": true,
         "properties": {
@@ -5435,6 +5461,268 @@
         "title": "TermCountEntry",
         "type": "object"
       },
+      "TermCreate": {
+        "properties": {
+          "database": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Catalog database name or id.",
+            "title": "Database"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "synonyms": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synonyms"
+          },
+          "table_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tables that represent the Term. Omit to link by name matching.",
+            "title": "Table Ids"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TermCreate",
+        "type": "object"
+      },
+      "TermCreated": {
+        "additionalProperties": true,
+        "description": "A Term just created: its links, and what the index and linker did.\n\n``linked_by`` is ``explicit`` (the caller named the tables), ``matched``\n(the text named a table or column) or ``fallback`` (nothing matched, so the\nfirst table by name scopes it to the database). ``embedded`` is false when\nthe semantic index row could not be written; the Term still exists and a\nreindex repairs the index.",
+        "properties": {
+          "certification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certification"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "database_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "description_certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Certified"
+          },
+          "embedded": {
+            "title": "Embedded",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "linked_by": {
+            "title": "Linked By",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "name_certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Certified"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "synonyms": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synonyms"
+          },
+          "table_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Table Ids",
+            "type": "array"
+          },
+          "zones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ZoneChip"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zones"
+          }
+        },
+        "required": [
+          "id",
+          "linked_by",
+          "embedded"
+        ],
+        "title": "TermCreated",
+        "type": "object"
+      },
+      "TermDeleted": {
+        "additionalProperties": true,
+        "description": "What a Term delete removed.",
+        "properties": {
+          "column_attributes_deleted": {
+            "title": "Column Attributes Deleted",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "vector_rows_deleted": {
+            "title": "Vector Rows Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "column_attributes_deleted",
+          "vector_rows_deleted"
+        ],
+        "title": "TermDeleted",
+        "type": "object"
+      },
       "TermDetail": {
         "additionalProperties": true,
         "description": "One Term with the tables that represent it and its related terms.\n\n``tags`` is resolved here and on the paged list. The list reads them once\nfor the page, which is what its cards draw.",
@@ -6008,6 +6296,22 @@
               }
             ],
             "title": "Owner Id"
+          },
+          "table_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replace the tables that represent the Term. All must be in one database.",
+            "title": "Table Ids"
           }
         },
         "title": "TermUpdate",
@@ -9989,9 +10293,90 @@
         "tags": [
           "terms"
         ]
+      },
+      "post": {
+        "description": "Create a business Term, link it to tables and embed it.\n\nNeeds the ``catalog:edit`` permission. The Term is stored uncertified with\nsource ``semantic`` and ``created_by`` set to the caller. Give *table_ids*\n(all in one database) or a *database* name or id. With only a database,\nthe Term is linked to the tables whose name or columns its name and\ndescription mention (whole words of at least four characters); if none is\nmentioned it falls back to the first table by name, and ``linked_by``\nsays which happened.\n\nThe Term's row is written to the semantic index immediately (one row,\nno reindex). When that fails the Term still exists and ``embedded`` is\nfalse; ``POST /semantic-compilation/reindex`` repairs the index.\n\nAnswers 409 when a Term with that name already exists, 422 for an unknown\nor mixed-database table, 404 for an unknown database.",
+        "operationId": "create_term_api_terms_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_TermCreated_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Term",
+        "tags": [
+          "terms"
+        ]
       }
     },
     "/api/terms/{term_id}": {
+      "delete": {
+        "description": "Delete a Term, its table links, its ColumnAttributes and its index rows.\n\nNeeds ``catalog:edit`` (or ownership by a group that has it). Not\nidempotent in status: deleting a Term that does not exist, including one\nalready deleted, answers 404, and nothing is changed. Answers 409 while\nSqlAttributes still belong to the Term; those are never deleted implicitly.\n\nThe semantic-index rows (the Term's and its ColumnAttributes') are removed\nfirst, then the database rows, so a failure cannot leave embeddings for a\nTerm that no longer exists.",
+        "operationId": "delete_term_api_terms__term_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "title": "Term Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_TermDeleted_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Term",
+        "tags": [
+          "terms"
+        ]
+      },
       "get": {
         "description": "Return a single Term node by id, including zones and related terms.",
         "operationId": "get_term_api_terms__term_id__get",
@@ -10034,7 +10419,7 @@
         ]
       },
       "patch": {
-        "description": "Update a Term and invalidate dependent SqlAttribute suggestions.",
+        "description": "Update a Term and invalidate dependent SqlAttribute suggestions.\n\n*table_ids*, when given, replaces the tables that represent the Term (all\nin one database, at least one). A name or description change, or new\ntables, re-embeds the Term's index row. A name already taken answers 409.",
         "operationId": "update_term_api_terms__term_id__patch",
         "parameters": [
           {

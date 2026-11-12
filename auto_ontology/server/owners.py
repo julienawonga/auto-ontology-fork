@@ -108,6 +108,20 @@ def enforce_edit(request: Request, subject: EditSubject) -> None:
     )
 
 
+def enforce_permission(request: Request, permission: str) -> None:
+    """403 when the caller's role lacks *permission*.
+
+    For a write with no existing row to read an owner from (a create). No
+    header means no check, as in :func:`enforce_edit`.
+    """
+    user_id = resolve_internal_user(request, required=False)
+    if not user_id:
+        return
+    if decide_edit(role=postgres_dal.get_user_role(user_id), permission=permission):
+        return
+    raise HTTPException(status_code=403, detail="You do not have permission to do this")
+
+
 def owner_from_body(value: str | None, permission: str) -> str | None:
     """The owner a write asked for, or 400 when it cannot be assigned."""
     try:

@@ -935,3 +935,174 @@ def test_a_database_without_terms_expects_nothing(world) -> None:
 
     assert t.fetch_semantic_node_ids_for_database(world.prefix) == (set(), set())
     assert t.fetch_terms_and_attributes_for_database(world.prefix) == ([], [])
+
+
+# --------------------------------------------------------------------------
+# Create, relink and delete
+# --------------------------------------------------------------------------
+
+
+def _create(world, name: str, tables: tuple[str, ...], **kwargs) -> dict:
+    return t.create_term(
+        name=f"{world.prefix}-{name}",
+        description=kwargs.pop("description", "d"),
+        synonyms=kwargs.pop("synonyms", None),
+        table_ids=[world.tables[x] for x in tables],
+        created_by=kwargs.pop("created_by", "user-1"),
+        **kwargs,
+    )
+
+
+def test_create_term_stores_it_uncertified_with_its_author_and_links(world) -> None:
+    world.table("orders", ("id", "customer_id"))
+    world.table("items")
+
+    made = _create(world, "Repeat", ("orders", "items"), synonyms=["loyal"])
+
+    row = store().query_read(select(s.term).where(s.term.c.id == made["id"]))[0]
+    assert row["source"] == SEMANTIC_SOURCE
+    assert row["created_by"] == "user-1"
+    assert row["created"] is not None
+    assert row["name_certified"] is False and row["description_certified"] is False
+    assert row["synonyms"] == ["loyal"]
+    assert t.fetch_term_table_ids(made["id"]) == sorted(
+        [world.tables["orders"], world.tables["items"]]
+    )
+    # It is a real Term of its database: the list and the embedding read see it.
+    assert made["id"] in {r["id"] for r in _mine(t.fetch_all_terms(), world)}
+    term, _ = t.fetch_term_and_column_attributes_for_embedding(made["id"])
+    assert term["database_name"] == world.prefix
+
+
+def test_create_term_with_a_taken_name_raises_and_writes_nothing(world) -> None:
+    world.table("orders")
+    _create(world, "Dup", ("orders",))
+
+    with pytest.raises(t.TermNameTaken):
+        _create(world, "Dup", ("orders",))
+
+    rows = store().query_read(
+        select(s.term.c.id).where(s.term.c.name == f"{world.prefix}-Dup")
+    )
+    assert len(rows) == 1
+
+
+def test_a_failed_create_leaves_no_term_without_tables(world) -> None:
+    world.table("orders")
+
+    with pytest.raises(Exception):  # noqa: B017 - a foreign-key violation
+        t.create_term(
+            name=f"{world.prefix}-Orphan",
+            description=None,
+            synonyms=None,
+            table_ids=["no-such-table"],
+            created_by=None,
+        )
+
+    assert not store().query_read(
+        select(s.term.c.id).where(s.term.c.name == f"{world.prefix}-Orphan")
+    )
+
+
+def test_renaming_onto_an_existing_name_raises(world) -> None:
+    world.table("orders")
+    _create(world, "One", ("orders",))
+    two = _create(world, "Two", ("orders",))
+
+    with pytest.raises(t.TermNameTaken):
+        t.update_term(two["id"], name=f"{world.prefix}-One")
+
+
+def test_database_for_tables_names_the_database_or_refuses(world) -> None:
+    world.table("orders")
+    other = World(f"t-{uuid.uuid4().hex[:8]}")
+    try:
+        other.table("elsewhere")
+
+        assert t.database_for_tables([world.tables["orders"]])["name"] == world.prefix
+        with pytest.raises(t.UnknownTableIds):
+            t.database_for_tables([world.tables["orders"], "nope"])
+        with pytest.raises(t.TermSpansDatabases):
+            t.database_for_tables([world.tables["orders"], other.tables["elsewhere"]])
+    finally:
+        store().query_write(
+            s.catalog_database.delete().where(s.catalog_database.c.id == other.database)
+        )
+
+
+def test_resolve_database_accepts_a_name_or_an_id(world) -> None:
+    assert t.resolve_database(world.prefix)["id"] == world.database
+    assert t.resolve_database(world.database)["name"] == world.prefix
+    assert t.resolve_database("no-such-database") is None
+
+
+def test_link_candidates_list_each_table_with_its_columns(world) -> None:
+    world.table("orders", ("id", "customer_id"))
+    world.table("empty", ())
+
+    got = {
+        c["name"]: c["columns"]
+        for c in t.fetch_database_link_candidates(world.database)
+    }
+
+    assert got == {"orders": ["id", "customer_id"], "empty": []}
+
+
+def test_replace_term_tables_swaps_the_links(world) -> None:
+    world.table("orders")
+    world.table("items")
+    made = _create(world, "Move", ("orders",))
+
+    t.replace_term_tables(made["id"], [world.tables["items"]])
+
+    assert t.fetch_term_table_ids(made["id"]) == [world.tables["items"]]
+
+
+def test_delete_term_removes_links_and_attributes_but_not_tables(world) -> None:
+    world.table("orders", ("id", "total"))
+    made = _create(world, "Gone", ("orders",))
+    world.terms["Gone"] = made["id"]
+    attribute = world.column_attribute(
+        "gone-attr", "Gone", table="orders", column="total"
+    )
+
+    owned = t.fetch_term_vector_ids(made["id"])
+    assert owned["attribute_ids"] == [attribute]
+    assert owned["database_names"] == [world.prefix]
+
+    assert t.delete_term(made["id"]) is True
+
+    def count(table, column, value) -> int:
+        return len(store().query_read(select(table).where(column == value)))
+
+    assert count(s.term, s.term.c.id, made["id"]) == 0
+    assert count(s.table__term, s.table__term.c.term_id, made["id"]) == 0
+    assert count(s.column_attribute, s.column_attribute.c.id, attribute) == 0
+    assert count(s.catalog_table, s.catalog_table.c.id, world.tables["orders"]) == 1
+    assert (
+        count(s.catalog_column, s.catalog_column.c.id, world.columns["orders.total"])
+        == 1
+    )
+    assert t.fetch_term_vector_ids(made["id"]) is None
+
+
+def test_delete_term_twice_reports_missing_the_second_time(world) -> None:
+    world.table("orders")
+    made = _create(world, "Twice", ("orders",))
+
+    assert t.delete_term(made["id"]) is True
+    assert t.delete_term(made["id"]) is False
+    assert t.delete_term("no-such-term") is False
+
+
+def test_delete_term_with_a_sql_attribute_is_refused_and_changes_nothing(world) -> None:
+    world.table("orders")
+    made = _create(world, "Kept", ("orders",))
+    world.terms["Kept"] = made["id"]
+    world.sql_attribute("vip", "Kept", tables=("orders",))
+
+    with pytest.raises(t.TermHasSqlAttributes) as refused:
+        t.delete_term(made["id"])
+
+    assert refused.value.names == [f"{world.prefix}-vip"]
+    assert t.fetch_term_table_ids(made["id"]) == [world.tables["orders"]]
