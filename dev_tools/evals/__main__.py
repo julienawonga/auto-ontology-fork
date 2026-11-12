@@ -29,6 +29,11 @@ python -m dev_tools.evals lsb-kb --kb-dir kb --db alien --dry-run   # then --app
 python -m dev_tools.evals lsb-score --reports main.replayed.json cand.replayed.json \
     --cases lsb/*.json --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
 #   (official metric by default; --mode clean for our stricter reading of it)
+
+# the one-command bench: split once, run a slice, score with a paired verdict
+python -m dev_tools.evals bench split --cases lsb --out ~/split --seed 7
+python -m dev_tools.evals bench run --split ~/split --slice dev --label main
+python -m dev_tools.evals bench score --run RUN --baseline BASE --dsn-template ...
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ from typing import Any
 import httpx
 
 from auto_ontology.server.internal_auth import INTERNAL_TOKEN_ENV, INTERNAL_TOKEN_HEADER
+from dev_tools.evals import bench
 from dev_tools.evals.cases import (
     DEFAULT_CASES_DIR,
     Case,
@@ -643,6 +649,7 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--out-dir", help="default: next to each report")
     rep.add_argument("--allow-empty-index", action="store_true")
     rep.set_defaults(func=_cmd_replay)
+    bench.add_parser(sub)
     return parser
 
 
