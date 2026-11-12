@@ -407,3 +407,34 @@ def test_knowledge_trace_flows_from_result_event_into_the_report() -> None:
 def test_old_backend_without_a_trace_gives_none() -> None:
     answer = answer_from_events([{"type": "result", "answer": {"sql_code": "s"}}])
     assert answer.knowledge_trace is None
+
+
+def test_answer_records_the_question_language_and_the_score_keeps_it() -> None:
+    answer = answer_from_events(
+        [
+            {
+                "type": "result",
+                "answer": {
+                    "sql_code": "SELECT 1",
+                    "response": "ok",
+                    "question_language": "fr",
+                    "question_english": "How many?",
+                    "sql_response_from_db": None,
+                },
+            }
+        ]
+    )
+    assert (answer.question_language, answer.question_english) == ("fr", "How many?")
+    case = Case(id="c", question="q", gold=(GoldAnswer("g", "SELECT 1", [[1]]),))
+    answer.rows = [[1]]
+    run = score(case, answer)
+    assert (run.question_language, run.question_english) == ("fr", "How many?")
+    restored = Report.from_json(
+        Report(meta={}, cases={"c": CaseResult("q", [run])}).to_json()
+    )
+    assert restored.cases["c"].runs[0].question_language == "fr"
+
+
+def test_old_backend_without_language_fields_gives_none() -> None:
+    answer = answer_from_events([{"type": "result", "answer": {"sql_code": "s"}}])
+    assert answer.question_language is None and answer.question_english is None

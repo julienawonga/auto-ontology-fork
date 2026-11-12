@@ -31,6 +31,10 @@ from auto_ontology.retrieval.text_to_sql.formatters_util import format_tables_fo
 from auto_ontology.utils.llm_invoke import invoke_with_structured_output
 from auto_ontology.retrieval.text_to_sql.base import BaseAgent
 from auto_ontology.retrieval.text_to_sql.models import SQLGenerationModel
+from auto_ontology.retrieval.text_to_sql.question_language import (
+    is_translated,
+    language_instruction,
+)
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
     get_original_question,
@@ -97,7 +101,7 @@ class SQLFromTablesAgent(BaseAgent):
         has_evidence = bool(evidence)
         main_question = (
             format_dual_question_block(original_question, question)
-            if has_evidence
+            if has_evidence or is_translated(path_state)
             else question
         )
 
@@ -152,6 +156,9 @@ class SQLFromTablesAgent(BaseAgent):
             messages.append(
                 SystemMessage(content=format_authoritative_evidence(evidence))
             )
+        language_note = language_instruction(path_state)
+        if language_note:
+            messages.append(SystemMessage(content=language_note))
         messages.append(HumanMessage(content=user_prompt))
 
         response = invoke_with_structured_output(llm, messages, SQLGenerationModel)

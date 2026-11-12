@@ -135,6 +135,29 @@ connection instead of failing when many arrive at once. The limits are
 `SOURCE_CONNECTION_WAIT_S`; see [source-connections.md](./source-connections.md) for
 defaults and how to size them against a source's `max_connections`.
 
+## Question language
+
+The ontology (Terms, definitions, SqlAttributes, labels) is English only, and the
+embedding model is English-centred, so a French question retrieves English Terms
+worse than its English equivalent. Setting `QUESTION_TRANSLATION_ENABLED=true`
+(default off) lets users ask in any language:
+
+- A cheap deterministic check (plain ASCII, no foreign stopwords) recognises
+  English without calling a model. Anything else costs one short LLM call that
+  returns `{"language": ..., "english": ...}`. Quoted strings, proper nouns,
+  numbers, dates and anything that looks like a stored value are kept as written.
+- The English text is used for all retrieval: semantic search of Terms,
+  ColumnAttributes, SqlAttributes and term definitions, and entity extraction.
+- SQL generation sees both the user's own wording and the translation, labelled as
+  such. Value linking keeps working on the user's wording; values are not translated.
+- The prose answer, and a clarification question if one is asked, are written in the
+  user's language. SQL, table and column names are unchanged.
+- The final answer carries `question_language` and `question_english` (only when
+  the flag is on), the eval harness stores both per run, and one INFO log line is
+  written per translation.
+- Any failure in detection or translation logs a warning and the original question
+  is used as is. With the flag off, prompts and state are unchanged.
+
 ## Chat concurrency
 
 Every conversation runs in its own agent subprocess — a full Python process that imports

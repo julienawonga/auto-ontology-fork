@@ -54,6 +54,10 @@ class Answer:
     # The answer's ``knowledge_trace`` (what business knowledge generation was
     # given and which of it the SQL appears to use); None from an older backend.
     knowledge_trace: list[dict[str, Any]] | None = None
+    # The answer's ``question_language`` / ``question_english`` (only present
+    # when QUESTION_TRANSLATION_ENABLED ran); None otherwise.
+    question_language: str | None = None
+    question_english: str | None = None
 
 
 def retry_after_s(response: httpx.Response) -> float:
@@ -128,6 +132,10 @@ def answer_from_events(events: Iterable[dict[str, Any]]) -> Answer:
             out.rows = rows_from_result(payload)
             trace = payload.get("knowledge_trace")
             out.knowledge_trace = trace if isinstance(trace, list) else None
+            language = payload.get("question_language")
+            english = payload.get("question_english")
+            out.question_language = language if isinstance(language, str) else None
+            out.question_english = english if isinstance(english, str) else None
         elif kind == "error":
             out.error = event.get("message") or "error"
     return out
@@ -205,6 +213,8 @@ def score(case: Case, answer: Answer) -> Run:
             seconds=answer.seconds,
             error=answer.error,
             knowledge_trace=answer.knowledge_trace,
+            question_language=answer.question_language,
+            question_english=answer.question_english,
         )
     verdict = compare_any(
         answer.rows,
@@ -223,6 +233,8 @@ def score(case: Case, answer: Answer) -> Run:
         error=answer.error,
         actual=None if answer.rows is None else answer.rows[:MAX_STORED_ROWS],
         knowledge_trace=answer.knowledge_trace,
+        question_language=answer.question_language,
+        question_english=answer.question_english,
     )
 
 
@@ -389,6 +401,8 @@ def rescore(report: Report, cases: list[Case], *, strict: bool = False) -> Repor
                 error=run.error,
                 seconds=run.seconds,
                 knowledge_trace=run.knowledge_trace,
+                question_language=run.question_language,
+                question_english=run.question_english,
             )
             runs.append(score(case, answer))
         out.cases[cid] = CaseResult(result.question, runs)

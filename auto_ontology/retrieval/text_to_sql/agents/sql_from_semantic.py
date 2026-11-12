@@ -41,6 +41,9 @@ from auto_ontology.retrieval.text_to_sql.formatters_util import (
     format_semantic_context,
     format_tables_for_prompt,
 )
+from auto_ontology.retrieval.text_to_sql.question_language import (
+    language_instruction,
+)
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
     get_original_question,
@@ -332,6 +335,9 @@ class SQLFromCandidatesAgent(BaseAgent):
             # the one the model read first and the advisory one qualifies it.
             if sql_examples_section:
                 messages.append(SystemMessage(content=sql_examples_section))
+            language_note = language_instruction(path_state)
+            if language_note:
+                messages.append(SystemMessage(content=language_note))
             messages.append(HumanMessage(content=user_prompt))
 
             # Add calendar time window reminder if needed

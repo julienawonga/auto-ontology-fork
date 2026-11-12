@@ -56,6 +56,10 @@ class TextToSQLPayload(TypedDict):
     # Omitted by callers that never enrich the question.
     enriched_question: NotRequired[str]
     processing_question: NotRequired[str]
+    # Pre-resolved ``question_language.QuestionLanguage`` (the chat worker sets it
+    # so one translation serves clarification and the graph). Only read when
+    # QUESTION_TRANSLATION_ENABLED is on.
+    question_language: NotRequired[object]
     data_retriever: Retriever
     semantic_retriever: NotRequired[Retriever]
     path_state: NotRequired[dict]

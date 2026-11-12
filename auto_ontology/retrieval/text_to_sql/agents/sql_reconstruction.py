@@ -46,6 +46,9 @@ from auto_ontology.retrieval.text_to_sql.prompts import (
     format_authoritative_evidence,
     format_dual_question_block,
 )
+from auto_ontology.retrieval.text_to_sql.question_language import (
+    language_instruction,
+)
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
     get_original_question,
@@ -774,6 +777,9 @@ class SQLReconstructionAgent(BaseAgent):
             prompt_messages.append(
                 SystemMessage(content=format_authoritative_evidence(evidence))
             )
+        language_note = language_instruction(path_state)
+        if language_note:
+            prompt_messages.append(SystemMessage(content=language_note))
         prompt_messages.append(HumanMessage(content=error_prompt))
 
         response = invoke_with_structured_output(

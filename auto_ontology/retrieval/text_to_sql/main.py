@@ -22,6 +22,13 @@ from auto_ontology.retrieval.text_to_sql.knowledge_trace import (
     summarize,
 )
 from auto_ontology.retrieval.text_to_sql.node_labels import NODE_LABELS
+from auto_ontology.retrieval.text_to_sql.question_language import (
+    QuestionLanguage,
+    answer_fields,
+    question_translation_enabled,
+    record_in_path_state,
+    resolve_question_language,
+)
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
     RetryRestoreState,
@@ -202,6 +209,21 @@ def _build_state(payload: TextToSQLPayload) -> AgentState:
     # Question extraction may replace normalized_question later, while intent
     # validation must continue to see both representations.
     initial_path_state["processing_question"] = processing_question
+    messages_question = processing_question
+
+    # QUESTION_TRANSLATION_ENABLED (off by default): retrieval runs on the
+    # English translation, set as the processing question; the submitted text
+    # stays in ``initial_question`` so generation sees both and value linking
+    # keeps the user's own wording. A caller that already resolved the language
+    # (the chat worker, for clarification) passes it in ``question_language``.
+    if question_translation_enabled():
+        resolved = payload.get("question_language")
+        if not isinstance(resolved, QuestionLanguage):
+            resolved = resolve_question_language(processing_question, llm_client)
+        if resolved is not None:
+            record_in_path_state(initial_path_state, resolved)
+            if resolved.translated:
+                initial_path_state["processing_question"] = resolved.english
 
     main_system_prompt = main_system_prompt_template.format(
         date=datetime.now(),
@@ -209,7 +231,7 @@ def _build_state(payload: TextToSQLPayload) -> AgentState:
     )
     messages = [
         SystemMessage(content=main_system_prompt),
-        HumanMessage(content=processing_question),
+        HumanMessage(content=messages_question),
     ]
     initial_evidence = payload.get("evidence") or ""
     initial_sql_examples = list(payload.get("sql_examples") or [])
@@ -443,6 +465,13 @@ def _attach_knowledge_trace(answer: object, final_state: dict) -> None:
         logger.warning("Could not build the knowledge trace", exc_info=True)
 
 
+def _attach_question_language(answer: object, final_state: dict) -> None:
+    """Add ``question_language`` / ``question_english`` when translation ran."""
+    if not isinstance(answer, dict):
+        return
+    answer.update(answer_fields(final_state.get("path_state")))
+
+
 def stream_agent_response(
     payload: TextToSQLPayload,
 ) -> Generator[dict, None, None]:
@@ -556,6 +585,7 @@ def stream_agent_response(
         if isinstance(answer, dict) and thoughts_summary:
             answer["thoughts"] = thoughts_summary
         _attach_knowledge_trace(answer, final_state)
+        _attach_question_language(answer, final_state)
         elapsed = time.perf_counter() - t0
         logger.debug("Final answer (%.2fs):\n%s", elapsed, answer)
         yield {"type": "result", "answer": answer}
@@ -636,6 +666,7 @@ def get_agent_response_with_state(payload: TextToSQLPayload) -> dict:
         result = dict(answer)
     else:
         result = {"response": str(answer)}
+    _attach_question_language(result, final_state)
     result["path_state"] = merged_path_state
     return result
 

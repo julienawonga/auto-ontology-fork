@@ -141,6 +141,22 @@ Conventions: a ranking question expects the item and its value; a person's
 name may be one column or two, and both are accepted as separate gold answers.
 A case `description` states what the question means where that is not obvious.
 
+### The French Chinook set
+
+`dev_tools/evals/cases/chinook_fr.json` is `chinook.json` with only the question
+text translated into the French a business user would type (artist, album, track
+and person names kept as in the data). Gold SQL, expected rows and flags are
+identical (ids differ only by the dataset prefix, `chinook_fr.`), and it is frozen on its own (`frozen_sha256`), so the integrity check
+guards it like the English file. It measures `QUESTION_TRANSLATION_ENABLED`:
+
+```bash
+python -m dev_tools.evals run --cases dev_tools/evals/cases/chinook_fr.json --target-db chinook --label fr-translation-on --out chinook-fr-on.json
+```
+
+Run it with the flag off and on and compare the two reports. Be clear about what it
+is: the English set had **already been run** before this translation was written, so
+`chinook_fr` is held out for the translation feature, not for the engine.
+
 ### Freezing a case file
 
 A case file may declare `frozen_at` and `frozen_sha256` (a hash of its `cases`).

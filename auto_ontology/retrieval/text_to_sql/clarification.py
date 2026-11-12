@@ -306,6 +306,17 @@ def _format_history(history: list[dict[str, str | None]]) -> str:
     return "\n".join(lines)
 
 
+def _language_note(answer_language: str | None, english: str) -> str:
+    """Prompt suffix for a non-English question; "" otherwise (flag off or English)."""
+    if not answer_language:
+        return ""
+    return (
+        f"\n\nThe question is written in {answer_language}; the English translation "
+        f"used for searching is: {english.strip()}\n"
+        f"Write the clarification question and the option labels in {answer_language}."
+    )
+
+
 def _decide(
     *,
     question: str,
@@ -315,6 +326,8 @@ def _decide(
     target_db: str | None,
     history: list[dict[str, str | None]],
     config: ClarificationConfig,
+    retrieval_question: str | None = None,
+    answer_language: str | None = None,
 ) -> ClarificationDecision:
     if len(question.strip()) < config.min_question_chars:
         return ClarificationDecision(None, "skipped_question_too_short")
@@ -327,25 +340,28 @@ def _decide(
     if semantic_retriever is None:
         return ClarificationDecision(None, "skipped_no_semantic_index")
 
+    # With question translation on, the English text is what the English ontology
+    # is searched with; the prompt below still shows the user's own wording.
+    search_question = (retrieval_question or "").strip() or question
     definitions = sorted(
         [
             *_search(
                 semantic_retriever,
-                question,
+                search_question,
                 LABEL_SQL_ATTRIBUTE,
                 config.definition_hits,
                 target_db,
             ),
             *_search(
                 semantic_retriever,
-                question,
+                search_question,
                 Labels.CUSTOM_ANALYSIS,
                 config.definition_hits,
                 target_db,
             ),
             *_search(
                 semantic_retriever,
-                question,
+                search_question,
                 LABEL_TERM,
                 config.definition_hits,
                 target_db,
@@ -363,7 +379,7 @@ def _decide(
     related = [h for h in definitions if _distance(h) <= config.related_max_distance]
     schema = _search(
         semantic_retriever,
-        question,
+        search_question,
         LABEL_COLUMN_ATTRIBUTE,
         config.schema_hits,
         target_db,
@@ -380,6 +396,7 @@ def _decide(
                     evidence=evidence.strip() or "None",
                     question=question.strip(),
                 )
+                + _language_note(answer_language, search_question)
             )
         ],
         ClarificationProposalModel,
@@ -437,6 +454,8 @@ def detect_clarification(
     target_db: str | None = None,
     history: list[dict[str, str | None]] | None = None,
     config: ClarificationConfig = DEFAULT_CONFIG,
+    retrieval_question: str | None = None,
+    answer_language: str | None = None,
 ) -> ClarificationDecision:
     """Return the clarification to ask, or why not. Never raises."""
     try:
@@ -448,6 +467,8 @@ def detect_clarification(
             target_db=target_db,
             history=history or [],
             config=config,
+            retrieval_question=retrieval_question,
+            answer_language=answer_language,
         )
     except Exception:  # noqa: BLE001 - a detector failure must never fail the chat
         logger.exception("Clarification detector failed; answering without asking")
