@@ -30,6 +30,13 @@ python -m dev_tools.evals lsb-score --reports main.replayed.json cand.replayed.j
     --cases lsb/*.json --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
 #   (official metric by default; --mode clean for our stricter reading of it)
 
+# experiment E: wiki -> Terms (E-auto) vs wiki chunks as evidence (E-rag), docs/experiments.md
+python -m dev_tools.evals wiki-chunk --wiki alien.md
+python -m dev_tools.evals wiki-rag --wiki alien.md --cases lsb/alien.json --out e-rag/alien.json -k 4
+python -m dev_tools.evals wiki-extract --wiki alien.md --db alien --out alien.terms.yaml
+python -m dev_tools.evals wiki-load --file alien.terms.yaml --db alien --dry-run   # --apply / --remove
+python -m dev_tools.evals wiki-score-extraction --extracted alien.terms.yaml --kb-dir kb --db alien
+
 # the one-command bench: split once, run a slice, score with a paired verdict
 python -m dev_tools.evals bench split --cases lsb --out ~/split --seed 7
 python -m dev_tools.evals bench run --split ~/split --slice dev --label main
@@ -46,6 +53,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 
 from auto_ontology.server.internal_auth import INTERNAL_TOKEN_ENV, INTERNAL_TOKEN_HEADER
 from dev_tools.evals import bench
@@ -364,6 +372,150 @@ def _cmd_lsb_kb(args: argparse.Namespace) -> int:
     return 1 if result.get("failures") else 0
 
 
+def _outside_repo(path: Path, what: str) -> bool:
+    if _inside_repo(path):
+        print(
+            f"error: {what} is inside this repository; wiki text, extractions and "
+            "benchmark-derived files must stay outside it",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
+def _cmd_wiki_chunk(args: argparse.Namespace) -> int:
+    from dev_tools.evals import wiki
+
+    chunks, sha = wiki.load_wiki(Path(args.wiki), max_chars=args.max_chars)
+    if args.out:
+        out = Path(args.out)
+        if not _outside_repo(out, "--out"):
+            return 2
+        payload = {"wiki_sha256": sha, "chunks": [c.to_dict() for c in chunks]}
+        out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    for c in chunks:
+        print(f"{c.id}\t{len(c.text)}\t{c.heading}")
+    print(f"{len(chunks)} chunks, wiki sha256 {sha[:12]}")
+    return 0
+
+
+def _cmd_wiki_rag(args: argparse.Namespace) -> int:
+    from dev_tools.evals import wiki
+
+    out = Path(args.out)
+    if not _outside_repo(out, "--out"):
+        return 2
+    src = Path(args.cases)
+    if out.resolve() == src.resolve():
+        print("error: --out must not be the input cases file", file=sys.stderr)
+        return 2
+    chunks, sha = wiki.load_wiki(Path(args.wiki), max_chars=args.chunk_chars)
+    sim = (
+        wiki.repo_embedding_similarity()
+        if args.similarity == "embedding"
+        else wiki.Bm25()
+    )
+    payload = json.loads(src.read_text(encoding="utf-8"))
+    new, summary = wiki.rag_cases(
+        payload,
+        chunks,
+        sim,
+        k=args.k,
+        max_chars=args.budget_chars,
+        wiki_sha256=sha,
+    )
+    out.write_text(json.dumps(new, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(summary, indent=2))
+    print(f"wrote {out}; report k={args.k} budget={args.budget_chars} with the scores")
+    return 0
+
+
+def _cmd_wiki_extract(args: argparse.Namespace) -> int:
+    import logging
+
+    from dev_tools.evals import wiki, wiki_extract
+
+    out = Path(args.out)
+    if not _outside_repo(out, "--out"):
+        return 2
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    chunks, sha = wiki.load_wiki(Path(args.wiki), max_chars=args.chunk_chars)
+    if args.limit_chunks:
+        chunks = chunks[: args.limit_chunks]
+    llm, model = wiki_extract.gateway_llm(args.role)
+    raw, rejects = wiki_extract.extract_all(chunks, llm, workers=args.workers)
+    terms = wiki_extract.consolidate(raw)
+    doc = wiki_extract.build_document(
+        args.db, sha, terms, rejects, model=model, chunks=len(chunks)
+    )
+    out.write_text(
+        yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, width=100),
+        encoding="utf-8",
+    )
+    flagged = sum(1 for t in terms if t["flags"])
+    print(
+        f"{len(chunks)} chunks -> {len(raw)} raw terms, {len(terms)} consolidated "
+        f"({flagged} flagged), {len(rejects)} rejected; wrote {out}"
+    )
+    return 0
+
+
+def _cmd_wiki_load(args: argparse.Namespace) -> int:
+    import httpx
+
+    from dev_tools.evals import wiki_kb
+
+    file = Path(args.file) if args.file else None
+    if file is None and not args.remove:
+        print("error: --file is required for --dry-run and --apply", file=sys.stderr)
+        return 2
+    log_dir = Path(args.log_dir) if args.log_dir else None
+    if log_dir and not _outside_repo(log_dir, "--log-dir"):
+        return 2
+    api = None
+    try:
+        wiki_kb.check_db(args.db)
+        token = args.token or os.environ.get(INTERNAL_TOKEN_ENV) or None
+        headers = {INTERNAL_TOKEN_HEADER: token} if token else {}
+        with httpx.Client(headers=headers, timeout=60) as client:
+            api = wiki_kb.WikiApi(client, args.url)
+            if args.remove:
+                result = wiki_kb.remove(api, args.db)
+            else:
+                doc = wiki_kb.load_extraction(file)  # type: ignore[arg-type]
+                run = wiki_kb.apply if args.apply else wiki_kb.dry_run
+                result = run(api, args.db, doc)
+    except (wiki_kb.KbToolError, httpx.HTTPError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result["write_requests"] = list(api.writes)
+    print(json.dumps(result, indent=2, default=str))
+    if log_dir:
+        print(f"log: {wiki_kb.write_log(log_dir, args.db, result)}")
+    return 1 if result.get("failures") else 0
+
+
+def _cmd_wiki_score(args: argparse.Namespace) -> int:
+    from dev_tools.evals import lsb_kb, wiki_kb
+
+    out = Path(args.out) if args.out else None
+    if out and not _outside_repo(out, "--out"):
+        return 2
+    try:
+        kb = lsb_kb.check_db(args.db, Path(args.kb_dir))
+        doc = wiki_kb.load_extraction(Path(args.extracted))
+    except lsb_kb.KbToolError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result = wiki_kb.score_extraction(doc, kb)
+    if out:
+        out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    brief = {k: v for k, v in result.items() if k != "to_eyeball"}
+    brief["to_eyeball_first"] = result["to_eyeball"][:10]
+    print(json.dumps(brief, indent=2))
+    return 0
+
+
 def _cmd_lsb_score(args: argparse.Namespace) -> int:
     if "{db}" not in args.dsn_template:
         print("error: --dsn-template must contain {db}", file=sys.stderr)
@@ -602,6 +754,64 @@ def build_parser() -> argparse.ArgumentParser:
         "--remove", action="store_true", help="delete our Terms + reindex"
     )
     kbp.set_defaults(func=_cmd_lsb_kb)
+
+    wc = sub.add_parser("wiki-chunk", help="split a Markdown wiki into section chunks")
+    wc.add_argument("--wiki", required=True)
+    wc.add_argument("--out", help="also write the chunks as JSON (outside the repo)")
+    wc.add_argument("--max-chars", type=int, default=3000)
+    wc.set_defaults(func=_cmd_wiki_chunk)
+
+    wr = sub.add_parser(
+        "wiki-rag",
+        help="experiment E, E-rag: a new cases file whose evidence is the top-k wiki chunks",
+    )
+    wr.add_argument("--wiki", required=True)
+    wr.add_argument("--cases", required=True, help="one cases file (never modified)")
+    wr.add_argument(
+        "--out", required=True, help="the new cases file (outside the repo)"
+    )
+    wr.add_argument("-k", type=int, default=4, help="chunks per question")
+    wr.add_argument("--budget-chars", type=int, help="cap on evidence length")
+    wr.add_argument("--chunk-chars", type=int, default=3000)
+    wr.add_argument("--similarity", choices=["bm25", "embedding"], default="bm25")
+    wr.set_defaults(func=_cmd_wiki_rag)
+
+    we = sub.add_parser(
+        "wiki-extract",
+        help="experiment E, E-auto: LLM-extract Terms from the wiki into a reviewable YAML",
+    )
+    we.add_argument("--wiki", required=True)
+    we.add_argument("--db", required=True)
+    we.add_argument("--out", required=True, help="reviewable YAML (outside the repo)")
+    we.add_argument("--chunk-chars", type=int, default=3000)
+    we.add_argument("--limit-chunks", type=int, default=0)
+    we.add_argument("--workers", type=int, default=1)
+    we.add_argument("--role", default="REASONING", help="model settings prefix")
+    we.set_defaults(func=_cmd_wiki_extract)
+
+    wl = sub.add_parser(
+        "wiki-load", help="store a reviewed wiki extraction as Terms (Terms API)"
+    )
+    wl.add_argument("--file", help="the reviewed YAML (not needed for --remove)")
+    wl.add_argument("--db", required=True)
+    wl.add_argument("--url", default="http://127.0.0.1:3001")
+    wl.add_argument("--token", help=f"backend internal token (or {INTERNAL_TOKEN_ENV})")
+    wl.add_argument("--log-dir", help="write a JSON log here (outside the repo)")
+    wmode = wl.add_mutually_exclusive_group(required=True)
+    wmode.add_argument("--dry-run", action="store_true")
+    wmode.add_argument("--apply", action="store_true")
+    wmode.add_argument("--remove", action="store_true")
+    wl.set_defaults(func=_cmd_wiki_load)
+
+    ws = sub.add_parser(
+        "wiki-score-extraction",
+        help="recall of the official KB terms in an extraction, by name",
+    )
+    ws.add_argument("--extracted", required=True)
+    ws.add_argument("--kb-dir", required=True)
+    ws.add_argument("--db", required=True)
+    ws.add_argument("--out", help="full result JSON (outside the repo)")
+    ws.set_defaults(func=_cmd_wiki_score)
 
     lsb = sub.add_parser(
         "lsb-score", help="score reports with LiveSQLBench's SELECT metric"

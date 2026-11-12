@@ -542,6 +542,58 @@ it has not been run against the live stack or on LiveSQLBench. PR #25's
 held-out value cases (`chinook_values.json`) and the clarification flow (PRs #26,
 #27) have never been measured.
 
+### Experiment E (tooling built, not run): wiki compiled into Terms vs plain RAG
+
+- **Question.** Given a prose wiki for a database (Markdown, `#`/`##`/`###`
+  headings, formulas and thresholds), does compiling it into ontology Terms
+  answer more questions than retrieving the same wiki's chunks as evidence?
+- **Arms** (same questions, same engine, same wiki; only how the knowledge
+  reaches the model differs). Wiki, cases, extractions and reports all stay
+  outside the repository.
+  - **E-rag**: `wiki-rag` writes a NEW cases file whose `evidence` is the top-k
+    wiki chunks (BM25 by default, `--similarity embedding` reuses the repo's
+    `EMBED_*` client). Report `-k` and `--budget-chars` with the score; the
+    comparison with arm B (full KB as evidence) and E-auto is only fair at a
+    stated, equal evidence budget.
+  - **E-auto**: `wiki-extract` has an LLM propose Terms per chunk (name,
+    abbreviation, definition, formula, thresholds, dependencies, candidate
+    columns, supporting quote). A term whose quote or formula is not a verbatim
+    substring of its chunk is rejected and listed under `rejected`. Consolidation
+    merges by normalised name and flags `contradiction` and
+    `undefined_dependency`. Then `wiki-load --apply` stores the file as Terms.
+  - **E-relu**: the same file after a human edited it (`include: false`, fixed
+    formulas, resolved flags), loaded the same way.
+- **Commands** (one per arm; `--url` defaults to `http://127.0.0.1:3001`):
+
+  ```bash
+  python -m dev_tools.evals wiki-chunk --wiki alien.md              # inspect the chunks
+  # E-rag
+  python -m dev_tools.evals wiki-rag --wiki alien.md --cases lsb/alien.json \
+      --out e-rag/alien.json -k 4 [--budget-chars N]
+  python -m dev_tools.evals run --cases e-rag/alien.json --target-db alien --label e-rag ...
+  # E-auto (needs the gateway: REASONING_* or DEFAULT_MODELS_* settings)
+  python -m dev_tools.evals wiki-extract --wiki alien.md --db alien --out alien.terms.yaml
+  python -m dev_tools.evals wiki-score-extraction --extracted alien.terms.yaml --kb-dir kb --db alien
+  python -m dev_tools.evals wiki-load --file alien.terms.yaml --db alien --dry-run
+  python -m dev_tools.evals wiki-load --file alien.terms.yaml --db alien --apply
+  python -m dev_tools.evals run --cases lsb/alien.json --target-db alien --label e-auto ...
+  python -m dev_tools.evals wiki-load --db alien --remove           # undo
+  ```
+
+- **Loader safety.** Our Terms end with `[wiki-e:<db>:<id>]`; `--remove` deletes
+  only those (via `DELETE /api/terms/{id}`). Terms are created with
+  `POST /api/terms`, linked to tables by column-name match like `lsb-kb`, then
+  the database is reindexed. A name already held by any other Term (including
+  `[lsb-kb:...]` ones, which are never touched) is reported as a collision and
+  not stored; Term names are unique across Terms, so run E-auto on a database
+  without arm C's Terms loaded (or expect collisions on shared names).
+- **Scoring the extraction.** `wiki-score-extraction` reports recall of the
+  official KB term names, the missing ones, extracted-but-not-in-KB terms, and
+  matched pairs sorted least-similar first with the numbers found on one side
+  only, to eyeball formula and threshold differences. Name recall does not say a
+  formula is right.
+- **Status.** `FAKES`: nothing has been run against the gateway or the live stack.
+
 ## 4. Summary of all measurements
 
 | ID | Date | Set | Engine or arm | Result | Kind | Tag |
