@@ -1089,6 +1089,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "description": "All CHAT_MAX_CONCURRENT chat slots stayed busy for CHAT_WAIT_S; retry after the Retry-After header"
           }
         },
         "security": [

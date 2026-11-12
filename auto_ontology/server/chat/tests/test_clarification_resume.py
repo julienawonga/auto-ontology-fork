@@ -109,7 +109,10 @@ class _Harness:
             headers: dict[str, str] = {}
 
             async def is_disconnected(self) -> bool:
-                return True
+                # Connected: a request whose client vanished between waiting
+                # for a slot and submitting is now returned unused (see
+                # test_worker_slots.py), which would silently skip the submit.
+                return False
 
         async def run() -> None:
             await router.chat_completions(request, _Http())  # type: ignore[arg-type]
