@@ -27,6 +27,17 @@ without restarting), mirroring :mod:`auto_ontology.connectors.source_limits`:
     Waiting is the point: under a burst the cap should queue work, not turn
     it into errors — and not into subprocesses.
 
+``CHAT_ORPHAN_GRACE_S`` (default 60)
+    How long a *conversation* run (one with a ``conversation_id``) keeps
+    running after its client disconnected and nobody reattached through
+    ``/chat/watch``; after that it is cancelled (worker killed, permit
+    released). A stateless run (no ``conversation_id``) has no way to be
+    reattached, so it is cancelled as soon as its client disconnects.
+
+``CHAT_MAX_RUN_S`` (default 300)
+    Wall-clock limit for one run. A run over it is cancelled and the client
+    gets an ``error`` event; the conversation records a failed turn.
+
 A value that is not a positive number falls back to the default with a
 warning, rather than failing the process at import or, worse, disabling the
 cap.
@@ -43,6 +54,12 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CONCURRENT = 4
 DEFAULT_WAIT_S = 120.0
+DEFAULT_ORPHAN_GRACE_S = 60.0
+DEFAULT_MAX_RUN_S = 300.0
+
+
+class ChatAbandoned(RuntimeError):
+    """The client gave up while its request was still waiting for a slot."""
 
 
 class ChatBusyTimeout(RuntimeError):
@@ -77,6 +94,14 @@ def wait_s() -> float:
     return _number("CHAT_WAIT_S", DEFAULT_WAIT_S)
 
 
+def orphan_grace_s() -> float:
+    return _number("CHAT_ORPHAN_GRACE_S", DEFAULT_ORPHAN_GRACE_S)
+
+
+def max_run_s() -> float:
+    return _number("CHAT_MAX_RUN_S", DEFAULT_MAX_RUN_S)
+
+
 def _timeout(cap: int, budget: float) -> ChatBusyTimeout:
     return ChatBusyTimeout(
         f"All {cap} chat slots are busy; waited {budget:g}s. Retry shortly. "
@@ -103,13 +128,16 @@ class ChatWorkerGate:
         with self._cond:
             return self._in_use
 
-    def acquire(self, wait: float | None = None) -> None:
+    def acquire(
+        self, wait: float | None = None, cancel: threading.Event | None = None
+    ) -> None:
         """Take a permit, blocking up to the wait budget.
 
         Logs when a request had to wait, for how long, and the in-use count.
 
         Raises:
             ChatBusyTimeout: no slot within *wait* (default ``CHAT_WAIT_S``).
+            ChatAbandoned: *cancel* was set while waiting (client went away).
         """
         budget = wait_s() if wait is None else wait
         deadline = time.monotonic() + budget
@@ -126,12 +154,16 @@ class ChatWorkerGate:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         raise _timeout(max_concurrent(), budget)
-                    self._cond.wait(remaining)
+                    if cancel is not None and cancel.is_set():
+                        raise ChatAbandoned("client disconnected while waiting")
+                    self._cond.wait(min(remaining, 0.25) if cancel else remaining)
                 logger.info(
                     "Chat worker slot granted after waiting %.1fs (in use: %d)",
                     time.monotonic() - started,
                     self._in_use,
                 )
+            if cancel is not None and cancel.is_set():
+                raise ChatAbandoned("client disconnected while waiting")
             self._in_use += 1
 
     def release(self) -> None:

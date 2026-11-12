@@ -37,6 +37,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from dev_tools.evals.cases import (
     DEFAULT_CASES_DIR,
     Case,
@@ -122,6 +124,28 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def backend_chat_cap(url: str) -> int | None:
+    """The backend's ``CHAT_MAX_CONCURRENT`` from ``GET /api/health``, if reachable."""
+    try:
+        response = httpx.get(url.rstrip("/") + "/api/health", timeout=10)
+        cap = response.json().get("chat_workers", {}).get("cap")
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return None
+    return cap if isinstance(cap, int) and cap > 0 else None
+
+
+def warn_if_over_cap(url: str, workers: int) -> None:
+    """Warn when more eval workers than chat slots would just queue (or 503)."""
+    cap = backend_chat_cap(url)
+    if cap is not None and workers > cap:
+        print(
+            f"WARNING: --workers {workers} exceeds the backend's chat cap of {cap} "
+            f"(CHAT_MAX_CONCURRENT); the extra requests will wait for a slot and "
+            f"may be answered 503 (retried automatically). Use --workers {cap}.",
+            file=sys.stderr,
+        )
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     paths = [Path(p) for p in args.cases]
     try:
@@ -154,6 +178,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             f"(more than {MAX_WORKERS} exhausts the backend's connections)",
             file=sys.stderr,
         )
+
+    warn_if_over_cap(args.url, workers)
 
     def show(case: Case, i: int, run: Run) -> None:
         mark = "pass" if run.passed else f"FAIL ({run.reason})"

@@ -454,7 +454,7 @@ def test_a_double_release_cannot_inflate_capacity(
 def test_the_router_maps_the_timeout_to_503_with_retry_after(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    def busy() -> Any:
+    def busy(cancel: Any = None) -> Any:
         raise ChatBusyTimeout(
             "All 4 chat slots are busy; waited 120s. Retry shortly. "
             "Operators: raise CHAT_MAX_CONCURRENT / CHAT_WAIT_S if this keeps "
@@ -525,8 +525,9 @@ def test_a_client_that_vanished_while_waiting_gets_no_run(
     asyncio.run(run())
 
     assert "response" in outcome  # a closed stream, not an error
-    assert returned and isinstance(returned[0], _FakeWorker)
-    assert not returned[0].submitted
+    # Either the wait was abandoned (no worker taken at all) or the worker was
+    # taken and handed straight back; never is a question submitted.
+    assert all(not w.submitted for w in returned)
     assert harness.pool.slots_in_use() == 0
 
 

@@ -15,7 +15,7 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable, Iterator, Sequence
 
 import httpx
@@ -28,6 +28,12 @@ CHAT_PATH = "/api/chat/completions"
 # The pipeline retries SQL several times and each step is an LLM call, so a
 # single question can legitimately take minutes.
 DEFAULT_TIMEOUT_S = 300.0
+# The backend answers 503 + Retry-After when every chat slot (its
+# CHAT_MAX_CONCURRENT) is busy for CHAT_WAIT_S. That is back-pressure, not a
+# failed question: wait as told and try again, within these bounds.
+MAX_BUSY_RETRIES = 10
+MAX_BUSY_WAIT_S = 900.0
+DEFAULT_RETRY_AFTER_S = 5.0
 # Enough to re-score any case here; a report must not balloon on a wide result.
 MAX_STORED_ROWS = 50
 
@@ -41,6 +47,18 @@ class Answer:
     text: str | None = None
     error: str | None = None
     seconds: float = 0.0
+    # Seconds spent waiting out 503 "all chat slots busy" answers; excluded
+    # from ``seconds`` so latency stays the time the question actually took.
+    busy_waits: list[float] = field(default_factory=list)
+
+
+def retry_after_s(response: httpx.Response) -> float:
+    """The ``Retry-After`` delay in seconds (clamped 1..60), or the default."""
+    try:
+        value = float(response.headers.get("Retry-After", ""))
+    except ValueError:
+        return DEFAULT_RETRY_AFTER_S
+    return max(1.0, min(value, 60.0))
 
 
 def parse_sse(lines: Iterable[str]) -> Iterator[dict[str, Any]]:
@@ -117,31 +135,58 @@ def ask(
     target_db: str | None = None,
     evidence: str = "",
     timeout: float = DEFAULT_TIMEOUT_S,
+    max_busy_retries: int = MAX_BUSY_RETRIES,
+    max_busy_wait_s: float = MAX_BUSY_WAIT_S,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Answer:
-    """Send one question and fold the stream into an ``Answer``."""
+    """Send one question and fold the stream into an ``Answer``.
+
+    A 503 (every backend chat slot busy) is retried after the ``Retry-After``
+    the backend sent, at most *max_busy_retries* times and *max_busy_wait_s*
+    seconds in total; the waits are recorded in ``Answer.busy_waits``.
+    """
     body: dict[str, Any] = {"question": question}
     if target_db:
         body["target_db"] = target_db
     if evidence:
         body["evidence"] = evidence
+    waits: list[float] = []
     started = time.perf_counter()
-    try:
-        with client.stream(
-            "POST", base_url.rstrip("/") + CHAT_PATH, json=body, timeout=timeout
-        ) as response:
-            if response.status_code != 200:
-                detail = response.read().decode("utf-8", errors="replace")[:300]
-                return Answer(
-                    error=f"HTTP {response.status_code}: {detail}",
-                    seconds=time.perf_counter() - started,
-                )
-            answer = answer_from_events(parse_sse(response.iter_lines()))
-    except httpx.HTTPError as exc:
-        return Answer(
-            error=f"{type(exc).__name__}: {exc}", seconds=time.perf_counter() - started
-        )
-    answer.seconds = time.perf_counter() - started
-    return answer
+
+    def elapsed() -> float:
+        return max(0.0, time.perf_counter() - started - sum(waits))
+
+    while True:
+        try:
+            with client.stream(
+                "POST", base_url.rstrip("/") + CHAT_PATH, json=body, timeout=timeout
+            ) as response:
+                if response.status_code == 503:
+                    delay = retry_after_s(response)
+                    if len(waits) < max_busy_retries and (
+                        sum(waits) + delay <= max_busy_wait_s
+                    ):
+                        response.read()
+                        waits.append(delay)
+                        sleep(delay)
+                        continue
+                if response.status_code != 200:
+                    detail = response.read().decode("utf-8", errors="replace")[:300]
+                    return Answer(
+                        error=f"HTTP {response.status_code}: {detail}",
+                        seconds=elapsed(),
+                        busy_waits=waits,
+                    )
+                answer = answer_from_events(parse_sse(response.iter_lines()))
+        except httpx.HTTPError as exc:
+            return Answer(
+                error=f"{type(exc).__name__}: {exc}",
+                seconds=elapsed(),
+                busy_waits=waits,
+            )
+        answer.seconds = elapsed()
+        answer.busy_waits = waits
+        return answer
 
 
 def score(case: Case, answer: Answer) -> Run:
@@ -195,6 +240,7 @@ def run_jobs(
     workers: int = 1,
     timeout: float = DEFAULT_TIMEOUT_S,
     on_run: Callable[[Case, int, Run], None] | None = None,
+    busy_waits: list[float] | None = None,
 ) -> list[Run]:
     """Run every job, up to *workers* at a time; results are in job order.
 
@@ -207,17 +253,18 @@ def run_jobs(
 
         def one(job: Job) -> Run:
             try:
-                run = score(
-                    job.case,
-                    ask(
-                        client,
-                        base_url,
-                        job.case.question,
-                        target_db=job.target_db,
-                        evidence=job.case.evidence,
-                        timeout=timeout,
-                    ),
+                answer = ask(
+                    client,
+                    base_url,
+                    job.case.question,
+                    target_db=job.target_db,
+                    evidence=job.case.evidence,
+                    timeout=timeout,
                 )
+                if busy_waits is not None and answer.busy_waits:
+                    with lock:
+                        busy_waits.extend(answer.busy_waits)
+                run = score(job.case, answer)
             except Exception as exc:  # one bad case must not abort the run
                 run = Run(
                     passed=False,
@@ -273,7 +320,18 @@ def run_cases(
         for case in cases
         for i in range(repeats)
     ]
-    runs = run_jobs(jobs, base_url, workers=workers, timeout=timeout, on_run=on_run)
+    busy_waits: list[float] = []
+    runs = run_jobs(
+        jobs,
+        base_url,
+        workers=workers,
+        timeout=timeout,
+        on_run=on_run,
+        busy_waits=busy_waits,
+    )
+    # 503 "all slots busy" back-pressure the runs sat out (see ``ask``).
+    report.meta["busy_retries"] = len(busy_waits)
+    report.meta["busy_wait_s"] = round(sum(busy_waits), 1)
     for case in cases:
         report.cases[case.id] = CaseResult(case.question)
     for job, run in zip(jobs, runs):
