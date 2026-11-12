@@ -450,12 +450,16 @@ to interpret the entries is repeated.
 
 - **Question.** Can an answer report which knowledge it was offered and used?
 - **Setup.** PR #46; live check on the `alien_2` question of the frozen set.
-- **Result.** The notes give "offered 11, used 6, undecided 3" for the final
-  heuristic. The PR/register text says the first heuristic left 12 of 14 entries
-  undecided, because KB definitions name columns in prose and column attributes
-  were matched by label; the heuristic was then changed. The two figures are from
-  different versions of the heuristic and the same question is assumed
-  (**unverified**).
+- **Result.** Two live runs of the same question (`alien_2`), each read from the
+  backend's `Knowledge trace:` log line and the streamed answer. First heuristic
+  (commit c11f1bc6): offered 14, used 1, undecided 12; the SQL visibly applied
+  the TOLS and BFR formulas, but KB definitions name columns in prose
+  (CamelCase) and column attributes were matched by label. Final heuristic
+  (commit 840af9e2, merged): offered 11, used 6, undecided 3, with TOLS matched
+  on `techsigprob`, `natsrcprob`, `sigunique`, `anomscore`, both BFR Terms on
+  `bwhz`, `centerfreqmhz`, and the Anomaly Score and Bandwidth column attributes
+  true; the 3 undecided are general Terms whose definitions name no column. The
+  offered count differs between runs because retrieval differs run to run.
 - **Limits.** `used` is a text heuristic on the final SQL, not a causal measure;
   it has not been compared with human judgement.
 
