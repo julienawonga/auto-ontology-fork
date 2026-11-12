@@ -278,6 +278,28 @@ An earlier pass reported 47/180 for `main` (p about 0.21): that came from a
 throwaway scorer that wrongly failed `crypto_9` and `museum_6`; the numbers
 above are from the reviewed `lsb-score` in official mode.
 
+### Knowledge as Terms (2026-11-12)
+
+LiveSQLBench-Base-Lite, 180 SELECT tasks x 1 run, official metric, local
+stack. Each arm runs the same engine; only where the benchmark's knowledge
+entries live changes.
+
+| Arm | Where the knowledge is | Score |
+|---|---|---|
+| A | nowhere | 3/180 (1.7%) |
+| B | sent with each question as `evidence` (two runs) | 49/180 and 56/180 |
+| C | loaded as Terms, definitions not given to generation | 4/180 (2.2%) |
+| C' | loaded as Terms, with `TERM_DEFINITIONS_IN_GENERATION` | 55/180 (30.6%; simple 20/42, moderate 26/89, challenging 9/49) |
+
+C' against C: 52 questions only C' answered, 1 only C (exact McNemar
+p < 1e-4). C' against B: 21/15 (p about 0.41) and 15/16 (p = 1.0), so no
+difference from handing the knowledge over by hand. The two B runs give the
+run-to-run noise: about 4 points. What this says: knowledge is the lever
+(1.7% to about 30%), and before this change the Terms carried none of it to
+the SQL generator, because retrieval kept one subject Term and used it only to
+add tables. The KB entries were loaded with `python -m dev_tools.evals lsb-kb`.
+The flag is on by default since this measurement.
+
 ## LiveSQLBench-Base-Lite
 
 The tooling is generic; the data is not ours to ship. The questions are public

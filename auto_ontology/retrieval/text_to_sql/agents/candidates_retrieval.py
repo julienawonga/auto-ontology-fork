@@ -52,6 +52,12 @@ from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
     get_question_for_processing,
 )
+from auto_ontology.retrieval.text_to_sql.term_definitions import (
+    BLOCK_HEADER,
+    TermDefinitionSettings,
+    build_term_definitions,
+    merge_evidence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -764,4 +770,51 @@ class CandidateRetrievalAgent(BaseAgent):
         if semantic_retriever is not None and not deduped_col_attr and not subject_term:
             _warn_if_semantic_index_empty(target_db)
 
-        return {"path_state": path_state}
+        result: Dict[str, Any] = {"path_state": path_state}
+        merged_evidence = self._with_term_definitions(
+            semantic_retriever, question, target_db, evidence
+        )
+        if merged_evidence is not None:
+            result["evidence"] = merged_evidence
+        return result
+
+    def _with_term_definitions(
+        self,
+        semantic_retriever: object,
+        question: str,
+        target_db: str | None,
+        evidence: str,
+    ) -> str | None:
+        """Request evidence plus the relevant Terms' definitions, or None.
+
+        None means "leave state['evidence'] alone": the flag is off, nothing
+        relevant was found, the definitions are already there (a re-run of this
+        node on the same state), or the lookup failed.
+        """
+        settings = TermDefinitionSettings.from_env()
+        if not settings.enabled or semantic_retriever is None:
+            return None
+        if f"{BLOCK_HEADER}:\n" in evidence:
+            return None
+        try:
+            defs = build_term_definitions(
+                semantic_retriever, question, target_db, settings
+            )
+        except Exception:
+            self.logger.warning(
+                "Business definitions lookup failed; continuing without them",
+                exc_info=True,
+            )
+            return None
+        self.logger.info(
+            "Business definitions injected into evidence: %d term(s) %s, %d chars "
+            "(%d selected, budget %d)",
+            len(defs.rendered),
+            [t.name for t in defs.rendered],
+            defs.chars,
+            len(defs.terms),
+            settings.budget_chars,
+        )
+        if not defs.block:
+            return None
+        return merge_evidence(evidence, defs.block)
