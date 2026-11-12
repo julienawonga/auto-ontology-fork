@@ -17,7 +17,7 @@ import { after } from 'next/server';
 import { withPermission } from '@/auth/with-auth';
 import { userCan } from '@/auth/permissions';
 import { resolveSubjectToken } from '@/auth/sso-token';
-import { buildInternalIdentityHeaders } from '@/lib/internalIdentity';
+import { buildInternalHeaders } from '@/lib/internalIdentity';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL ?? 'http://127.0.0.1:3001';
 
@@ -65,7 +65,7 @@ export const POST = withPermission({ chat: ['use'] })(async (req, { user }) => {
 		'Content-Type': 'application/json',
 		Accept: 'text/event-stream',
 		[SOURCE_HEADER]: req.headers.get(SOURCE_HEADER) ?? 'api',
-		...buildInternalIdentityHeaders(user.id),
+		...buildInternalHeaders(user.id),
 	};
 
 	const subjectToken = await resolveSubjectToken(req.headers, user.id);

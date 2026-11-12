@@ -26,6 +26,7 @@ Every feature below is merged into `main`.
 | [Collapsible reasoning and SQL in chat](#collapsible-reasoning-and-sql-in-chat) | Chat |
 | [Clarification questions](#clarification-questions) | Chat, backend |
 | [Page redesigns](#page-redesigns) | Terms, Analysis, Analytics, Discovery, Exploration |
+| [Internal API token](#internal-api-token) | Security, backend, frontend |
 | [Foreign keys on partitioned tables](#planned-foreign-keys-on-partitioned-tables) | Planned |
 
 ## Any OpenAI-compatible model provider
@@ -382,6 +383,21 @@ report). Ordinary `INHERITS` children stay separate tables.
 A source ingested before this change keeps its old keys until it is ingested again.
 
 Code: `auto_ontology/connectors/postgres.py` (`get_fks`, `get_pks`).
+
+## Internal API token
+
+The API (3001) and the ingestion service (3002) had no authentication of their own: anyone who could reach either port
+bypassed the web app's permissions and could forge the forwarded user identity. Compose now binds them to loopback, and
+`INTERNAL_API_TOKEN` adds a real check. Details and the upgrade path: [SECURITY.md](./SECURITY.md#internal-api-token).
+
+- **Opt-in, then enforced:** unset, nothing changes and both services log a startup WARNING; set, they answer 401 to any
+  request without a matching `x-internal-token` (constant-time compare) and only trust the user header alongside it.
+  Only the four probe paths stay open. A weak value stops the service from starting.
+- **Callers send it:** the web app's proxy and every server-side call to the API, the API's calls to the ingestion
+  service, and `python -m dev_tools.evals run --token`. A frontend test fails if a file targeting the API skips the helper.
+- **Helm** generates and preserves one by default; **Compose** leaves it to `.env`, so existing installs keep starting.
+
+Code: `auto_ontology/server/internal_auth.py`, `frontend/lib/internalIdentity.ts`.
 
 ## Clarification questions
 

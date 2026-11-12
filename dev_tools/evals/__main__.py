@@ -37,6 +37,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from auto_ontology.server.internal_auth import INTERNAL_TOKEN_ENV
 from dev_tools.evals.cases import (
     DEFAULT_CASES_DIR,
     Case,
@@ -83,7 +84,12 @@ def _hash_cases(paths: list[Path]) -> str | list[str]:
 
 
 def _preflight_all(
-    url: str, cases: list[Case], target_db: str | None, *, allow_empty_index: bool
+    url: str,
+    cases: list[Case],
+    target_db: str | None,
+    *,
+    allow_empty_index: bool,
+    token: str | None = None,
 ) -> dict[str, Any]:
     """Pre-flight every database the cases target (one call for a single one)."""
     if target_db:
@@ -92,7 +98,10 @@ def _preflight_all(
         targets = sorted({c.target_db for c in cases})
     else:
         targets = [None]
-    parts = [preflight(url, t, allow_empty_index=allow_empty_index) for t in targets]
+    parts = [
+        preflight(url, t, allow_empty_index=allow_empty_index, token=token)
+        for t in targets
+    ]
     if len(parts) == 1:
         return parts[0]
     merged: dict[str, Any] = {"backend_url": url}
@@ -123,6 +132,9 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    # A backend gated by INTERNAL_API_TOKEN is called directly here, not
+    # through the web app, so the token must be presented explicitly.
+    token = args.token or os.environ.get(INTERNAL_TOKEN_ENV) or None
     paths = [Path(p) for p in args.cases]
     try:
         cases = load_many(paths)
@@ -136,7 +148,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     try:
         provenance = _preflight_all(
-            args.url, cases, args.target_db, allow_empty_index=args.allow_empty_index
+            args.url,
+            cases,
+            args.target_db,
+            allow_empty_index=args.allow_empty_index,
+            token=token,
         )
     except PreflightError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -165,6 +181,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         label=args.label,
         repeats=args.repeats,
         target_db=args.target_db,
+        token=token,
         on_run=show,
         provenance=provenance,
         workers=workers,
@@ -331,6 +348,7 @@ def _cmd_lsb_score(args: argparse.Namespace) -> int:
 
 
 def _cmd_replay(args: argparse.Namespace) -> int:
+    token = args.token or os.environ.get(INTERNAL_TOKEN_ENV) or None
     cases = load_many(_case_paths(args.cases))
     by_id = {c.id: c for c in cases}
     for path in map(Path, args.reports):
@@ -350,7 +368,11 @@ def _cmd_replay(args: argparse.Namespace) -> int:
         replayed = [by_id[cid] for cid, _ in selected if cid in by_id]
         try:
             _preflight_all(
-                url, replayed, args.target_db, allow_empty_index=args.allow_empty_index
+                url,
+                replayed,
+                args.target_db,
+                allow_empty_index=args.allow_empty_index,
+                token=token,
             )
         except PreflightError as exc:
             print(f"error: {exc}", file=sys.stderr)
@@ -369,6 +391,7 @@ def _cmd_replay(args: argparse.Namespace) -> int:
                 max_seconds=args.max_seconds,
                 target_db=args.target_db,
                 workers=clamp_workers(args.workers),
+                token=token,
                 on_run=show,
             )
         except ValueError as exc:
@@ -414,6 +437,10 @@ def build_parser() -> argparse.ArgumentParser:
         "the backend's database connections)",
     )
     run.add_argument("--url", default=DEFAULT_URL, help="backend base URL")
+    run.add_argument(
+        "--token",
+        help=f"backend internal token, if it requires one (or {INTERNAL_TOKEN_ENV})",
+    )
     run.add_argument("--target-db", help="catalog database name or UUID")
     run.add_argument("--repeats", type=int, default=3, help="runs per question")
     run.add_argument("--label", default="run")
@@ -521,6 +548,10 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("reports", nargs="+", help="reports; originals are not modified")
     rep.add_argument("--cases", nargs="+", required=True)
     rep.add_argument("--url", help="backend URL (default: the one the report recorded)")
+    rep.add_argument(
+        "--token",
+        help=f"backend internal token, if it requires one (or {INTERNAL_TOKEN_ENV})",
+    )
     rep.add_argument("--target-db")
     rep.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
     rep.add_argument("--workers", type=int, default=1)

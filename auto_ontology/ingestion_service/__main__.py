@@ -43,6 +43,11 @@ from auto_ontology.ingestion_service.config import (  # noqa: E402
 from auto_ontology.ingestion_service.data_scheduler import DataScheduler  # noqa: E402
 from auto_ontology.ingestion_service.router import router  # noqa: E402
 from auto_ontology.ingestion_service.semantic_scheduler import SemanticScheduler  # noqa: E402
+from auto_ontology.server.internal_auth import (  # noqa: E402
+    INGESTION_PUBLIC_PATHS,
+    InternalTokenMiddleware,
+    check_internal_token_config,
+)
 from auto_ontology.version import get_app_version  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -50,6 +55,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Weak token: refuse to start. No token: warn that the service is open.
+    check_internal_token_config("Lexis ingestion service")
+
     # Same gate as the API server: this service writes the catalog, so against a
     # schema it does not expect every ingest fails partway through instead of
     # not starting. Worse here than there, because a scheduler runs unattended —
@@ -90,6 +98,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Lexis Ingestion Service", lifespan=lifespan)
+app.add_middleware(InternalTokenMiddleware, public_paths=INGESTION_PUBLIC_PATHS)
 app.include_router(router)
 
 
