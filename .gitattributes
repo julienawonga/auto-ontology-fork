@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
+# SPDX-License-Identifier: Apache-2.0
+
+# Text files are stored and checked out with LF on every platform. Without this,
+# tools on Windows rewrote whole files with CRLF and two branches touching the same
+# file conflicted on every line.
+* text=auto eol=lf
+
+# Binary files: never convert line endings or attempt text diffs.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.whl binary
+*.woff binary
+*.woff2 binary
