@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Design: a self-improving ontology for Lexis
 
-Status: proposal, for the maintainer's decision. No code changes accompany this document.
+Status: accepted with the maintainer's decisions of 2026-11-12 (section 10.3). No code changes accompany this document.
 Date: 2026-11-12.
 
 Source tags used throughout, inherited from the research synthesis
@@ -261,11 +261,12 @@ badge (5.2).
 
 **`term_label`** (SKOS-like labels, [SKOS](https://www.w3.org/TR/skos-reference/) [B])
 
-`term_id`, `label`, `lang`, `kind` (`pref`, `alt`, `hidden`), `item_id` (the knowledge
+`term_id`, `label`, `kind` (`pref`, `alt`, `hidden`), `item_id` (the knowledge
 item that introduced it). It replaces nothing: `term.synonyms` stays as the array the
 rest of the code reads and is written from certified labels at materialisation. It is
-needed because a synonym learned in French and one learned in English must carry separate
-provenance, and a synonym must be revocable individually.
+needed because each synonym must carry its own provenance and be revocable
+individually. There is no `lang` column: the ontology is English only (decision 10,
+section 10.3); questions in other languages are handled at answer time.
 
 ### 3.5 How it maps onto the existing tables
 
@@ -711,6 +712,25 @@ an accuracy gain sooner (rated high impact in the research roadmap, [I]).
 8. Who writes golden sets and expected rows for customers' own databases? The evaluation needs ground truth the product does not have.
 9. Keep the `*_certified` booleans as the read model long term, or migrate readers to `status` and drop them in a later major step?
 10. Is French a first-class `lang` in `term_label` from P0 (the roadmap lists French questions as later)?
+
+### 10.3 Decisions taken (2026-11-12)
+
+The maintainer accepted the author's recommendation on every question except 10.
+
+| # | Decision |
+|---|---|
+| 1 | Certification is human only, forever. A bulk document import may offer "accept all" but it is still one human action, recorded per item. |
+| 2 | In shared scope, the domain owner (`owner_id`) and admins certify. No new reviewer role and no second reviewer until a customer asks. |
+| 3 | Personal drafts are not visible to admins by default. An opt-in audit setting makes them visible, for organisations that need it. |
+| 4 | `episode` is kept 90 days. A setting turns off storing the question text at all. |
+| 5 | No team scope for now: `personal` and `shared` only. |
+| 6 | Canary tolerance is zero regressions. A promotion no canary question covers is allowed, with the "uncovered" mark. |
+| 7 | No numeric confidence until calibration is shown. Answers show badges and the knowledge-used list. |
+| 8 | Golden sets for a customer's databases are written by the customer with our help; answers marked Verified become candidate cases. Demos use Pagila, Chinook and LiveSQLBench. |
+| 9 | Readers move to `status`; the `*_certified` booleans are kept during the transition and dropped in a later major step. |
+| 10 | **Not as proposed.** The ontology stays English only: Terms, definitions, labels and SqlAttributes are written once, in English, and `term_label` has no `lang`. Questions in other languages are handled at answer time: (a) a question detected as non-English is translated to English for retrieval only (one short model call, skipped for English); (b) SQL generation sees both the original and the English question; (c) stored values are never translated (value linking handles them); (d) the prose answer and clarification questions are in the user's language. Reason: the embedding model is English-centred, so a French question retrieves English Terms worse, and keeping one language avoids two label sets drifting apart. It ships behind a setting and is enabled only after a measurement on the held-out Chinook questions translated to French (English, French without translation, French with translation). |
+
+Two further choices of the same day: the LiveSQLBench knowledge entries loaded as Terms stay loaded for the document experiment (8.6 and variant E), and the experiment's wiki texts are kept outside this repository.
 
 ## 11. Key design decisions in this document
 
