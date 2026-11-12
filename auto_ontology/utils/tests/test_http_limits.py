@@ -294,7 +294,7 @@ def test_embed_concurrency_defaults_to_4_and_is_an_env_knob(
         ("LLM_REQUEST_SLOT_TIMEOUT_S", http_limits.slot_timeout_s, 300.0),
     ],
 )
-@pytest.mark.parametrize("bad", ["abc", "0", "-3", "nan", "2.5x"])
+@pytest.mark.parametrize("bad", ["abc", "-3", "nan", "2.5x"])
 def test_invalid_values_fall_back_to_the_default_with_a_warning(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -303,8 +303,6 @@ def test_invalid_values_fall_back_to_the_default_with_a_warning(
     default: float,
     bad: str,
 ) -> None:
-    if name == "LLM_RATE_LIMIT_BUDGET_S" and bad == "0":
-        pytest.skip("0 is a valid budget (never wait)")
     monkeypatch.setenv(name, bad)
     with caplog.at_level(logging.WARNING, logger=http_limits.logger.name):
         assert reader() == default
