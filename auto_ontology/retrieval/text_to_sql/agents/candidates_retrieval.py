@@ -772,7 +772,7 @@ class CandidateRetrievalAgent(BaseAgent):
 
         result: Dict[str, Any] = {"path_state": path_state}
         merged_evidence = self._with_term_definitions(
-            semantic_retriever, question, target_db, evidence
+            semantic_retriever, question, target_db, evidence, path_state=path_state
         )
         if merged_evidence is not None:
             result["evidence"] = merged_evidence
@@ -784,6 +784,8 @@ class CandidateRetrievalAgent(BaseAgent):
         question: str,
         target_db: str | None,
         evidence: str,
+        *,
+        path_state: dict | None = None,
     ) -> str | None:
         """Request evidence plus the relevant Terms' definitions, or None.
 
@@ -817,4 +819,17 @@ class CandidateRetrievalAgent(BaseAgent):
         )
         if not defs.block:
             return None
+        if path_state is not None:
+            # Observational copy for the knowledge-use trace; nothing reads it
+            # during generation.
+            path_state["offered_terms"] = [
+                {
+                    "id": t.id,
+                    "name": t.name,
+                    "description": t.description,
+                    "certified": t.certified,
+                    "depth": t.depth,
+                }
+                for t in defs.rendered
+            ]
         return merge_evidence(evidence, defs.block)

@@ -378,3 +378,32 @@ def test_cli_token_flag_beats_the_environment(
     cli.main(["run", "--out", out])
 
     assert captured == ["from-env", "from-flag", None]
+
+
+def test_knowledge_trace_flows_from_result_event_into_the_report() -> None:
+    trace = [{"kind": "term", "id": "t1", "name": "N", "used": True}]
+    answer = answer_from_events(
+        [
+            {
+                "type": "result",
+                "answer": {
+                    "sql_code": "select 1",
+                    "sql_response_from_db": [{"n": 1}],
+                    "knowledge_trace": trace,
+                },
+            }
+        ]
+    )
+    assert answer.knowledge_trace == trace
+    case = Case(id="c", question="q", gold=(GoldAnswer("g", "select 1", [[1]]),))
+    run = score(case, answer)
+    assert run.knowledge_trace == trace
+    report = Report(meta={}, cases={"c": CaseResult("q", [run])})
+    restored = Report.from_json(report.to_json())
+    assert restored.cases["c"].runs[0].knowledge_trace == trace
+    assert rescore(report, [case]).cases["c"].runs[0].knowledge_trace == trace
+
+
+def test_old_backend_without_a_trace_gives_none() -> None:
+    answer = answer_from_events([{"type": "result", "answer": {"sql_code": "s"}}])
+    assert answer.knowledge_trace is None

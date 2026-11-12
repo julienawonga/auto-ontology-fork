@@ -92,7 +92,12 @@ than `--tolerance`. An improvement on one question does not hide a regression
 on another.
 
 A report keeps the rows each run was scored on (up to 50), which is what makes
-`rescore` possible.
+`rescore` possible. Each run also keeps the answer's `knowledge_trace` (what
+business knowledge generation was offered and which of it the SQL appears to
+use, see [the conversation API](./conversation-api.md#knowledge-use-trace)), in
+`run` and `bench run` alike; `null` for a backend that predates it. It makes
+"accuracy of answers that used certified knowledge" computable from a report,
+but `used` is a heuristic, so read it as an association, not a cause.
 
 ## Cases
 

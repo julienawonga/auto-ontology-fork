@@ -17,6 +17,10 @@ from auto_ontology.retrieval.text_to_sql.text_to_sql_graph import (
 from auto_ontology.retrieval.text_to_sql.connector_routing import (
     resolve_target_database_name,
 )
+from auto_ontology.retrieval.text_to_sql.knowledge_trace import (
+    build_knowledge_trace,
+    summarize,
+)
 from auto_ontology.retrieval.text_to_sql.node_labels import NODE_LABELS
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
@@ -89,6 +93,7 @@ _FULL_RETRY_PATH_KEYS_TO_CLEAR = frozenset(
         "retrieved_custom_analyses",
         "retrieved_sql_attributes",
         "retrieved_subject_term",
+        "offered_terms",
         "candidates",
         "relevant_tables",
         "relevant_queries",
@@ -419,6 +424,24 @@ def _extract_partial_answer(final_state: dict) -> dict:
     }
 
 
+def _attach_knowledge_trace(answer: object, final_state: dict) -> None:
+    """Add ``knowledge_trace`` to the answer and log its summary.
+
+    Observational and best effort: it reads the finished state, never changes
+    what generation saw, and a failure here must not cost the user the answer.
+    """
+    if not isinstance(answer, dict):
+        return
+    try:
+        trace = build_knowledge_trace(
+            final_state.get("path_state") or {}, answer.get("sql_code")
+        )
+        answer["knowledge_trace"] = trace
+        logger.info(summarize(trace))
+    except Exception:
+        logger.warning("Could not build the knowledge trace", exc_info=True)
+
+
 def stream_agent_response(
     payload: TextToSQLPayload,
 ) -> Generator[dict, None, None]:
@@ -531,6 +554,7 @@ def stream_agent_response(
         thoughts_summary = _build_thoughts_summary(thoughts_log)
         if isinstance(answer, dict) and thoughts_summary:
             answer["thoughts"] = thoughts_summary
+        _attach_knowledge_trace(answer, final_state)
         elapsed = time.perf_counter() - t0
         logger.debug("Final answer (%.2fs):\n%s", elapsed, answer)
         yield {"type": "result", "answer": answer}
