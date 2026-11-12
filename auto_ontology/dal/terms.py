@@ -1439,6 +1439,28 @@ def fetch_terms_and_attributes_for_database(
     return [dict(r) for r in terms], [dict(r) for r in attrs]
 
 
+def fetch_database_term_definitions(database_name: str) -> list[dict[str, Any]]:
+    """``{id, name, description, certified}`` of every Term one database represents.
+
+    ``certified`` is the Term's own ``description_certified`` flag. This is the
+    catalogue that definition expansion matches name mentions against.
+    """
+    term_from, term_where = _database_terms(database_name)
+    rows = store().query_read(
+        select(
+            s.term.c.id,
+            s.term.c.name,
+            s.term.c.description,
+            s.term.c.description_certified.label("certified"),
+        )
+        .select_from(term_from)
+        .where(*term_where)
+        .group_by(s.term.c.id)
+        .order_by(s.term.c.id)
+    )
+    return [dict(r) for r in rows]
+
+
 def fetch_semantic_node_ids_for_database(
     database_name: str,
 ) -> tuple[set[str], set[str]]:
