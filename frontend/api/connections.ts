@@ -19,8 +19,11 @@ export const connectionsApi = {
 
 	isEnvSource: () => requests.get<boolean>('connections/source'),
 
-	create: (input: ConnectionInput): Promise<CreateResponse> =>
-		requests.post<{ data: Connection }>('connections', { connection: input }),
+	create: (input: ConnectionInput, ontologyLanguage?: string): Promise<CreateResponse> =>
+		requests.post<{ data: Connection }>('connections', {
+			connection: input,
+			...(ontologyLanguage == null ? {} : { ontology_language: ontologyLanguage }),
+		}),
 
 	test: async (input: ConnectionInput, replacing?: string): Promise<TestResponse> => {
 		const res = await requests.post<{ success: boolean; schemas?: string[] }>(
@@ -41,9 +44,14 @@ export const connectionsApi = {
 	// doubles as the connection's name) and `type` come back as a 422 if they
 	// differ from the stored ones. Credentials left blank keep their stored
 	// value, since `getAll` strips them and the edit form has none to send back.
-	update: (databaseName: string, input: ConnectionInput): Promise<CreateResponse> =>
+	update: (
+		databaseName: string,
+		input: ConnectionInput,
+		ontologyLanguage?: string,
+	): Promise<CreateResponse> =>
 		requests.put<{ data: Connection }>(`connections/${encodeURIComponent(databaseName)}`, {
 			connection: input,
+			...(ontologyLanguage == null ? {} : { ontology_language: ontologyLanguage }),
 		}),
 
 	// Narrow update: flips "authenticate as signed-in user" without re-sending
