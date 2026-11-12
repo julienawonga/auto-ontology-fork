@@ -26,7 +26,7 @@ JSON.
 | -------- | ------- |
 | `step`   | An agent step starting or ending (`node`, `phase`, and `thought` on end), for showing progress. |
 | `sql`    | A query that passed validation and is about to run. |
-| `result` | The final `answer`: `response` (prose), `sql_code`, `sql_response_from_db` (rows), `thoughts` (step trace). |
+| `result` | The final `answer`: `response` (prose), `sql_code`, `sql_response_from_db` (rows), `thoughts` (step trace), `knowledge_trace` (see [Knowledge-use trace](#knowledge-use-trace)). |
 | `charts` | A chart or table for the result (`content`, `sql_response`). Sent after `result` when the query ran and the request includes a `conversation_id`. |
 | `error`  | A `message` describing why the run failed. |
 | `clarification` | The run stopped to ask what a business term means, instead of answering. See [Clarification questions](#clarification-questions). |
@@ -96,6 +96,49 @@ payloads, errors, and raw result rows stay out of it.
 Conversation history belongs to the authenticated user. An API-created
 conversation opens in the UI at `/chat?focus=<conversation_id>` for the user who
 owns it. The web UI manages its own conversation IDs.
+
+## Knowledge-use trace
+
+Every `result` answer carries `knowledge_trace`: which business knowledge SQL
+generation was given, and which of it the final SQL appears to use. It is
+additive (clients that ignore it are unaffected) and observational: it is read
+off the finished run and changes neither the prompt nor the evidence.
+
+```json
+[
+  {"kind": "term", "id": "t1", "name": "Net Revenue", "database": "shop",
+   "certified": true, "reason": "retrieved for the question", "used": true,
+   "matched": ["refund"]},
+  {"kind": "sql_attribute", "id": "a1", "name": "net", "database": "shop",
+   "certified": true, "reason": "retrieved for the question; defines Term 'Net Revenue'",
+   "used": true, "matched": ["amount", "refund"]},
+  {"kind": "custom_analysis", "id": "c9", "name": "Shipped", "database": "shop",
+   "certified": null, "reason": "retrieved for the question", "used": false, "matched": []}
+]
+```
+
+`kind` is `term`, `sql_attribute`, `column_attribute` or `custom_analysis`.
+Offered means it was in what the generator saw: Terms whose definitions were
+rendered into the evidence, the SqlAttributes and CustomAnalyses in the
+generation prompt, and the retrieved ColumnAttributes (which choose the tables
+and columns shown). `certified` is `null` when unknown (CustomAnalyses have no
+certification). `used` is a text heuristic on the final SQL, not a proof:
+`true`, `false`, or `null` when it cannot decide. For a SqlAttribute or
+CustomAnalysis, its snippet appears in the SQL, or all its distinctive
+identifiers and literals do (some but not all gives `null`, none gives
+`false`). For a Term, an identifier or literal its definition names appears in
+the SQL (`true`), or one of its SqlAttributes is used. Names are backticked
+words, quoted literals, `snake_case`, `table.column`, and bare words written as
+identifiers in prose or math (`TechSigProb`, `BWHz`: a capital after the first
+letter) that are real column names of the tables the generator was shown. A
+definition naming such identifiers none of which appear gives `false`; one
+naming none (pure prose, or only all-lowercase words) gives `null`. For a
+ColumnAttribute, the physical column it is attached to appears as an
+identifier in the SQL (`true`) or does not (`false`, including a column reached
+only through `SELECT *`); `null` when the column is unknown and the label is
+absent.
+`matched` lists what was found. The backend logs one line per answer
+(`Knowledge trace: offered N, used M, ...`).
 
 ## Clarification questions
 

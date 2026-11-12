@@ -51,6 +51,9 @@ class Answer:
     # Seconds spent waiting out 503 "all chat slots busy" answers; excluded
     # from ``seconds`` so latency stays the time the question actually took.
     busy_waits: list[float] = field(default_factory=list)
+    # The answer's ``knowledge_trace`` (what business knowledge generation was
+    # given and which of it the SQL appears to use); None from an older backend.
+    knowledge_trace: list[dict[str, Any]] | None = None
 
 
 def retry_after_s(response: httpx.Response) -> float:
@@ -123,6 +126,8 @@ def answer_from_events(events: Iterable[dict[str, Any]]) -> Answer:
             out.sql = payload.get("sql_code") or out.sql
             out.text = payload.get("response")
             out.rows = rows_from_result(payload)
+            trace = payload.get("knowledge_trace")
+            out.knowledge_trace = trace if isinstance(trace, list) else None
         elif kind == "error":
             out.error = event.get("message") or "error"
     return out
@@ -194,7 +199,12 @@ def score(case: Case, answer: Answer) -> Run:
     """Score one answer against a case's accepted results."""
     if answer.error and answer.rows is None:
         return Run(
-            False, "error", sql=answer.sql, seconds=answer.seconds, error=answer.error
+            False,
+            "error",
+            sql=answer.sql,
+            seconds=answer.seconds,
+            error=answer.error,
+            knowledge_trace=answer.knowledge_trace,
         )
     verdict = compare_any(
         answer.rows,
@@ -212,6 +222,7 @@ def score(case: Case, answer: Answer) -> Run:
         seconds=round(answer.seconds, 2),
         error=answer.error,
         actual=None if answer.rows is None else answer.rows[:MAX_STORED_ROWS],
+        knowledge_trace=answer.knowledge_trace,
     )
 
 
@@ -373,7 +384,11 @@ def rescore(report: Report, cases: list[Case], *, strict: bool = False) -> Repor
             if run.actual is None and run.rows is not None:
                 raise ValueError(f"{cid}: report was saved without the rows")
             answer = Answer(
-                sql=run.sql, rows=run.actual, error=run.error, seconds=run.seconds
+                sql=run.sql,
+                rows=run.actual,
+                error=run.error,
+                seconds=run.seconds,
+                knowledge_trace=run.knowledge_trace,
             )
             runs.append(score(case, answer))
         out.cases[cid] = CaseResult(result.question, runs)

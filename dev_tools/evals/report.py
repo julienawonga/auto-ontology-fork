@@ -31,6 +31,10 @@ class Run:
     # different convention without running the questions again. Reports written
     # before this field existed load with ``None``.
     actual: list[list[Any]] | None = None
+    # Which business knowledge generation was offered and the SQL appears to
+    # have used (``auto_ontology.retrieval.text_to_sql.knowledge_trace``). None
+    # for reports written before the field existed.
+    knowledge_trace: list[dict[str, Any]] | None = None
 
 
 @dataclass

@@ -197,7 +197,11 @@ def test_stream_retries_once_then_returns_success(
     assert results == [
         {
             "type": "result",
-            "answer": {"response": "Success.", "sql_code": "SELECT 42"},
+            "answer": {
+                "response": "Success.",
+                "sql_code": "SELECT 42",
+                "knowledge_trace": [],
+            },
         }
     ]
     assert [state["full_pipeline_attempt"] for state in app.states] == [1, 2]

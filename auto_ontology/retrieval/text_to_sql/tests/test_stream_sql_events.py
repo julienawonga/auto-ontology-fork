@@ -498,7 +498,7 @@ def test_entry_router_is_not_streamed(
     )
 
     assert [event["type"] for event in events] == ["result"]
-    assert events[0]["answer"] == {"response": "routed"}
+    assert events[0]["answer"] == {"response": "routed", "knowledge_trace": []}
 
 
 def test_start_precedes_the_nodes_own_update(

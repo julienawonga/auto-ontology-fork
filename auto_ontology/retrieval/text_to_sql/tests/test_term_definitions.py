@@ -295,3 +295,23 @@ def test_lookup_failure_falls_back_to_no_definitions(
         "auto_ontology.retrieval.text_to_sql.term_definitions._default_search", boom
     )
     assert set(_run("e")) == {"path_state"}
+
+
+def test_offered_terms_are_recorded_without_changing_the_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The knowledge trace reads ``path_state['offered_terms']``; recording it
+    must leave the evidence the generator sees exactly as it was."""
+    _enable(monkeypatch)
+    result = _run("request evidence")
+    terms = result["path_state"]["offered_terms"]
+    assert [(t["id"], t["certified"], t["depth"]) for t in terms] == [("t3", True, 0)]
+    expected = merge_evidence(
+        "request evidence", f"{BLOCK_HEADER}:\n- Antenna Gain: Gain in dBi."
+    )
+    assert result["evidence"] == expected
+
+
+def test_flag_off_records_no_offered_terms(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM_DEFINITIONS_IN_GENERATION", "false")
+    assert "offered_terms" not in _run("e")["path_state"]
