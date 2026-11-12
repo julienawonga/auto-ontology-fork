@@ -157,6 +157,68 @@ reason; each entry is reviewed like code, and one without a reason is rejected.
 See [verification-status.md](./verification-status.md) for what has and has not
 been verified for real.
 
+## Bench
+
+`python -m dev_tools.evals bench` is the one-command workflow that applies the
+rules below. It runs in **one Python process** (every database of a slice in a
+loop, nothing fetched per database, so a transient PyPI or DNS failure cannot
+kill half a run), and it builds in what noisy runs taught us:
+
+- Two runs of the same engine on the 180 LiveSQLBench tasks differ by about
+  4 points (49 vs 56 correct). A single run misleads; decisions use a paired
+  comparison with the exact McNemar test, and the noise band is printed.
+- Workers are `min(--workers, the backend's cap from /api/health, 6)`: above
+  about 12 concurrent chats the gateway blocks the IP.
+- Infrastructure failures (the replay rule above) are replayed once, the same
+  rule for both arms; a question whose every run is still one is excluded from
+  the paired test for both arms and counted.
+- LiveSQLBench is scored with the official metric (`lsb-score`); the harness
+  comparison is only the fallback for other cases.
+
+The workflow, in order:
+
+```bash
+# 1. Split ONCE (stratified by database and difficulty tier). Refuses an
+#    existing split, and an --out inside this repository for LiveSQLBench cases.
+python -m dev_tools.evals bench split --cases ~/lsb --out ~/lsb-split     --seed 7 --dev 0.3 --canary 0.1
+
+# 2. Develop on dev only. Run the baseline and the change (3 repeats give a noise band).
+python -m dev_tools.evals bench run --split ~/lsb-split --slice dev --label main     --repeats 3 --note "TOP_K=8" --out-dir ~/bench-runs
+python -m dev_tools.evals bench run --split ~/lsb-split --slice dev --label cand     --repeats 3 --out-dir ~/bench-runs
+python -m dev_tools.evals bench score --run ~/bench-runs/cand-dev-*     --baseline ~/bench-runs/main-dev-* --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
+
+# 3. Decide on heldout, once, with the final candidate.
+python -m dev_tools.evals bench run --split ~/lsb-split --slice heldout --label main --repeats 3
+python -m dev_tools.evals bench run --split ~/lsb-split --slice heldout --label cand --repeats 3
+python -m dev_tools.evals bench score --run <cand heldout run> --baseline <main heldout run>     --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
+
+# 4. Before promoting a knowledge change, replay the canary the same way.
+python -m dev_tools.evals bench run --split ~/lsb-split --slice canary --label cand ...
+```
+
+- **split** writes `dev/`, `heldout/` and `canary/`, one case file per database,
+  each frozen twice: the inline `frozen_sha256` of the integrity check and a
+  `FROZEN.sha256` listing (`<hash>  <file>`) per slice. The split is
+  deterministic for a seed. `run` and `score` verify the hashes first and refuse
+  a slice that was edited.
+- **run** writes `<label>-<slice>-<UTC time>/` under `--out-dir`: `manifest.json`
+  (engine label, backend git sha from the health endpoint when it reports one,
+  else `--git-sha`, else recorded as unknown; start and end; workers requested,
+  backend cap and used; `--note` knobs; replay counts; the split id), the raw
+  per-database reports, the replayed ones and `merged.json`. The internal token
+  is never written down. `--workers auto` uses the backend's cap.
+- **score** prints the per-tier table; with `--baseline` it adds the paired table
+  (per tier too), the exact McNemar p-value, the noise band (the share of
+  questions on which one engine disagrees with itself, from the baseline's
+  repeats, or from `--noise <second run of the baseline engine>`) and a verdict:
+  `IMPROVED`, `REGRESSED` or `NO SIGNIFICANT CHANGE` at alpha 0.05 (exit code 1
+  for `REGRESSED`). The two runs must come from the same split and slice. A dev
+  result carries the note that dev is not evidence. Questions are counted as
+  passed when most of their repeats are.
+- Not covered yet: paraphrased questions (a check against memorisation) are
+  future work. A crashed `run` is not resumable; its raw reports are written
+  only after the run.
+
 ## Rules for an honest measurement
 
 These exist because each of them was broken at least once.
