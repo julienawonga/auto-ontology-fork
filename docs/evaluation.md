@@ -354,8 +354,8 @@ is how the tool recognises its own Terms, so `--remove` deletes only those and
 `--apply` skips ones already present. A KB name already used by another Term is
 reported and skipped.
 
-There is no "create Term" or "delete Term" route, so it uses what a customer
-has: `POST /api/model/import?replace=false` for the Terms (tied to the
+This tool predates `POST /api/terms` and `DELETE /api/terms/{id}` (see
+[terms-api.md](./terms-api.md)) and still uses the whole-model routes: `POST /api/model/import?replace=false` for the Terms (tied to the
 database through the tables that represent them: the tables whose columns the
 entry's text names, else the first table), `POST /api/model/export` followed by
 `POST /api/model/import?replace=true` for `--remove` (the import deletes the

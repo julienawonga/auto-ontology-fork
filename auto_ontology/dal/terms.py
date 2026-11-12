@@ -26,19 +26,22 @@ previous version of this code had two copies of it that drifted:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, NoReturn
 
 from sqlalchemy import (
     String,
     and_,
     bindparam,
     case,
+    delete,
     func,
     literal,
+    or_,
     select,
     update,
 )
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 
 from auto_ontology.catalog.constants import Edges, Labels
 from auto_ontology.dal import schema as s
@@ -351,67 +354,348 @@ def update_term(
     # ColumnAttribute are the same fact. If the second statement fails on its
     # own, `fetch_column_attributes_by_term_id` matches through the stale copy
     # and the Term's attribute list reads as empty from then on.
-    with write_transaction():
-        # Read the old name first. RETURNING gives the *new* one, and the caller
-        # compares the two to decide whether a rename happened -- with it always
-        # None, `name_changed` was true for every edit, so a description-only
-        # PATCH cleared description_suggestion on every SqlAttribute of the term
-        # and re-embedded all of them.
-        previous = store().query_read(
-            select(s.term.c.name).where(s.term.c.id == term_id)
-        )
-        old_name = previous[0]["name"] if previous else None
-
-        values: dict[str, Any] = {
-            "name": func.coalesce(literal(name, String), s.term.c.name),
-            "description": func.coalesce(
-                literal(description, String), s.term.c.description
-            ),
-            "name_certified": func.coalesce(name_certified, s.term.c.name_certified),
-            "description_certified": func.coalesce(
-                description_certified, s.term.c.description_certified
-            ),
-            "owner_id": (literal(owner_id, String) if set_owner else s.term.c.owner_id),
-        }
-        # Only an edit from the app. Compilation calls this without ``touch``
-        # and must not look like someone saved the term.
-        if touch:
-            values["modified"] = func.now()
-            values["modified_by"] = modified_by
-        rows = store().query_write(
-            update(s.term)
-            .where(s.term.c.id == term_id)
-            .values(**values)
-            .returning(
-                s.term.c.id,
-                s.term.c.name,
-                s.term.c.description,
-                s.term.c.name_certified,
-                s.term.c.description_certified,
-                s.term.c.owner_id,
+    try:
+        with write_transaction():
+            # Read the old name first. RETURNING gives the *new* one, and the caller
+            # compares the two to decide whether a rename happened -- with it always
+            # None, `name_changed` was true for every edit, so a description-only
+            # PATCH cleared description_suggestion on every SqlAttribute of the term
+            # and re-embedded all of them.
+            previous = store().query_read(
+                select(s.term.c.name).where(s.term.c.id == term_id)
             )
-        )
-        if not rows:
-            return None
-        result = dict(rows[0])
-        result["old_name"] = old_name
+            old_name = previous[0]["name"] if previous else None
 
-        # Read before the UPDATE would have been simpler, but RETURNING gives
-        # the new name and the old one is only knowable beforehand -- so it is
-        # fetched first, above, by way of this second statement being the
-        # *rename*.
-        store().query_write(
-            update(s.column_attribute)
-            .where(
-                s.column_attribute.c.id.in_(
-                    select(s.column_attribute__term.c.attribute_id).where(
-                        s.column_attribute__term.c.term_id == term_id
-                    )
+            values: dict[str, Any] = {
+                "name": func.coalesce(literal(name, String), s.term.c.name),
+                "description": func.coalesce(
+                    literal(description, String), s.term.c.description
+                ),
+                "name_certified": func.coalesce(
+                    name_certified, s.term.c.name_certified
+                ),
+                "description_certified": func.coalesce(
+                    description_certified, s.term.c.description_certified
+                ),
+                "owner_id": (
+                    literal(owner_id, String) if set_owner else s.term.c.owner_id
+                ),
+            }
+            # Only an edit from the app. Compilation calls this without ``touch``
+            # and must not look like someone saved the term.
+            if touch:
+                values["modified"] = func.now()
+                values["modified_by"] = modified_by
+            rows = store().query_write(
+                update(s.term)
+                .where(s.term.c.id == term_id)
+                .values(**values)
+                .returning(
+                    s.term.c.id,
+                    s.term.c.name,
+                    s.term.c.description,
+                    s.term.c.name_certified,
+                    s.term.c.description_certified,
+                    s.term.c.owner_id,
                 )
             )
-            .values(term_name=result["name"])
-        )
+            if not rows:
+                return None
+            result = dict(rows[0])
+            result["old_name"] = old_name
+
+            # Read before the UPDATE would have been simpler, but RETURNING gives
+            # the new name and the old one is only knowable beforehand -- so it is
+            # fetched first, above, by way of this second statement being the
+            # *rename*.
+            store().query_write(
+                update(s.column_attribute)
+                .where(
+                    s.column_attribute.c.id.in_(
+                        select(s.column_attribute__term.c.attribute_id).where(
+                            s.column_attribute__term.c.term_id == term_id
+                        )
+                    )
+                )
+                .values(term_name=result["name"])
+            )
+    except IntegrityError as exc:
+        _raise_name_taken(exc, name or "")
     return result
+
+
+class TermNameTaken(ValueError):
+    """Another Term already has this ``(name, source)``."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"A Term named {name!r} already exists")
+
+
+class UnknownTableIds(ValueError):
+    """Some of the given table ids are not catalog tables."""
+
+    def __init__(self, ids: list[str]) -> None:
+        self.ids = ids
+        super().__init__(f"Unknown table id(s): {', '.join(ids)}")
+
+
+class TermSpansDatabases(ValueError):
+    """The tables a Term is linked to must all belong to one database."""
+
+    def __init__(self, databases: list[str]) -> None:
+        self.databases = databases
+        super().__init__(
+            "A Term's tables must belong to one database, got: "
+            + ", ".join(sorted(databases))
+        )
+
+
+class TermHasSqlAttributes(ValueError):
+    """A Term that still owns SqlAttributes cannot be deleted."""
+
+    def __init__(self, names: list[str]) -> None:
+        self.names = names
+        super().__init__(
+            "Term still has SQL attribute(s) (" + ", ".join(names) + "); "
+            "delete or move them first"
+        )
+
+
+def _raise_name_taken(exc: IntegrityError, name: str) -> NoReturn:
+    if "uq_term_name_source" not in str(exc.orig):
+        raise exc
+    raise TermNameTaken(name) from exc
+
+
+def resolve_database(database: str) -> dict[str, Any] | None:
+    """``{id, name}`` of the catalog database named or identified by *database*."""
+    rows = store().query_read(
+        select(s.catalog_database.c.id, s.catalog_database.c.name)
+        .where(
+            or_(
+                s.catalog_database.c.id == database,
+                s.catalog_database.c.name == database,
+            )
+        )
+        .limit(1)
+    )
+    return dict(rows[0]) if rows else None
+
+
+def fetch_database_link_candidates(database_id: str) -> list[dict[str, Any]]:
+    """``[{id, name, columns: [name, ...]}]`` for every table of a database.
+
+    What the create route matches a Term's text against to choose the tables
+    it represents when the caller names none.
+    """
+    rows = store().query_read(
+        select(
+            s.catalog_table.c.id,
+            s.catalog_table.c.name,
+            s.catalog_column.c.name.label("column_name"),
+        )
+        .select_from(
+            s.catalog_table.join(
+                s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id
+            ).outerjoin(
+                s.catalog_column, s.catalog_column.c.table_id == s.catalog_table.c.id
+            )
+        )
+        .where(s.catalog_schema.c.database_id == database_id)
+        .order_by(s.catalog_table.c.name, s.catalog_table.c.id)
+    )
+    tables: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        entry = tables.setdefault(
+            row["id"], {"id": row["id"], "name": row["name"], "columns": []}
+        )
+        if row["column_name"]:
+            entry["columns"].append(row["column_name"])
+    return list(tables.values())
+
+
+def database_for_tables(table_ids: list[str]) -> dict[str, Any]:
+    """``{id, name}`` of the one database all *table_ids* belong to.
+
+    Raises :class:`UnknownTableIds` for ids that are not tables and
+    :class:`TermSpansDatabases` when they are in several databases.
+    """
+    rows = store().query_read(
+        select(
+            s.catalog_table.c.id.label("table_id"),
+            s.catalog_database.c.id.label("database_id"),
+            s.catalog_database.c.name.label("database_name"),
+        )
+        .select_from(
+            s.catalog_table.join(
+                s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id
+            ).join(
+                s.catalog_database,
+                s.catalog_database.c.id == s.catalog_schema.c.database_id,
+            )
+        )
+        .where(s.catalog_table.c.id.in_(table_ids))
+    )
+    found = {row["table_id"] for row in rows}
+    missing = [tid for tid in table_ids if tid not in found]
+    if missing:
+        raise UnknownTableIds(missing)
+    databases = {row["database_id"]: row["database_name"] for row in rows}
+    if len(databases) > 1:
+        raise TermSpansDatabases(list(databases.values()))
+    database_id, database_name = next(iter(databases.items()))
+    return {"id": database_id, "name": database_name}
+
+
+def create_term(
+    *,
+    name: str,
+    description: str | None,
+    synonyms: list[str] | None,
+    table_ids: list[str],
+    created_by: str | None,
+    owner_id: str | None = None,
+) -> dict[str, Any]:
+    """Insert an uncertified, ``semantic``-source Term and link its tables.
+
+    One transaction: a failure leaves neither a Term without tables nor links
+    to a Term that was not created. Raises :class:`TermNameTaken` on a duplicate
+    ``(name, source)``. The caller has already checked *table_ids*.
+    """
+    try:
+        with write_transaction():
+            rows = store().query_write(
+                insert(s.term)
+                .values(
+                    name=name,
+                    description=description,
+                    source=SEMANTIC_SOURCE,
+                    synonyms=synonyms or [],
+                    owner_id=owner_id,
+                    created_by=created_by,
+                )
+                .returning(
+                    s.term.c.id,
+                    s.term.c.name,
+                    s.term.c.description,
+                    s.term.c.synonyms,
+                    s.term.c.name_certified,
+                    s.term.c.description_certified,
+                    s.term.c.owner_id,
+                    s.term.c.created_by,
+                )
+            )
+            created = dict(rows[0])
+            store().query_write(
+                insert(s.table__term).values(
+                    [{"table_id": tid, "term_id": created["id"]} for tid in table_ids]
+                )
+            )
+    except IntegrityError as exc:
+        _raise_name_taken(exc, name)
+    created["table_ids"] = list(table_ids)
+    return created
+
+
+def replace_term_tables(term_id: str, table_ids: list[str]) -> None:
+    """Make *table_ids* exactly the tables that represent the Term."""
+    with write_transaction():
+        store().query_write(
+            delete(s.table__term).where(s.table__term.c.term_id == term_id)
+        )
+        store().query_write(
+            insert(s.table__term).values(
+                [{"table_id": tid, "term_id": term_id} for tid in table_ids]
+            )
+        )
+
+
+def fetch_term_table_ids(term_id: str) -> list[str]:
+    """Ids of the tables that represent the Term, in a stable order."""
+    rows = store().query_read(
+        select(s.table__term.c.table_id)
+        .where(s.table__term.c.term_id == term_id)
+        .order_by(s.table__term.c.table_id)
+    )
+    return [row["table_id"] for row in rows]
+
+
+def fetch_term_vector_ids(term_id: str) -> dict[str, Any] | None:
+    """What a Term owns in the semantic index: its id and its ColumnAttribute ids.
+
+    ``None`` when the Term does not exist. ``database_names`` are the databases
+    its tables are in; ``sql_attribute_names`` are the SqlAttributes that
+    block deletion.
+    """
+    term = get_slim_term_by_id(term_id)
+    if term is None:
+        return None
+    attrs = store().query_read(
+        select(s.column_attribute__term.c.attribute_id).where(
+            s.column_attribute__term.c.term_id == term_id
+        )
+    )
+    sql_attrs = store().query_read(
+        select(s.sql_attribute.c.name)
+        .select_from(
+            s.sql_attribute__term.join(
+                s.sql_attribute,
+                s.sql_attribute.c.id == s.sql_attribute__term.c.attribute_id,
+            )
+        )
+        .where(s.sql_attribute__term.c.term_id == term_id)
+        .order_by(s.sql_attribute.c.name)
+    )
+    dbs = store().query_read(
+        select(s.catalog_database.c.name)
+        .select_from(
+            s.table__term.join(
+                s.catalog_table, s.catalog_table.c.id == s.table__term.c.table_id
+            )
+            .join(
+                s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id
+            )
+            .join(
+                s.catalog_database,
+                s.catalog_database.c.id == s.catalog_schema.c.database_id,
+            )
+        )
+        .where(s.table__term.c.term_id == term_id)
+        .distinct()
+    )
+    return {
+        "id": term["id"],
+        "name": term["name"],
+        "attribute_ids": [row["attribute_id"] for row in attrs],
+        "sql_attribute_names": [row["name"] for row in sql_attrs],
+        "database_names": sorted(row["name"] for row in dbs),
+    }
+
+
+def delete_term(term_id: str) -> bool:
+    """Delete a Term, its table links and its ColumnAttributes. ``False`` if missing.
+
+    Links, tag assignments and SqlAttribute links go by ``ON DELETE CASCADE``;
+    ColumnAttributes are deleted explicitly because only their link to the Term
+    cascades, which would leave them orphaned. Raises
+    :class:`TermHasSqlAttributes` when SqlAttributes still belong to the Term:
+    they are user-authored definitions and are never deleted implicitly.
+    """
+    with write_transaction():
+        owned = fetch_term_vector_ids(term_id)
+        if owned is None:
+            return False
+        if owned["sql_attribute_names"]:
+            raise TermHasSqlAttributes(owned["sql_attribute_names"])
+        if owned["attribute_ids"]:
+            store().query_write(
+                delete(s.column_attribute).where(
+                    s.column_attribute.c.id.in_(owned["attribute_ids"])
+                )
+            )
+        store().query_write(delete(s.term).where(s.term.c.id == term_id))
+    return True
 
 
 def upsert_table_term(

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from auto_ontology.dal import attributes as attributes_dal
@@ -21,6 +22,7 @@ from auto_ontology.utils import (
     stringify_sample_values,
 )
 from auto_ontology.utils.embedding import embed_docs_into_vdb
+from auto_ontology.vdb import get_semantic_vdb
 
 logger = logging.getLogger(__name__)
 
@@ -181,17 +183,22 @@ def update_column_attribute(
     return row
 
 
-def refresh_term_embeddings(term_id: str, *, refresh_dependent_attrs: bool) -> None:
-    """Best-effort semantic VDB refresh for one Term update."""
+def refresh_term_embeddings(term_id: str, *, refresh_dependent_attrs: bool) -> bool:
+    """Best-effort semantic VDB refresh for one Term, a single-row upsert.
+
+    The Term's row is deleted by id and written again; nothing else in the
+    index is touched. Returns whether at least one row was written (``False``
+    when embedding is disabled or the endpoint returned nothing).
+    """
     term, column_attrs = terms_dal.fetch_term_and_column_attributes_for_embedding(
         term_id
     )
     if term is None:
-        return
+        return False
 
     embedder = build_semantic_embedder(term.get("database_name") or "", reset=False)
     if embedder is None:
-        return
+        return False
 
     vdb = embedder.vdb
     vdb.delete_by_id(term_id)
@@ -201,7 +208,7 @@ def refresh_term_embeddings(term_id: str, *, refresh_dependent_attrs: bool) -> N
             if attr_id:
                 vdb.delete_by_id(attr_id)
 
-    embedder.embed_term(term, column_attrs if refresh_dependent_attrs else [])
+    written = embedder.embed_term(term, column_attrs if refresh_dependent_attrs else [])
 
     if refresh_dependent_attrs:
         embed_params = get_embed_params()
@@ -217,3 +224,145 @@ def refresh_term_embeddings(term_id: str, *, refresh_dependent_attrs: bool) -> N
                 vdb,
                 term.get("database_name"),
             )
+
+    return written > 0
+
+
+# A column or table name shorter than this is too common a word to link a Term by.
+_MIN_LINK_NAME_LEN = 4
+
+
+class UnknownDatabase(LookupError):
+    """The database named in a create request is not in the catalog."""
+
+    def __init__(self, database: str) -> None:
+        self.database = database
+        super().__init__(f"Unknown database {database!r}")
+
+
+def link_tables_for_text(
+    text: str, tables: list[dict[str, Any]]
+) -> tuple[list[str], str]:
+    """Tables whose name or columns *text* mentions, as ``(ids, how)``.
+
+    A Term belongs to a database only through the tables that represent it, and
+    the SQL path adds a retrieved Term's tables to the prompt, so attaching every
+    table would flood it. Names are matched as whole words, case-insensitively,
+    and only when at least four characters long. When nothing matches, falls
+    back to the first table by name so the Term is still scoped to its database;
+    ``how`` is ``"matched"`` or ``"fallback"`` so the caller can tell the two apart.
+    """
+    haystack = text.lower()
+
+    def mentioned(name: str) -> bool:
+        return len(name) >= _MIN_LINK_NAME_LEN and bool(
+            re.search(
+                rf"(?<![a-z0-9_]){re.escape(name.lower())}(?![a-z0-9_])", haystack
+            )
+        )
+
+    hits = [
+        table["id"]
+        for table in tables
+        if mentioned(table["name"]) or any(mentioned(c) for c in table["columns"])
+    ]
+    if hits:
+        return hits, "matched"
+    if tables:
+        return [min(tables, key=lambda t: (t["name"], t["id"]))["id"]], "fallback"
+    return [], "fallback"
+
+
+def create_term(
+    *,
+    name: str,
+    description: str | None,
+    synonyms: list[str] | None,
+    database: str | None,
+    table_ids: list[str] | None,
+    created_by: str | None,
+    owner_id: str | None = None,
+) -> dict[str, Any]:
+    """Create a Term, link its tables and embed it, in that order.
+
+    Raises ``UnknownDatabase``, ``terms_dal.UnknownTableIds``,
+    ``terms_dal.TermSpansDatabases`` and ``terms_dal.TermNameTaken``. The
+    returned dict carries ``table_ids``, ``linked_by`` (``explicit``,
+    ``matched`` or ``fallback``) and ``embedded``.
+
+    The embedding is best effort: the row is already committed, so a failing
+    embedding endpoint leaves ``embedded`` false (and a WARNING) rather than
+    failing a create that succeeded. ``POST /semantic-compilation/reindex``
+    repairs the index.
+    """
+    if table_ids:
+        chosen = list(dict.fromkeys(table_ids))
+        db = terms_dal.database_for_tables(chosen)
+        if database is not None:
+            named = terms_dal.resolve_database(database)
+            if named is None:
+                raise UnknownDatabase(database)
+            if named["id"] != db["id"]:
+                raise terms_dal.TermSpansDatabases([named["name"], db["name"]])
+        linked_by = "explicit"
+    else:
+        if database is None:
+            raise ValueError("Give a database or table_ids")
+        db = terms_dal.resolve_database(database)
+        if db is None:
+            raise UnknownDatabase(database)
+        candidates = terms_dal.fetch_database_link_candidates(db["id"])
+        chosen, linked_by = link_tables_for_text(
+            f"{name} {description or ''}", candidates
+        )
+        if not chosen:
+            raise ValueError(f"Database {db['name']!r} has no tables to link a Term to")
+
+    created = terms_dal.create_term(
+        name=name,
+        description=description,
+        synonyms=synonyms,
+        table_ids=chosen,
+        created_by=created_by,
+        owner_id=owner_id,
+    )
+    created["linked_by"] = linked_by
+    created["database_name"] = db["name"]
+    try:
+        created["embedded"] = refresh_term_embeddings(
+            created["id"], refresh_dependent_attrs=False
+        )
+    except Exception:
+        logger.warning(
+            "Term %r was created but not embedded", created["id"], exc_info=True
+        )
+        created["embedded"] = False
+    return created
+
+
+def delete_term(term_id: str) -> dict[str, Any] | None:
+    """Delete a Term and every semantic-index row it owns. ``None`` if missing.
+
+    The vector rows (the Term's and its ColumnAttributes') go first, then the
+    database rows. If the index delete fails nothing was changed and the caller
+    may retry; the opposite order would leave embeddings of a Term that no
+    longer exists, which retrieval would keep returning. ``delete_by_id`` is not
+    scoped to a database, so a Term represented in several databases is cleared
+    from all of them.
+
+    Raises ``terms_dal.TermHasSqlAttributes`` (before touching anything).
+    """
+    owned = terms_dal.fetch_term_vector_ids(term_id)
+    if owned is None:
+        return None
+    if owned["sql_attribute_names"]:
+        raise terms_dal.TermHasSqlAttributes(owned["sql_attribute_names"])
+
+    vdb = get_semantic_vdb()
+    vector_rows = 0
+    for node_id in [term_id, *owned["attribute_ids"]]:
+        vector_rows += vdb.delete_by_id(node_id)
+
+    terms_dal.delete_term(term_id)
+    owned["vector_rows_deleted"] = vector_rows
+    return owned

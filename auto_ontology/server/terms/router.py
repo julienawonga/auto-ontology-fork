@@ -9,19 +9,25 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from auto_ontology.dal import sql_attributes as sql_attr_dal
 from auto_ontology.dal import terms as terms_dal
 from auto_ontology.dal.owners import CATALOG_EDIT, edit_subject
 from auto_ontology.server.identity import resolve_internal_user
-from auto_ontology.server.owners import enforce_edit, owner_from_body
+from auto_ontology.server.owners import (
+    enforce_edit,
+    enforce_permission,
+    owner_from_body,
+)
 from auto_ontology.server.pagination import LIMIT_QUERY, SKIP_QUERY
 from auto_ontology.server.terms import service as term_service
 from auto_ontology.server.responses import (
     ColumnAttributePageResponse,
     ColumnAttributePatchResponse,
     SqlAttributePageResponse,
+    TermCreatedResponse,
+    TermDeletedResponse,
     TermDetailResponse,
     TermResponse,
     TermsPageResponse,
@@ -37,6 +43,32 @@ class TermUpdate(BaseModel):
     name_certified: bool | None = None
     description_certified: bool | None = None
     owner_id: str | None = None
+    table_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        description="Replace the tables that represent the Term. All must be in one database.",
+    )
+
+
+class TermCreate(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    synonyms: list[str] | None = None
+    database: str | None = Field(
+        default=None, description="Catalog database name or id."
+    )
+    table_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        description="Tables that represent the Term. Omit to link by name matching.",
+    )
+    owner_id: str | None = None
+
+    @model_validator(mode="after")
+    def _needs_a_scope(self) -> "TermCreate":
+        if not (self.database or self.table_ids):
+            raise ValueError("Give a database or table_ids")
+        return self
 
 
 class ColumnAttributeUpdate(BaseModel):
@@ -202,9 +234,117 @@ def list_term_sql_attributes_by_id(
     return {"data": attrs, "count": len(attrs), "total": total}
 
 
+def _clean_synonyms(values: list[str] | None) -> list[str] | None:
+    if values is None:
+        return None
+    return list(dict.fromkeys(v.strip() for v in values if v and v.strip()))
+
+
+@router.post("/terms", response_model=TermCreatedResponse, status_code=201)
+def create_term(request: Request, body: TermCreate) -> dict:
+    """Create a business Term, link it to tables and embed it.
+
+    Needs the ``catalog:edit`` permission. The Term is stored uncertified with
+    source ``semantic`` and ``created_by`` set to the caller. Give *table_ids*
+    (all in one database) or a *database* name or id. With only a database,
+    the Term is linked to the tables whose name or columns its name and
+    description mention (whole words of at least four characters); if none is
+    mentioned it falls back to the first table by name, and ``linked_by``
+    says which happened.
+
+    The Term's row is written to the semantic index immediately (one row,
+    no reindex). When that fails the Term still exists and ``embedded`` is
+    false; ``POST /semantic-compilation/reindex`` repairs the index.
+
+    Answers 409 when a Term with that name already exists, 422 for an unknown
+    or mixed-database table, 404 for an unknown database.
+    """
+    enforce_permission(request, CATALOG_EDIT)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Term name cannot be blank")
+    owner_id = owner_from_body(body.owner_id, CATALOG_EDIT) if body.owner_id else None
+    user = resolve_internal_user(request, required=False)
+    try:
+        created = term_service.create_term(
+            name=name,
+            description=body.description,
+            synonyms=_clean_synonyms(body.synonyms),
+            database=body.database,
+            table_ids=body.table_ids,
+            created_by=user,
+            owner_id=owner_id,
+        )
+    except term_service.UnknownDatabase as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except terms_dal.TermNameTaken as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    logger.info(
+        "audit: term.create id=%s name=%r by=%s database=%s tables=%d "
+        "linked_by=%s embedded=%s",
+        created["id"],
+        created["name"],
+        user or "anonymous",
+        created["database_name"],
+        len(created["table_ids"]),
+        created["linked_by"],
+        created["embedded"],
+    )
+    created["certification"] = terms_dal.get_term_certification(created["id"])
+    return {"data": created}
+
+
+@router.delete("/terms/{term_id}", response_model=TermDeletedResponse)
+def delete_term(request: Request, term_id: str) -> dict:
+    """Delete a Term, its table links, its ColumnAttributes and its index rows.
+
+    Needs ``catalog:edit`` (or ownership by a group that has it). Not
+    idempotent in status: deleting a Term that does not exist, including one
+    already deleted, answers 404, and nothing is changed. Answers 409 while
+    SqlAttributes still belong to the Term; those are never deleted implicitly.
+
+    The semantic-index rows (the Term's and its ColumnAttributes') are removed
+    first, then the database rows, so a failure cannot leave embeddings for a
+    Term that no longer exists.
+    """
+    subject = edit_subject(term_id)
+    if subject is not None:
+        enforce_edit(request, subject)
+    user = resolve_internal_user(request, required=False)
+    try:
+        removed = term_service.delete_term(term_id)
+    except terms_dal.TermHasSqlAttributes as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if removed is None:
+        raise HTTPException(status_code=404, detail="Term not found")
+    logger.info(
+        "audit: term.delete id=%s name=%r by=%s column_attributes=%d vector_rows=%d",
+        removed["id"],
+        removed["name"],
+        user or "anonymous",
+        len(removed["attribute_ids"]),
+        removed["vector_rows_deleted"],
+    )
+    return {
+        "data": {
+            "id": removed["id"],
+            "name": removed["name"],
+            "column_attributes_deleted": len(removed["attribute_ids"]),
+            "vector_rows_deleted": removed["vector_rows_deleted"],
+        }
+    }
+
+
 @router.patch("/terms/{term_id}", response_model=TermResponse)
 def update_term(request: Request, term_id: str, body: TermUpdate) -> dict:
-    """Update a Term and invalidate dependent SqlAttribute suggestions."""
+    """Update a Term and invalidate dependent SqlAttribute suggestions.
+
+    *table_ids*, when given, replaces the tables that represent the Term (all
+    in one database, at least one). A name or description change, or new
+    tables, re-embeds the Term's index row. A name already taken answers 409.
+    """
     patch = body.model_dump(exclude_unset=True)
     if not patch:
         raise HTTPException(status_code=422, detail="No Term fields to update")
@@ -223,30 +363,51 @@ def update_term(request: Request, term_id: str, body: TermUpdate) -> dict:
     if "name" in patch and not name:
         raise HTTPException(status_code=422, detail="Term name cannot be blank")
 
-    row = terms_dal.update_term(
-        term_id,
-        name=name if isinstance(name, str) else None,
-        description=patch.get("description"),
-        name_certified=patch.get("name_certified"),
-        description_certified=patch.get("description_certified"),
-        owner_id=owner_id,
-        set_owner=set_owner,
-        modified_by=resolve_internal_user(request, required=False),
-        touch=True,
-    )
+    table_ids = patch.get("table_ids")
+    if table_ids is not None:
+        table_ids = list(dict.fromkeys(table_ids))
+        try:
+            terms_dal.database_for_tables(table_ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    user = resolve_internal_user(request, required=False)
+    try:
+        row = terms_dal.update_term(
+            term_id,
+            name=name if isinstance(name, str) else None,
+            description=patch.get("description"),
+            name_certified=patch.get("name_certified"),
+            description_certified=patch.get("description_certified"),
+            owner_id=owner_id,
+            set_owner=set_owner,
+            modified_by=user,
+            touch=True,
+        )
+    except terms_dal.TermNameTaken as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if row is None:
         raise HTTPException(status_code=404, detail="Term not found")
+    if table_ids is not None:
+        terms_dal.replace_term_tables(term_id, table_ids)
+    logger.info(
+        "audit: term.update id=%s by=%s fields=%s",
+        term_id,
+        user or "anonymous",
+        ",".join(sorted(patch)),
+    )
 
     # Certification flags carry no embedding content; only name/description
     # changes need suggestion invalidation and a VDB refresh.
     content_changed = "name" in patch or "description" in patch
+    links_changed = table_ids is not None
     name_changed = (
         content_changed and (row.get("old_name") or "").strip() != row["name"].strip()
     )
     if name_changed:
         sql_attr_dal.clear_sql_attribute_description_suggestions_for_term(term_id)
 
-    if content_changed:
+    if content_changed or links_changed:
         try:
             term_service.refresh_term_embeddings(
                 term_id, refresh_dependent_attrs=name_changed

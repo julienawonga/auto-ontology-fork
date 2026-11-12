@@ -18,3 +18,9 @@ export const GET = withPermission({ catalog: ['read'] })(async (req) =>
 export const PATCH = withPermission({ catalog: ['read'] })((req, { user }) =>
 	proxyToBackend(req, { userId: user.id }),
 );
+
+// Same gate as PATCH: the backend authorizes against the account role or the
+// term's owner group, so read admits owner-group viewers.
+export const DELETE = withPermission({ catalog: ['read'] })((req, { user }) =>
+	proxyToBackend(req, { userId: user.id }),
+);
