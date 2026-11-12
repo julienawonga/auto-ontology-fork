@@ -106,3 +106,25 @@ exist in steady state (briefly one more while a cancelled worker is being killed
 replacement starts). Size it against the host's memory: each worker is roughly one copy
 of the backend's Python footprint. `GET /api/health` reports the current
 `chat_workers.in_use` and `chat_workers.cap`.
+
+## Startup ingestion
+
+The ingestion service runs one ingest pass when it starts, then one every 24h. The
+startup pass ingests only the databases whose catalog and embeddings are not already
+stored — a database whose tables and vectors are present is skipped, because re-ingesting
+it would re-embed every row through the embedding endpoint (a paid request per row) to
+reproduce what is already in the store. A restart no longer re-embeds the whole
+deployment.
+
+The skip is not a source diff: the service cannot tell whether a source changed while it
+was down without extracting it, which is the expensive half of an ingest. Changes are
+picked up by the mechanisms that already exist for that:
+
+- the scheduled 24h pass re-ingests every connection in full;
+- `POST /ingest` on the ingestion service (port 3002) re-ingests one connection in full;
+- editing a connection's schema allowlist or table filters in the UI re-ingests it.
+
+Set `INGEST_ON_STARTUP=all` to restore the previous behaviour and re-ingest every
+connection at every startup. A database is only skipped when *both* its catalog tables
+and its data-layer embeddings are present, so a catalog left half-ingested by a failed
+embed is re-ingested, and an unreachable store counts as "not ingested".
