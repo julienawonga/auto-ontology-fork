@@ -330,3 +330,41 @@ are the same in both.
 The harness's own comparison (`run`, `rescore`) rounds to 4 significant figures
 and fails values on a rounding boundary; use it for a quick signal and
 `lsb-score` for the number you report.
+
+### Knowledge in the ontology (arm C)
+
+Does knowledge stored in the ontology and retrieved by the engine help as much
+as knowledge pasted into the question? Three arms on the same questions: **A**
+no knowledge, **B** the KB entries sent as `evidence` (`lsb-build --oracle`),
+**C** the same entries stored as business Terms of that database, with no
+`evidence`. Build the arm A/C cases with `lsb-build` without `--oracle`.
+
+```bash
+python -m dev_tools.evals lsb-kb --kb-dir kb --db alien --dry-run   # reads only
+python -m dev_tools.evals lsb-kb --kb-dir kb --db alien --apply     # create + reindex
+python -m dev_tools.evals lsb-kb --kb-dir kb --db alien --remove    # undo + reindex
+```
+
+One database at a time; `pagila` and `chinook` are refused, as is a database
+with no KB file. Each run writes a JSON log next to the KB dir (never inside the
+repository). Each entry becomes one uncertified Term: name = the knowledge name,
+description = its description, its definition (formulas kept as text) and
+`Depends on: <child names>`, ending with a `[lsb-kb:<db>:<id>]` line. That line
+is how the tool recognises its own Terms, so `--remove` deletes only those and
+`--apply` skips ones already present. A KB name already used by another Term is
+reported and skipped.
+
+There is no "create Term" or "delete Term" route, so it uses what a customer
+has: `POST /api/model/import?replace=false` for the Terms (tied to the
+database through the tables that represent them: the tables whose columns the
+entry's text names, else the first table), `POST /api/model/export` followed by
+`POST /api/model/import?replace=true` for `--remove` (the import deletes the
+Terms a document no longer names), and `POST /api/semantic-compilation/reindex`
+to re-embed that database's Terms. None of them calls an LLM; the reindex calls
+the embedding endpoint for every Term and attribute of the database. Rows of
+removed Terms may remain in the vector index until the next reset.
+
+Caveat for reading the result: the SQL path uses a Term through the semantic
+search, and adds the tables of the best-matching "subject" Term to the prompt.
+Arm C therefore also changes which tables are offered, which arm B does not.
+Report it as such.
