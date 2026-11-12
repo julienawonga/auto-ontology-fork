@@ -79,6 +79,10 @@ logger = logging.getLogger(__name__)
 NODE_START_EVENT = "step_start"
 
 # Stop after seven reconstruction calls.
+# Intent validation also stops earlier when its rejections alternate (A, B, A:
+# same tables and issue categories recurring after a different rejection); see
+# ``SQLValidationAgent._validate_intent``. It returns the best statically valid
+# candidate with a note instead of spending the remaining attempts.
 MAX_RECONSTRUCTION_ATTEMPTS = 7
 
 

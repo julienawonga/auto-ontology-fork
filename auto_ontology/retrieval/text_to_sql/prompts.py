@@ -493,7 +493,10 @@ total sales.
 
 
 def format_authoritative_evidence(
-    evidence: str, *, evidence_first_sql: bool = False
+    evidence: str,
+    *,
+    evidence_first_sql: bool = False,
+    discovered_tables: list[str] | None = None,
 ) -> str:
     """Wrap evidence verbatim with strict instructions for SQL use and validation."""
     if not evidence:
@@ -512,6 +515,14 @@ def format_authoritative_evidence(
         if evidence_first_sql
         else ""
     )
+    discovered_note = (
+        "- These tables were added to the Available Schema after the evidence was "
+        "written; they are legitimate and usable: "
+        + ", ".join(discovered_tables)
+        + ".\n"
+        if discovered_tables
+        else ""
+    )
     return (
         "## Authoritative Evidence\n"
         "This evidence is critical. The generated SQL MUST follow every instruction "
@@ -524,7 +535,13 @@ def format_authoritative_evidence(
         "from the stated available tables and columns. Do not replace it with a "
         "shortcut or precomputed field. Preserve the evidence's stated order of "
         "all formula terms, operands, predicates, and conditions exactly; never "
-        "reorder them, even when the reordered expression appears equivalent.\n\n"
+        "reorder them, even when the reordered expression appears equivalent.\n"
+        "- The evidence fixes how the terms it defines map to columns. It does not "
+        "forbid other columns or tables of the Available Schema: use them whenever "
+        "the question needs a join, filter, or measure (a total, count, or "
+        "ranking) the evidence does not define, and never treat their absence "
+        "from the evidence as a violation.\n"
+        f"{discovered_note}\n"
         "Evidence (verbatim):\n"
         f"{evidence}"
     )

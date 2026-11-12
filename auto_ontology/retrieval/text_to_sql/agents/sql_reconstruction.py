@@ -658,6 +658,17 @@ class SQLReconstructionAgent(BaseAgent):
                 )
                 if new_tables:
                     relevant_tables = self._merge_tables(relevant_tables, new_tables)
+                    # The evidence was grounded against the tables known at
+                    # generation time. Record what discovery added so the
+                    # evidence block shown to the generator and the validator
+                    # declares those tables legitimate instead of leaving them
+                    # to look like columns the evidence forbids.
+                    discovered = list(path_state.get("discovered_tables") or [])
+                    for table in new_tables:
+                        name = table.get("name")
+                        if name and name not in discovered:
+                            discovered.append(name)
+                    path_state["discovered_tables"] = discovered
                     self.logger.info(
                         "Tables after discovery: %d (%s)",
                         len(relevant_tables),
@@ -775,7 +786,12 @@ class SQLReconstructionAgent(BaseAgent):
         prompt_messages = _without_prior_repair_turns(list(state["messages"]))
         if evidence:
             prompt_messages.append(
-                SystemMessage(content=format_authoritative_evidence(evidence))
+                SystemMessage(
+                    content=format_authoritative_evidence(
+                        evidence,
+                        discovered_tables=path_state.get("discovered_tables"),
+                    )
+                )
             )
         language_note = language_instruction(path_state)
         if language_note:
