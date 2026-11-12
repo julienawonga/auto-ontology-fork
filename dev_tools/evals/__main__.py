@@ -24,6 +24,8 @@ python -m dev_tools.evals compare reports/baseline.json reports/candidate.json -
 python -m dev_tools.evals lsb-build --public data.jsonl --gt gt.jsonl --kb-dir kb --out lsb --oracle
 python -m dev_tools.evals run --cases lsb/*.json --workers 4 --label main --out main.json
 python -m dev_tools.evals replay main.json --cases lsb/*.json
+# arm C: the KB stored as ontology Terms of one database instead of sent as evidence
+python -m dev_tools.evals lsb-kb --kb-dir kb --db alien --dry-run   # then --apply / --remove
 python -m dev_tools.evals lsb-score --reports main.replayed.json cand.replayed.json \
     --cases lsb/*.json --dsn-template postgresql://USER:PASSWORD@HOST:5432/{db}
 #   (official metric by default; --mode clean for our stricter reading of it)
@@ -32,12 +34,16 @@ python -m dev_tools.evals lsb-score --reports main.replayed.json cand.replayed.j
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
 from typing import Any
 
-from auto_ontology.server.internal_auth import INTERNAL_TOKEN_ENV
+from auto_ontology.server.internal_auth import (
+    INTERNAL_TOKEN_ENV,
+    INTERNAL_TOKEN_HEADER,
+)
 from dev_tools.evals.cases import (
     DEFAULT_CASES_DIR,
     Case,
@@ -292,6 +298,40 @@ def _cmd_lsb_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_lsb_kb(args: argparse.Namespace) -> int:
+    import httpx
+
+    from dev_tools.evals import lsb_kb
+
+    kb_dir = Path(args.kb_dir)
+    if _inside_repo(kb_dir):
+        print(
+            "error: --kb-dir is inside this repository; the log is written there",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        kb = lsb_kb.check_db(args.db, kb_dir)
+        token = args.token or os.environ.get(INTERNAL_TOKEN_ENV) or None
+        headers = {INTERNAL_TOKEN_HEADER: token} if token else {}
+        with httpx.Client(headers=headers, timeout=60) as client:
+            api = lsb_kb.Api(client, args.url)
+            if args.apply:
+                result = lsb_kb.apply(api, args.db, kb)
+            elif args.remove:
+                result = lsb_kb.remove(api, args.db)
+            else:
+                result = lsb_kb.dry_run(api, args.db, kb)
+    except (lsb_kb.KbToolError, httpx.HTTPError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result["write_requests"] = list(api.writes)
+    print(json.dumps(result, indent=2, default=str))
+    log = lsb_kb.write_log(kb_dir, args.db, result)
+    print(f"log: {log}")
+    return 1 if result.get("failures") else 0
+
+
 def _cmd_lsb_score(args: argparse.Namespace) -> int:
     if "{db}" not in args.dsn_template:
         print("error: --dsn-template must contain {db}", file=sys.stderr)
@@ -511,6 +551,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="postgresql://.../{db}: also fill the expected rows (snapshot)",
     )
     build.set_defaults(func=_cmd_lsb_build)
+
+    kbp = sub.add_parser(
+        "lsb-kb",
+        help="load a LiveSQLBench KB into one database's ontology as Terms (arm C)",
+    )
+    kbp.add_argument("--kb-dir", required=True, help="dir with <db>/<db>_kb.jsonl")
+    kbp.add_argument("--db", required=True, help="one database name")
+    kbp.add_argument("--url", default="http://127.0.0.1:3001")
+    kbp.add_argument(
+        "--token",
+        help=f"backend internal token, if it requires one (or {INTERNAL_TOKEN_ENV})",
+    )
+    mode = kbp.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dry-run", action="store_true", help="read-only preview")
+    mode.add_argument("--apply", action="store_true", help="create Terms + reindex")
+    mode.add_argument(
+        "--remove", action="store_true", help="delete our Terms + reindex"
+    )
+    kbp.set_defaults(func=_cmd_lsb_kb)
 
     lsb = sub.add_parser(
         "lsb-score", help="score reports with LiveSQLBench's SELECT metric"
