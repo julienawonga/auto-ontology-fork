@@ -22,7 +22,8 @@ from openai import OpenAI, RateLimitError
 from auto_ontology.retrieval.data_access import semantic_search
 from auto_ontology.utils import http_limits
 from auto_ontology.utils.http_limits import (
-    RateLimitedTransport,
+    GatewayClient,
+    RequestSlotTimeout,
     backoff_exhausted,
     parse_retry_after,
 )
@@ -39,6 +40,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "LLM_RATE_LIMIT_BASE_DELAY_S",
         "LLM_RATE_LIMIT_MAX_DELAY_S",
         "EMBED_HTTP_CONCURRENCY",
+        "LLM_REQUEST_SLOT_TIMEOUT_S",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -49,12 +51,11 @@ class _Gateway:
         self.requests = 0
         self.semaphore = threading.BoundedSemaphore(slots)
         self._handler = handler
-        self.transport = RateLimitedTransport(
-            httpx.MockTransport(self._handle),
+        self.client = GatewayClient(
+            transport=httpx.MockTransport(self._handle),
             slots=lambda: self.semaphore,
             sleep=self.sleeps.append,
         )
-        self.client = httpx.Client(transport=self.transport)
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
         self.requests += 1
@@ -171,7 +172,7 @@ def test_the_slot_is_free_while_waiting_to_retry(max_jitter) -> None:
         if free_during_wait[-1]:
             gateway.semaphore.release()
 
-    gateway.transport._sleep = _sleep
+    gateway.client._sleep = _sleep
     assert gateway.client.post("http://gw/x").status_code == 200
     assert free_during_wait == [True]
 
@@ -290,6 +291,7 @@ def test_embed_concurrency_defaults_to_4_and_is_an_env_knob(
         ("LLM_RATE_LIMIT_BASE_DELAY_S", http_limits.rate_limit_base_delay_s, 2.0),
         ("LLM_RATE_LIMIT_MAX_DELAY_S", http_limits.rate_limit_max_delay_s, 30.0),
         ("EMBED_HTTP_CONCURRENCY", http_limits.embed_http_concurrency, 4),
+        ("LLM_REQUEST_SLOT_TIMEOUT_S", http_limits.slot_timeout_s, 300.0),
     ],
 )
 @pytest.mark.parametrize("bad", ["abc", "0", "-3", "nan", "2.5x"])
@@ -325,3 +327,78 @@ def test_each_wait_is_logged_once_at_warning(
     waits = [r for r in caplog.records if "waiting" in r.getMessage()]
     assert len(waits) == 2
     assert all(r.levelno == logging.WARNING for r in waits)
+
+
+# -- slot timeout -------------------------------------------------------------
+
+
+def test_a_leaked_slot_times_out_with_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("LLM_REQUEST_SLOT_TIMEOUT_S", "0.3")
+    monkeypatch.setattr(http_limits, "SLOT_WAIT_WARN_S", 0.1)
+    unread = httpx.Response(200, stream=httpx.ByteStream(b"body"))
+    gateway = _Gateway(_script(unread, _ok()), slots=1)
+    leaked = gateway.client.send(
+        gateway.client.build_request("GET", "http://gw/x"), stream=True
+    )  # never closed: holds the only slot
+    with caplog.at_level(logging.WARNING, logger=http_limits.logger.name):
+        with pytest.raises(RequestSlotTimeout, match="LLM_MAX_CONCURRENT_REQUESTS"):
+            gateway.client.get("http://gw/y")
+    assert "Waiting for a request slot" in caplog.text
+    leaked.close()
+    assert gateway.client.get("http://gw/y").status_code == 200  # recovered
+
+
+def test_a_short_wait_for_a_slot_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    gateway = _Gateway(_script(_ok()), slots=2)
+    with caplog.at_level(logging.WARNING, logger=http_limits.logger.name):
+        gateway.client.get("http://gw/x")
+    assert "Waiting for a request slot" not in caplog.text
+
+
+# -- environment handling is inherited from httpx -----------------------------
+
+
+def test_env_proxies_and_no_proxy_are_honoured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.corp:3128")
+    monkeypatch.setenv("NO_PROXY", "internal.corp")
+    monkeypatch.setattr(http_limits, "_client", None)
+    try:
+        client = http_limits.shared_http_client()
+        assert isinstance(client, GatewayClient)
+        proxied = client._transport_for_url(httpx.URL("https://gateway.example.com/v1"))
+        direct = client._transport_for_url(httpx.URL("https://internal.corp/v1"))
+        assert proxied is not direct
+        assert proxied._pool._proxy_url.host == b"proxy.corp"  # type: ignore[attr-defined]
+        assert not hasattr(direct._pool, "_proxy_url")  # type: ignore[attr-defined]
+    finally:
+        monkeypatch.setattr(http_limits, "_client", None)
+
+
+def test_env_ca_bundle_is_honoured(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    import certifi
+
+    bundle = tmp_path / "ca.pem"
+    bundle.write_text(open(certifi.where(), encoding="utf-8").read())
+    monkeypatch.setenv("SSL_CERT_FILE", str(bundle))
+    monkeypatch.setattr(http_limits, "_client", None)
+    loaded: list[str] = []
+    import ssl
+
+    real = ssl.SSLContext.load_verify_locations
+
+    def _spy(self, cafile=None, *args, **kwargs):
+        loaded.append(str(cafile))
+        return real(self, cafile, *args, **kwargs)
+
+    monkeypatch.setattr(ssl.SSLContext, "load_verify_locations", _spy)
+    try:
+        http_limits.shared_http_client()
+    finally:
+        monkeypatch.setattr(http_limits, "_client", None)
+    assert str(bundle) in loaded

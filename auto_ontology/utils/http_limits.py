@@ -23,7 +23,8 @@ they neither retry nor fall back to another model through the same gateway).
 Other transient failures (connection errors, 408/409/500/502/504) keep their
 existing handling.
 
-Only the synchronous client is wrapped: the code base makes no async calls to
+Only the synchronous client is wrapped (``GatewayClient.send``, which keeps
+httpx's environment-aware transports): the code base makes no async calls to
 the gateway. The cap is per process; see ``docs/configuration.md`` for how it
 combines with the per-conversation worker subprocesses.
 """
@@ -47,6 +48,9 @@ DEFAULT_RATE_LIMIT_BUDGET_S = 60.0
 DEFAULT_RATE_LIMIT_BASE_DELAY_S = 2.0
 DEFAULT_RATE_LIMIT_MAX_DELAY_S = 30.0
 DEFAULT_EMBED_HTTP_CONCURRENCY = 4
+DEFAULT_SLOT_TIMEOUT_S = 300.0
+# Log a WARNING when a request waits longer than this for a slot (saturation).
+SLOT_WAIT_WARN_S = 5.0
 
 # Hard ceiling on retries of one request, whatever the budget says, so a tiny
 # base delay cannot turn a long budget into a storm.
@@ -111,6 +115,16 @@ def rate_limit_max_delay_s() -> float:
     return _env_number(
         "LLM_RATE_LIMIT_MAX_DELAY_S",
         DEFAULT_RATE_LIMIT_MAX_DELAY_S,
+        minimum=0.01,
+        integer=False,
+    )
+
+
+def slot_timeout_s() -> float:
+    """Longest a request waits for an in-flight slot (``LLM_REQUEST_SLOT_TIMEOUT_S``)."""
+    return _env_number(
+        "LLM_REQUEST_SLOT_TIMEOUT_S",
+        DEFAULT_SLOT_TIMEOUT_S,
         minimum=0.01,
         integer=False,
     )
@@ -198,25 +212,52 @@ class _SlotStream(httpx.SyncByteStream):
                 self._release()
 
 
-class RateLimitedTransport(httpx.BaseTransport):
-    """Concurrency-capped transport that backs off on 429/503. See module docs."""
+class RequestSlotTimeout(RuntimeError):
+    """No in-flight request slot freed up in time (see ``LLM_MAX_CONCURRENT_REQUESTS``)."""
+
+
+class GatewayClient(httpx.Client):
+    """``httpx.Client`` with the process-wide request cap and 429/503 backoff.
+
+    Subclassing the client (rather than passing a custom transport) keeps
+    httpx's default environment handling: ``HTTP(S)_PROXY``, ``ALL_PROXY``,
+    ``NO_PROXY`` and ``SSL_CERT_FILE`` / ``SSL_CERT_DIR`` apply exactly as they do
+    for the OpenAI SDK's own client. The logic wraps ``send()``, which every
+    request goes through once (redirects happen inside it).
+    """
 
     def __init__(
         self,
-        inner: httpx.BaseTransport,
-        *,
-        slots: Callable[[], threading.BoundedSemaphore],
+        *args: object,
+        slots: Callable[[], threading.BoundedSemaphore] | None = None,
         sleep: Callable[[float], None] | None = None,
+        **kwargs: object,
     ) -> None:
-        self._inner = inner
-        self._slots = slots
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        self._slots = slots or request_slots
         # None resolves ``time.sleep`` at call time so tests can patch it.
         self._sleep = sleep
 
-    def close(self) -> None:
-        self._inner.close()
+    def _acquire(self, slots: threading.BoundedSemaphore, host: str) -> None:
+        timeout = slot_timeout_s()
+        first = min(SLOT_WAIT_WARN_S, timeout)
+        if slots.acquire(timeout=first):
+            return
+        logger.warning(
+            "Waiting for a request slot to %s: %d concurrent request(s) in "
+            "flight (LLM_MAX_CONCURRENT_REQUESTS).",
+            host,
+            max_concurrent_requests(),
+        )
+        if not slots.acquire(timeout=max(0.0, timeout - first)):
+            raise RequestSlotTimeout(
+                f"No request slot freed up within {timeout:.0f}s: every one of the "
+                f"{max_concurrent_requests()} in-flight slots "
+                "(LLM_MAX_CONCURRENT_REQUESTS) is held. Raise the limit, or look "
+                "for a response that was never closed."
+            )
 
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
+    def send(self, request: httpx.Request, **kwargs: object) -> httpx.Response:  # type: ignore[override]
         budget = rate_limit_budget_s()
         base = rate_limit_base_delay_s()
         cap = rate_limit_max_delay_s()
@@ -224,9 +265,9 @@ class RateLimitedTransport(httpx.BaseTransport):
         waited = 0.0
         attempt = 0
         while True:
-            slots.acquire()
+            self._acquire(slots, request.url.host)
             try:
-                response = self._inner.handle_request(request)
+                response = super().send(request, **kwargs)  # type: ignore[arg-type]
             except BaseException:
                 slots.release()
                 raise
@@ -276,8 +317,8 @@ class RateLimitedTransport(httpx.BaseTransport):
     ) -> httpx.Response:
         """Return *response* with its slot released when the body stream closes."""
         stream = response.stream
-        # An already-closed response (body fully read by the transport) will not
-        # be closed again by the client, so its slot must be freed now.
+        # A closed response (body fully read) will not be closed again by the
+        # caller, so its slot must be freed now.
         if response.is_closed or not isinstance(stream, httpx.SyncByteStream):
             slots.release()
             return response
@@ -287,7 +328,7 @@ class RateLimitedTransport(httpx.BaseTransport):
 
 _slots_lock = threading.Lock()
 _slots: threading.BoundedSemaphore | None = None
-_client: httpx.Client | None = None
+_client: GatewayClient | None = None
 
 
 def request_slots() -> threading.BoundedSemaphore:
@@ -299,21 +340,20 @@ def request_slots() -> threading.BoundedSemaphore:
         return _slots
 
 
-def shared_http_client() -> httpx.Client:
+def shared_http_client() -> GatewayClient:
     """The one ``httpx.Client`` for LLM, embedding and rerank calls.
 
-    An explicit transport means ``HTTP(S)_PROXY`` variables are not applied to
-    it. Timeouts are set per request by the callers.
+    Built like the OpenAI SDK's default client (same limits, redirects and
+    environment handling). Timeouts are set per request by the callers.
     """
     global _client
     with _slots_lock:
         if _client is None:
-            inner = httpx.HTTPTransport(
-                limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
-            )
-            _client = httpx.Client(
-                transport=RateLimitedTransport(inner, slots=request_slots),
+            _client = GatewayClient(
                 timeout=httpx.Timeout(600.0, connect=5.0),
+                limits=httpx.Limits(
+                    max_connections=1000, max_keepalive_connections=100
+                ),
                 follow_redirects=True,
             )
         return _client
