@@ -71,3 +71,14 @@ How tokens behave:
   and the next request returns 401.
 - **Tokens cannot manage tokens.** Creating and revoking tokens requires a
   signed-in session, so a leaked token cannot mint its own successors.
+
+## Web app to API trust
+
+The browser never talks to the Python services. The web app authenticates the caller
+(the order above), checks permissions, then calls the API (port 3001) on the caller's
+behalf, naming them in `x-auto-ontology-user-id`. To stop anyone who can reach port
+3001 or 3002 from skipping that, set `INTERNAL_API_TOKEN` on the web app, the API and
+the ingestion service: they then refuse requests without a matching `x-internal-token`
+and ignore the identity header unless it arrives with one. What is protected, how to
+set and rotate the token, and what stays out of scope are in
+[SECURITY.md](../SECURITY.md#internal-api-token).

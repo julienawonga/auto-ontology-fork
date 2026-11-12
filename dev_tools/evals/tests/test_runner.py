@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 
@@ -262,11 +263,118 @@ def test_warn_if_over_cap(
 ) -> None:
     from dev_tools.evals import __main__ as cli
 
-    monkeypatch.setattr(cli, "backend_chat_cap", lambda url: 4)
+    monkeypatch.setattr(cli, "backend_chat_cap", lambda url, token=None: 4)
     cli.warn_if_over_cap("http://x", 6)
     assert "exceeds the backend's chat cap of 4" in capsys.readouterr().err
     cli.warn_if_over_cap("http://x", 4)
     assert capsys.readouterr().err == ""
-    monkeypatch.setattr(cli, "backend_chat_cap", lambda url: None)
+    monkeypatch.setattr(cli, "backend_chat_cap", lambda url, token=None: None)
     cli.warn_if_over_cap("http://x", 6)
     assert capsys.readouterr().err == ""
+
+
+# --- the internal token (a backend gated by INTERNAL_API_TOKEN) ---------------
+
+
+def _run_one_case_capturing_headers(
+    monkeypatch: pytest.MonkeyPatch, **kwargs: object
+) -> tuple[list[httpx.Headers], Report]:
+    """Run a single case against a stub backend; return the headers it saw."""
+    from dev_tools.evals import runner
+
+    seen: list[httpx.Headers] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers)
+        stream = "\n".join(
+            _frames({"type": "result", "answer": {"sql_response_from_db": [{"n": 1}]}})
+        )
+        return httpx.Response(200, text=stream)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        runner.httpx,
+        "Client",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+    )
+    case = Case(
+        id="c",
+        question="q?",
+        gold=(GoldAnswer("g", "select 1", [[1]]),),
+    )
+    report = runner.run_cases(
+        [case], "http://backend:3001", label="t", repeats=1, **kwargs
+    )  # type: ignore[arg-type]
+    return seen, report
+
+
+def test_run_cases_sends_the_internal_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen, report = _run_one_case_capturing_headers(monkeypatch, token="fake-token")
+
+    assert seen[0]["x-internal-token"] == "fake-token"
+    assert "fake-token" not in json.dumps(report.meta)
+
+
+def test_run_cases_sends_no_token_header_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen, _ = _run_one_case_capturing_headers(monkeypatch)
+
+    assert "x-internal-token" not in seen[0]
+
+
+def test_preflight_presents_the_token_but_never_records_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dev_tools.evals import preflight as preflight_module
+
+    seen: list[httpx.Headers] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers)
+        return httpx.Response(
+            200,
+            json={
+                "index": [
+                    {"database_name": "d", "expected": 1, "indexed": 1, "missing": 0}
+                ]
+            },
+        )
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        preflight_module.httpx,
+        "Client",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+    )
+
+    meta = preflight_module.preflight("http://backend:3001", None, token="fake-token")
+
+    assert seen[0]["x-internal-token"] == "fake-token"
+    assert "fake-token" not in json.dumps(meta)
+    assert meta["ontology_index"][0]["database_name"] == "d"
+
+
+def test_cli_token_flag_beats_the_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from dev_tools.evals import __main__ as cli
+
+    captured: list[str | None] = []
+
+    def fake_run_cases(*_a: object, token: str | None = None, **_k: object) -> Report:
+        captured.append(token)
+        return Report(meta={})
+
+    monkeypatch.setattr(cli, "run_cases", fake_run_cases)
+    monkeypatch.setattr(cli, "load_many", lambda _p: [])
+    monkeypatch.setattr(cli, "_preflight_all", lambda *_a, **_k: {})
+    out = str(tmp_path / "r.json")
+
+    monkeypatch.setenv("INTERNAL_API_TOKEN", "from-env")
+    cli.main(["run", "--out", out])
+    cli.main(["run", "--out", out, "--token", "from-flag"])
+    monkeypatch.delenv("INTERNAL_API_TOKEN")
+    cli.main(["run", "--out", out])
+
+    assert captured == ["from-env", "from-flag", None]

@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from auto_ontology.server.internal_auth import INTERNAL_TOKEN_HEADER, get_internal_token
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_INGESTION_SERVICE_URL = "http://localhost:3002"
@@ -30,11 +32,23 @@ def _base_url() -> str:
     return url.rstrip("/")
 
 
+def _auth_headers() -> dict[str, str]:
+    """Present the shared internal token, when one is configured.
+
+    Every call to the ingestion service goes through this, because that service
+    refuses requests without the token as soon as it is set.
+    """
+    token = get_internal_token()
+    return {INTERNAL_TOKEN_HEADER: token} if token else {}
+
+
 def trigger_ingest(connection: dict[str, Any]) -> None:
     """Ask the ingestion service to ingest a connection (best-effort)."""
     url = f"{_base_url()}/ingest"
     try:
-        httpx.post(url, json=connection, timeout=_REQUEST_TIMEOUT).raise_for_status()
+        httpx.post(
+            url, json=connection, headers=_auth_headers(), timeout=_REQUEST_TIMEOUT
+        ).raise_for_status()
     except Exception:
         logger.exception("Failed to trigger ingest via %s", url)
 
@@ -47,7 +61,9 @@ def trigger_semantic_compile() -> None:
     """
     url = f"{_base_url()}/semantic/compile"
     try:
-        httpx.post(url, timeout=_REQUEST_TIMEOUT).raise_for_status()
+        httpx.post(
+            url, headers=_auth_headers(), timeout=_REQUEST_TIMEOUT
+        ).raise_for_status()
     except Exception:
         logger.exception("Failed to trigger semantic compile via %s", url)
 
@@ -72,7 +88,7 @@ def is_semantic_compilation_running() -> bool:
     """
     url = f"{_base_url()}/semantic/status"
     try:
-        response = httpx.get(url, timeout=_REQUEST_TIMEOUT)
+        response = httpx.get(url, headers=_auth_headers(), timeout=_REQUEST_TIMEOUT)
         response.raise_for_status()
         return bool(response.json().get("running", False))
     except Exception as exc:
@@ -95,6 +111,7 @@ def trigger_semantic_reset(database_name: str | None = None) -> None:
         httpx.post(
             url,
             params=params,
+            headers=_auth_headers(),
             timeout=_REQUEST_TIMEOUT,
         ).raise_for_status()
     except Exception:
@@ -108,6 +125,7 @@ def trigger_reset(database_name: str) -> None:
         httpx.post(
             url,
             params={"database_name": database_name},
+            headers=_auth_headers(),
             timeout=_REQUEST_TIMEOUT,
         ).raise_for_status()
     except Exception:

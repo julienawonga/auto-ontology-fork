@@ -33,6 +33,11 @@ from auto_ontology.server.connections.router import router as connections_router
 from auto_ontology.server.datasources.router import router as datasources_router  # noqa: E402
 from auto_ontology.server.exploration.router import router as exploration_router  # noqa: E402
 from auto_ontology.server.health.router import router as health_router  # noqa: E402
+from auto_ontology.server.internal_auth import (  # noqa: E402
+    BACKEND_PUBLIC_PATHS,
+    InternalTokenMiddleware,
+    check_internal_token_config,
+)
 from auto_ontology.server.metadata.router import router as metadata_router  # noqa: E402
 from auto_ontology.server.rules.router import router as rules_router  # noqa: E402
 from auto_ontology.server.semantic_compilation.router import (  # noqa: E402
@@ -51,6 +56,9 @@ from auto_ontology.server.search.router import router as search_router  # noqa: 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Weak token: refuse to start. No token: warn that the API is open.
+    check_internal_token_config("Lexis API")
+
     # Before anything else: refuse to serve against a schema this build does not
     # expect. Here rather than in `create_app` deliberately — the OpenAPI spec
     # generator builds the app with no database at all (see that docstring), so
@@ -80,6 +88,9 @@ def create_app() -> FastAPI:
     """
     app = FastAPI(title="Lexis API", lifespan=lifespan)
 
+    # Added before CORS so CORS ends up outermost: preflight requests carry no
+    # token and must be answered before this rejects them.
+    app.add_middleware(InternalTokenMiddleware, public_paths=BACKEND_PUBLIC_PATHS)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

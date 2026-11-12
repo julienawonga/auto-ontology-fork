@@ -13,7 +13,7 @@
 // authorization boundary, so the backend's own `zone_ids` default (unscoped)
 // is what every proxied call gets.
 
-import { buildInternalIdentityHeaders } from '@/lib/internalIdentity';
+import { buildInternalHeaders } from '@/lib/internalIdentity';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL ?? 'http://127.0.0.1:3001';
 
@@ -36,10 +36,13 @@ export const PROXY_CACHE_CONTROL = 'private, no-store';
  * `userId` names the caller to the backend, for routes that record who did
  * something (a tag's `created_by`, for instance). Opt-in rather than always
  * forwarded, so a route that has no use for an identity does not imply one.
+ * The internal token, by contrast, is attached on every call: the backend
+ * refuses a caller that cannot prove it is the web app as soon as an operator
+ * sets `INTERNAL_API_TOKEN`.
  *
  * It comes from `withPermission`'s already-resolved user, and the header set is
- * rebuilt from scratch below — so a client cannot smuggle in an identity of its
- * own choosing by sending the header itself.
+ * rebuilt from scratch below — so a client cannot smuggle in an identity or a
+ * token of its own choosing by sending those headers itself.
  */
 export async function proxyToBackend(
 	req: Request,
@@ -51,7 +54,10 @@ export async function proxyToBackend(
 	const headers: Record<string, string> = { Accept: 'application/json' };
 	const contentType = req.headers.get('content-type');
 	if (contentType) headers['Content-Type'] = contentType;
-	if (userId) Object.assign(headers, buildInternalIdentityHeaders(userId));
+	// Always: the token proves this is the web app, whether or not the call
+	// also names a user. Built from scratch here, so a client cannot smuggle
+	// in an identity or a token of its own choosing by sending the headers.
+	Object.assign(headers, buildInternalHeaders(userId));
 
 	const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
 	const body = hasBody ? await req.text() : undefined;

@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 import { withPermission } from '@/auth/with-auth';
+import { buildInternalHeaders } from '@/lib/internalIdentity';
 
 // Key/value stored in the `configurations` table. The Python ingestion service
 // reads this same key to decide whether to start its semantic scheduler.
@@ -44,7 +45,7 @@ export const PUT = withPermission({ semanticCompilation: ['manage'] })(async (re
 		try {
 			await fetch(`${PYTHON_API_URL}/api/semantic-compilation/trigger`, {
 				method: 'POST',
-				headers: { Accept: 'application/json' },
+				headers: { Accept: 'application/json', ...buildInternalHeaders() },
 			});
 		} catch {
 			// Swallow — the flag is persisted; the scheduler picks it up on next boot.

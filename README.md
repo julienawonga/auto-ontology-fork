@@ -116,6 +116,7 @@ EMBED_MODEL=text-embedding-3-small
 EMBED_DIMENSIONS=1536                                 # the output width of your embedding model
 EMBED_EXTRA_FIELDS=false
 AUTH_SECRET=<output of: openssl rand -base64 32>
+INTERNAL_API_TOKEN=<output of: openssl rand -hex 32>
 POSTGRES_PASSWORD=<a new password>
 AUTO_ONTOLOGY_ADMIN_PASSWORD=<a new password>
 ```
@@ -211,7 +212,9 @@ flowchart LR
 > Keep ports 3001 and 3002 on a private network: the API trusts the user identity the web app forwards, and the
 > ingestion service has no authentication of its own. Clients go through the web app on port 3000. Docker Compose
 > therefore publishes the API, the ingestion service, PostgreSQL and pgAdmin on `127.0.0.1` only; set
-> `BIND_ADDRESS` in `.env` to expose them on purpose.
+> `BIND_ADDRESS` in `.env` to expose them on purpose. As defence in depth, set `INTERNAL_API_TOKEN` (the same value
+> for the web app, the API and the ingestion service) so they also refuse requests that lack it; see
+> [SECURITY.md](SECURITY.md#internal-api-token). Keeping the ports private still applies.
 
 ## 🤖 Use it from your agent
 

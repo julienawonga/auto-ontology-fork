@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from auto_ontology.server.internal_auth import INTERNAL_TOKEN_HEADER
+
 STATUS_PATH = "/api/semantic-compilation/status"
 
 POPULATED = "populated"
@@ -99,6 +101,7 @@ def preflight(
     target_db: str | None,
     *,
     allow_empty_index: bool = False,
+    token: str | None = None,
     client: httpx.Client | None = None,
 ) -> dict[str, Any]:
     """Check the backend's index and return the provenance to put in the report meta.
@@ -106,12 +109,15 @@ def preflight(
     Raises ``PreflightError`` when the index is empty or incomplete for the
     target (or cannot be read) unless *allow_empty_index* is set. The backend
     URL is recorded; no documented endpoint reports a version or image id, so
-    none is recorded.
+    none is recorded. *token* is the backend's ``INTERNAL_API_TOKEN``, sent as
+    a header when this opens its own client (a caller that passes a client is
+    responsible for that client's headers); it is never written to the meta.
     """
     meta: dict[str, Any] = {"backend_url": base_url}
     reasons: list[str] = []
     own_client = client is None
-    http = client or httpx.Client()
+    headers = {INTERNAL_TOKEN_HEADER: token} if token else {}
+    http = client or httpx.Client(headers=headers)
     try:
         try:
             status = fetch_status(http, base_url)

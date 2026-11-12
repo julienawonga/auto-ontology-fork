@@ -42,6 +42,8 @@ python -m dev_tools.evals snapshot --check --dsn ...
 
 # Score a running backend (about one hour for 13 questions x 3 runs)
 python -m dev_tools.evals run --url http://localhost:3001 --label main --out main.json
+# when the backend sets INTERNAL_API_TOKEN, pass it with --token or the same
+# environment variable (replay takes --token too)
 
 # Several cases files, several questions at a time (workers capped at 6)
 python -m dev_tools.evals run --cases a.json b.json --workers 4 --label main --out main.json
