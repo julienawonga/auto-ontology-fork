@@ -474,8 +474,7 @@ to interpret the entries is repeated.
 - **Question.** Does a French question work as well as an English one on an
   English ontology, and does translating it first help? (Design decision 10 in
   [design/self-improving-ontology.md](./design/self-improving-ontology.md).)
-- **Setup.** Chinook, target database `chinook`, 3 runs per question (1 for the
-  last arm), 4 workers. English cases: the frozen `chinook.json` (cases hash
+- **Setup.** Chinook, target database `chinook`, 3 runs per question (1 for `en-v2`), 4 workers. English cases: the frozen `chinook.json` (cases hash
   4fbe2a00...). French cases: 20 French renderings `chinook_fr.json` (cases hash
   e628cfda...), reviewed by the user before any result; the file ships with
   PR #49 (open when this was written; not on `main`). Backend images built from
@@ -492,22 +491,26 @@ to interpret the entries is repeated.
 | EN, translation on (`en-on`) | 20/20 | 59/60 |
 | FR, reworked version (`fr-v2`) | 20/20 | 59/60 |
 | EN, reworked version, 1 run (`en-v2`) | 18/20 | 18/20 |
-| EN, reworked version, 3 runs | pending | pending |
+| EN, reworked version, 3 runs (`en-v2b`) | 20/20 | 58/60 |
 
   Failures. `fr-off`: `acdc_tracks` wrong values 3 of 3; `best_customer` two runs
   and `rock_tracks` two runs cancelled at the 300 s run limit. `fr-on`: one
   `top5_countries_sales` run hit the 300 s limit. `fr-v2`: one `best_customer` run
   hit the limit. `en-on`: one `best_customer` run hit the limit. `en-v2`:
   `best_customer` hit the limit and `rock_tracks` returned wrong values (single
-  run, 18/20 is a **pending** result until the 3-run rerun finishes).
+  run, 18/20). The 3-run rerun `en-v2b` (same cases hash) passed 20/20 questions,
+  58/60 runs: one `best_customer` run hit the 300 s limit and one `acdc_tracks`
+  run returned wrong values.
 - **Statistics.** FR off vs FR on by majority: 3 questions only with translation,
   0 only without; exact two-sided McNemar p = 0.25 (computed for this document
   from those counts; not significant at 20 questions). The en-off to en-on
   difference (60 vs 59 runs) is one run and is noise.
 - **Conclusion (cautious).** Without translation, a French question lost 3 of 20
-  questions on an English ontology; with translation it matched English. The
-  `best_customer` question hits the 300 s limit in English arms as well, so that
-  timeout is not caused by French. The sample is 20 questions on one well-known
+  questions on an English ontology; with translation it matched English. English
+  did not regress under the reworked version: the single-run 18/20 (`en-v2`) was
+  run-to-run noise, as the 3-run rerun shows. `best_customer` hits the 300 s limit
+  intermittently in every arm, English included, so that timeout is not caused by
+  language; it is an open engine issue. The sample is 20 questions on one well-known
   database; the effect is suggestive, not established.
 - **Limits.** The failure causes of `acdc_tracks` and `rock_tracks` were not
   investigated. Every error is a cancellation at the 300 s run limit of PR #40;
@@ -556,7 +559,7 @@ held-out value cases (`chinook_values.json`) and the clarification flow (PRs #26
 | E20 | 11-12 | Chinook EN 20x3 | translation on | 20/20, 59/60 | held-out | REAL-E2E |
 | E20 | 11-12 | Chinook FR 20x3 | reworked #49 | 20/20, 59/60 | held-out | REAL-E2E |
 | E20 | 11-12 | Chinook EN 20x1 | reworked #49 | 18/20 | held-out | REAL-E2E |
-| E20 | 11-12 | Chinook EN 20x3 | reworked #49 | pending | held-out | pending |
+| E20 | 11-12 | Chinook EN 20x3 | reworked #49 | 20/20, 58/60 | held-out | REAL-E2E |
 
 Engineering findings without a score: E02 (empty index), E04 (FK extraction), E05
 (value probes and privacy incident), E06 (VIP term), E07 (learned test question),
@@ -576,7 +579,7 @@ re-ingestion), E18 (trace), E19 (flaky test), E21 (Terms API).
   flow have never been measured. The "Indai" probe failed (E05).
 - **Whether FK extraction (E04) changes accuracy.** Not measured.
 - **Run-to-run variance beyond one pair.** One noise pair (E13); no multi-run
-  confidence interval. The language 3-run EN rerun is pending (E20).
+  confidence interval. 
 - **Official-harness agreement.** `lsb-score` was checked against the frozen
   reports, synthetic data and a transcription, not against the benchmark's own
   harness on many tasks.
