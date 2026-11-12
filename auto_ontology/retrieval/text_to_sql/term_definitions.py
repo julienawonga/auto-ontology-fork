@@ -10,8 +10,10 @@ relevant to the question, follows the definitions that name other Terms of the
 same database, and renders them as a block appended to the request ``evidence``,
 which SQL generation already treats as authoritative.
 
-Everything is off unless ``TERM_DEFINITIONS_IN_GENERATION`` is true, and the
-module changes nothing else: with the flag off the evidence is returned as is.
+It is on by default; set ``TERM_DEFINITIONS_IN_GENERATION=false`` to turn it
+off. The module changes nothing else: with the flag off the evidence is
+returned as is. Measured on LiveSQLBench-Base-Lite (docs/evaluation.md): with
+the knowledge loaded as Terms, 55/180 with it against 4/180 without.
 
 Rendering keeps each description verbatim. Nothing is stripped: a generic rule
 for dropping bracketed ``[xxx:...]`` lines would also eat legitimate text, and
@@ -60,7 +62,7 @@ def _env_int(name: str, default: int) -> int:
 class TermDefinitionSettings:
     """Knobs, read from the environment at call time."""
 
-    enabled: bool = False
+    enabled: bool = True
     top_k: int = 5
     # Largest vector distance (lower is closer) a retrieved Term may have.
     # None keeps every hit.
@@ -82,7 +84,7 @@ class TermDefinitionSettings:
                     raw_distance,
                 )
         return cls(
-            enabled=_env_bool("TERM_DEFINITIONS_IN_GENERATION", False),
+            enabled=_env_bool("TERM_DEFINITIONS_IN_GENERATION", True),
             top_k=max(1, _env_int("TERM_DEFINITIONS_TOP_K", 5)),
             max_distance=distance,
             max_depth=max(0, _env_int("TERM_DEFINITIONS_MAX_DEPTH", 2)),

@@ -196,7 +196,9 @@ def test_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.delenv(name, raising=False)
     assert TermDefinitionSettings.from_env() == TermDefinitionSettings()
-    assert TermDefinitionSettings().enabled is False
+    assert TermDefinitionSettings().enabled is True
+    monkeypatch.setenv("TERM_DEFINITIONS_IN_GENERATION", "false")
+    assert TermDefinitionSettings.from_env().enabled is False
     monkeypatch.setenv("TERM_DEFINITIONS_IN_GENERATION", "true")
     monkeypatch.setenv("TERM_DEFINITIONS_TOP_K", "3")
     monkeypatch.setenv("TERM_DEFINITIONS_MAX_DISTANCE", "0.8")
@@ -247,7 +249,7 @@ def _enable(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_flag_off_leaves_evidence_untouched(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("TERM_DEFINITIONS_IN_GENERATION", raising=False)
+    monkeypatch.setenv("TERM_DEFINITIONS_IN_GENERATION", "false")
     assert set(_run("request evidence")) == {"path_state"}
 
 
