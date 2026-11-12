@@ -9,6 +9,9 @@ A change to the engine (prompts, retrieval, validation, the ontology) is judged
 by measurement, not by impression. `dev_tools/evals` scores a running backend
 against questions whose answers are known, and compares two runs.
 
+The dated log of every measurement and finding is in
+[experiments.md](./experiments.md).
+
 ## How an answer is scored
 
 The harness sends each question to `POST /api/chat/completions` the way the
