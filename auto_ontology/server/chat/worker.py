@@ -443,9 +443,10 @@ class WarmPool:
         if checked_out:
             self._gate.release()
 
-    def acquire(self) -> PrewarmedWorker:
+    def acquire(self, cancel: threading.Event | None = None) -> PrewarmedWorker:
         # Permit first: nothing is handed out — warm or cold — above the cap.
-        self._gate.acquire()
+        # *cancel* lets a request whose client left stop waiting for one.
+        self._gate.acquire(cancel=cancel)
         try:
             with self._lock:
                 w = self._standby

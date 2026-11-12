@@ -37,7 +37,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from auto_ontology.server.internal_auth import INTERNAL_TOKEN_ENV
+import httpx
+
+from auto_ontology.server.internal_auth import INTERNAL_TOKEN_ENV, INTERNAL_TOKEN_HEADER
 from dev_tools.evals.cases import (
     DEFAULT_CASES_DIR,
     Case,
@@ -131,6 +133,31 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def backend_chat_cap(url: str, token: str | None = None) -> int | None:
+    """The backend's ``CHAT_MAX_CONCURRENT`` from ``GET /api/health``, if reachable."""
+    try:
+        headers = {INTERNAL_TOKEN_HEADER: token} if token else {}
+        response = httpx.get(
+            url.rstrip("/") + "/api/health", headers=headers, timeout=10
+        )
+        cap = response.json().get("chat_workers", {}).get("cap")
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return None
+    return cap if isinstance(cap, int) and cap > 0 else None
+
+
+def warn_if_over_cap(url: str, workers: int, token: str | None = None) -> None:
+    """Warn when more eval workers than chat slots would just queue (or 503)."""
+    cap = backend_chat_cap(url, token)
+    if cap is not None and workers > cap:
+        print(
+            f"WARNING: --workers {workers} exceeds the backend's chat cap of {cap} "
+            f"(CHAT_MAX_CONCURRENT); the extra requests will wait for a slot and "
+            f"may be answered 503 (retried automatically). Use --workers {cap}.",
+            file=sys.stderr,
+        )
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     # A backend gated by INTERNAL_API_TOKEN is called directly here, not
     # through the web app, so the token must be presented explicitly.
@@ -170,6 +197,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             f"(more than {MAX_WORKERS} exhausts the backend's connections)",
             file=sys.stderr,
         )
+
+    warn_if_over_cap(args.url, workers, token)
 
     def show(case: Case, i: int, run: Run) -> None:
         mark = "pass" if run.passed else f"FAIL ({run.reason})"
