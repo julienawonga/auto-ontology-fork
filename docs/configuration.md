@@ -148,8 +148,9 @@ language; the ontology language is a property of the database, not of the questi
 keeps the stored value). It is stored on `catalog_database.ontology_language`
 (Alembic revision `a7c2e91d4b68`; existing databases read as `en`) and returned in
 every connection payload. Changing it later only declares which language the
-existing ontology is in; it does not rebuild it. The build UI has no language
-selector yet: until it does, set the field through the API.
+existing ontology is in; it does not rebuild it. In the UI, use the "Ontology
+language" selector in the connection form (Settings -> Connections); the
+connections list shows it as a badge such as `EN`.
 
 **At question time**, per question:
 

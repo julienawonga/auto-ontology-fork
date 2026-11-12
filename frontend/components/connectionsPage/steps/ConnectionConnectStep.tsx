@@ -15,6 +15,8 @@ import {
 	type ConnectionType,
 } from '@/enums/connection';
 
+import { OntologyLanguageField } from './OntologyLanguageField';
+
 const EMPTY_KEYS: ReadonlySet<ConnectionFieldKey> = new Set();
 
 export type ConnectionConnectStepProps = {
@@ -30,6 +32,10 @@ export type ConnectionConnectStepProps = {
 	onTestConnection?: () => void;
 	testDisabled?: boolean;
 	testingConnection?: boolean;
+	/** The selector renders only when a change handler is given. */
+	ontologyLanguage?: string;
+	onOntologyLanguageChange?: (code: string) => void;
+	editing?: boolean;
 };
 
 export const ConnectionConnectStep = ({
@@ -43,6 +49,9 @@ export const ConnectionConnectStep = ({
 	onTestConnection,
 	testDisabled = false,
 	testingConnection = false,
+	ontologyLanguage = 'en',
+	onOntologyLanguageChange,
+	editing = false,
 }: ConnectionConnectStepProps) => {
 	if (loading) {
 		return (
@@ -194,6 +203,13 @@ export const ConnectionConnectStep = ({
 						</label>
 					);
 				})}
+				{onOntologyLanguageChange != null && (
+					<OntologyLanguageField
+						value={ontologyLanguage}
+						onChange={onOntologyLanguageChange}
+						editing={editing}
+					/>
+				)}
 			</div>
 			<div className="mt-auto flex flex-col items-start">
 				{onTestConnection != null && (

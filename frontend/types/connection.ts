@@ -104,6 +104,8 @@ export type ConnectionParams = (
 export type Connection = {
 	database_name: string;
 	connection: ConnectionParams;
+	/** ISO 639-1 code of the language the database's ontology is written in. */
+	ontology_language?: string;
 };
 
 /** User-provided fields for testing or creating a connection. */

@@ -11,6 +11,7 @@ import { PopoverMenu } from '@/common/PopoverMenu';
 import { Text } from '@/common/Text';
 import { TextVariant } from '@/enums/text';
 import { ConnectionType } from '@/enums/connection';
+import { ontologyLanguageBadge } from '@/lib/ontologyLanguage';
 import type { Connection } from '@/types/connection';
 
 export type ConnectionInfoCardProps = {
@@ -72,6 +73,13 @@ export const ConnectionInfoCard = ({
 						text={connection.database_name}
 						variant={TextVariant.Subheading}
 					/>
+					<span
+						title="Ontology language"
+						data-testid={`ontology-language-${connection.database_name}`}
+						className="ml-1 shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-secondary dark:bg-zinc-800 dark:text-zinc-400"
+					>
+						{ontologyLanguageBadge(connection.ontology_language)}
+					</span>
 				</div>
 				<div className="relative shrink-0">
 					{menuDisabled ? (

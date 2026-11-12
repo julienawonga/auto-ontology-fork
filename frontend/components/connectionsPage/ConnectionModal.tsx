@@ -16,6 +16,7 @@ import {
 	ConnectionType,
 	type ConnectionFieldKey,
 } from '@/enums/connection';
+import { DEFAULT_ONTOLOGY_LANGUAGE } from '@/lib/ontologyLanguage';
 import type { Connection, ConnectionInput, ConnectionParams } from '@/types/connection';
 
 const TYPE_STEP = 'Select Connector';
@@ -80,6 +81,9 @@ export const ConnectionModal = ({
 	);
 	const [values, setValues] = useState<FieldValues>(() =>
 		connection == null ? {} : toFieldValues(connection.connection),
+	);
+	const [ontologyLanguage, setOntologyLanguage] = useState<string>(
+		connection?.ontology_language ?? DEFAULT_ONTOLOGY_LANGUAGE,
 	);
 	const [alert, setAlert] = useState<string | null>(null);
 
@@ -252,8 +256,8 @@ export const ConnectionModal = ({
 		const input = buildConnection();
 		const res =
 			connection == null
-				? await connectionsApi.create(input)
-				: await connectionsApi.update(connection.database_name, input);
+				? await connectionsApi.create(input, ontologyLanguage)
+				: await connectionsApi.update(connection.database_name, input, ontologyLanguage);
 		setLoading(false);
 
 		if ('error' in res && res.error) {
@@ -262,7 +266,7 @@ export const ConnectionModal = ({
 		}
 
 		onConfirm();
-	}, [buildConnection, connection, editing, isConnectionTested, onConfirm]);
+	}, [buildConnection, connection, editing, isConnectionTested, onConfirm, ontologyLanguage]);
 
 	const renderStepContent = (step: number) => {
 		switch (steps[step]) {
@@ -282,6 +286,9 @@ export const ConnectionModal = ({
 						}}
 						testDisabled={!fieldsComplete || loading}
 						testingConnection={testingConnection}
+						ontologyLanguage={ontologyLanguage}
+						onOntologyLanguageChange={setOntologyLanguage}
+						editing={editing}
 					/>
 				);
 			case SCHEMA_STEP:
