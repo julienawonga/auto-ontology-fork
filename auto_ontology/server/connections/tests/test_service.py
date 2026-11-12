@@ -368,3 +368,43 @@ def test_create_connection_drops_the_schema_shorthand() -> None:
     stored = json.loads(insert_connection.call_args.kwargs["connection"])
     assert "schema" not in stored
     assert stored["schemas"] == ["sales"]
+
+
+def _create(**kwargs: object) -> object:
+    with (
+        patch.object(service, "_database_already_connected", return_value=False),
+        patch.object(service, "is_vault_configured", return_value=False),
+        patch.object(service, "insert_connection") as insert_connection,
+        patch.object(service, "invalidate_connectors_cache"),
+        patch.object(service, "refresh_chat_workers"),
+        patch.object(service, "trigger_ingest"),
+    ):
+        service.create_connection(connection=_snowflake_connection(), **kwargs)  # type: ignore[arg-type]
+    return insert_connection
+
+
+def test_create_connection_stores_the_ontology_language() -> None:
+    insert_connection = _create(ontology_language=" FR ")
+    assert insert_connection.call_args.kwargs["ontology_language"] == "fr"  # type: ignore[attr-defined]
+
+
+def test_create_connection_without_a_language_leaves_the_column_default() -> None:
+    insert_connection = _create()
+    assert insert_connection.call_args.kwargs["ontology_language"] is None  # type: ignore[attr-defined]
+
+
+def test_an_invalid_ontology_language_is_rejected() -> None:
+    import pytest
+
+    for bad in ("french", "f", "12", ""):
+        with pytest.raises(ValueError):
+            service.validate_ontology_language(bad)
+    assert service.validate_ontology_language(None) is None
+
+
+def test_public_connection_payload_carries_the_ontology_language() -> None:
+    assert _serialize_connection(_snowflake_connection())["ontology_language"] == "en"
+    assert (
+        _serialize_connection(_snowflake_connection(), "fr")["ontology_language"]
+        == "fr"
+    )

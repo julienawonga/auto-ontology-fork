@@ -306,13 +306,13 @@ def _format_history(history: list[dict[str, str | None]]) -> str:
     return "\n".join(lines)
 
 
-def _language_note(answer_language: str | None, english: str) -> str:
-    """Prompt suffix for a non-English question; "" otherwise (flag off or English)."""
+def _language_note(answer_language: str | None, translated: str) -> str:
+    """Prompt suffix for a question in another language than the ontology; else ""."""
     if not answer_language:
         return ""
     return (
-        f"\n\nThe question is written in {answer_language}; the English translation "
-        f"used for searching is: {english.strip()}\n"
+        f"\n\nThe question is written in {answer_language}; its translation into the "
+        f"ontology's language, used for searching, is: {translated.strip()}\n"
         f"Write the clarification question and the option labels in {answer_language}."
     )
 

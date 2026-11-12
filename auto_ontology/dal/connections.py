@@ -55,10 +55,31 @@ def list_connections() -> list[dict[str, Any]]:
     return connections
 
 
+def get_ontology_language(database_name: str) -> str:
+    """The language a database's ontology is built in (ISO 639-1; "en" if unset)."""
+    rows = store().query_read(
+        select(s.catalog_database.c.ontology_language).where(
+            s.catalog_database.c.name == database_name
+        )
+    )
+    return str(rows[0]["ontology_language"] or "en") if rows else "en"
+
+
+def list_ontology_languages() -> dict[str, str]:
+    """Database name -> ontology language, for every catalog database."""
+    return {
+        str(row["name"]): str(row["ontology_language"] or "en")
+        for row in store().query_read(
+            select(s.catalog_database.c.name, s.catalog_database.c.ontology_language)
+        )
+    }
+
+
 def insert_connection(
     *,
     connection: str,
     database_name: str,
+    ontology_language: str | None = None,
 ) -> dict[str, Any]:
     """Attach connection metadata to the catalog database, creating it if needed.
 
@@ -72,13 +93,19 @@ def insert_connection(
     # catalog_database row, so the connection is invisible to list_connections
     # and cannot be ingested.
     payload = json.loads(connection) if connection and connection.strip() else None
-    statement = insert(s.catalog_database).values(
-        name=database_name, connection=payload
-    )
+    values: dict[str, Any] = {"name": database_name, "connection": payload}
+    # Left out when not given, so the column default applies on insert and an
+    # edit that does not mention the language keeps the stored one.
+    if ontology_language is not None:
+        values["ontology_language"] = ontology_language
+    statement = insert(s.catalog_database).values(**values)
+    updates: dict[str, Any] = {"connection": statement.excluded.connection}
+    if ontology_language is not None:
+        updates["ontology_language"] = statement.excluded.ontology_language
     rows = store().query_write(
         statement.on_conflict_do_update(
             index_elements=[s.catalog_database.c.name],
-            set_={"connection": statement.excluded.connection},
+            set_=updates,
         ).returning(s.catalog_database)
     )
     return dict(rows[0])

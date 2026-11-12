@@ -146,16 +146,32 @@ A case `description` states what the question means where that is not obvious.
 `dev_tools/evals/cases/chinook_fr.json` is `chinook.json` with only the question
 text translated into the French a business user would type (artist, album, track
 and person names kept as in the data). Gold SQL, expected rows and flags are
-identical (ids differ only by the dataset prefix, `chinook_fr.`), and it is frozen on its own (`frozen_sha256`), so the integrity check
-guards it like the English file. It measures `QUESTION_TRANSLATION_ENABLED`:
+identical (ids differ only by the dataset prefix, `chinook_fr.`), and it is frozen
+on its own (`frozen_sha256`), so the integrity check guards it like the English
+file. It measures question translation for an English-ontology database asked in
+French. Translation is automatic, so the "off" arm needs
+`QUESTION_TRANSLATION_DISABLED=true` on the backend:
 
 ```bash
-python -m dev_tools.evals run --cases dev_tools/evals/cases/chinook_fr.json --target-db chinook --label fr-translation-on --out chinook-fr-on.json
+python -m dev_tools.evals run --cases dev_tools/evals/cases/chinook_fr.json --target-db chinook --label fr-translation --out chinook-fr.json
 ```
 
-Run it with the flag off and on and compare the two reports. Be clear about what it
-is: the English set had **already been run** before this translation was written, so
-`chinook_fr` is held out for the translation feature, not for the engine.
+Be clear about what it is: the English set had **already been run** before this
+translation was written, so `chinook_fr` is held out for the translation feature,
+not for the engine.
+
+Live result, English ontology (Chinook, 20 questions x 3 runs each; manual run on
+2026-11-12, reports kept outside the repository):
+
+| Arm | Questions | Runs passed |
+|---|---|---|
+| English questions (`chinook.json`), translation off | 20/20 | 60/60 |
+| French questions, translation off | 17/20 | 53/60 |
+| French questions, translation on | 20/20 | 59/60 (one 300 s timeout) |
+| English questions, translation on | 20/20 | 59/60 (one 300 s timeout) |
+
+The translations were read and were faithful. This measures an English ontology
+asked in French only; other ontology languages are tested with fakes, not measured.
 
 ### Freezing a case file
 

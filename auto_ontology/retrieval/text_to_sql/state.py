@@ -58,8 +58,11 @@ class TextToSQLPayload(TypedDict):
     processing_question: NotRequired[str]
     # Pre-resolved ``question_language.QuestionLanguage`` (the chat worker sets it
     # so one translation serves clarification and the graph). Only read when
-    # QUESTION_TRANSLATION_ENABLED is on.
+    # translation is not disabled.
     question_language: NotRequired[object]
+    # ISO 639-1 language the target database's ontology was built in; "en" when
+    # absent. Chosen when the database is registered.
+    ontology_language: NotRequired[str]
     data_retriever: Retriever
     semantic_retriever: NotRequired[Retriever]
     path_state: NotRequired[dict]

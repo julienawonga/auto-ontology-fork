@@ -146,7 +146,7 @@ backend:
   # wait-for-catalog-schema init container blocks until public.alembic_version
   # matches it, so new Pods never serve against a schema the migration Job has
   # not finished applying. Bump this with the migration, in the same commit.
-  alembicRevision: 99d4d343dd0b
+  alembicRevision: a7c2e91d4b68
   # Published by .github/workflows/release.yml. The chart that workflow
   # pushes has every tag below set to its own release version.
   image:

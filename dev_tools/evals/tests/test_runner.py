@@ -418,17 +418,19 @@ def test_answer_records_the_question_language_and_the_score_keeps_it() -> None:
                     "sql_code": "SELECT 1",
                     "response": "ok",
                     "question_language": "fr",
-                    "question_english": "How many?",
+                    "question_translated": "How many?",
+                    "ontology_language": "en",
                     "sql_response_from_db": None,
                 },
             }
         ]
     )
-    assert (answer.question_language, answer.question_english) == ("fr", "How many?")
+    assert (answer.question_language, answer.question_translated) == ("fr", "How many?")
+    assert answer.ontology_language == "en"
     case = Case(id="c", question="q", gold=(GoldAnswer("g", "SELECT 1", [[1]]),))
     answer.rows = [[1]]
     run = score(case, answer)
-    assert (run.question_language, run.question_english) == ("fr", "How many?")
+    assert (run.question_language, run.question_translated) == ("fr", "How many?")
     restored = Report.from_json(
         Report(meta={}, cases={"c": CaseResult("q", [run])}).to_json()
     )
@@ -437,4 +439,4 @@ def test_answer_records_the_question_language_and_the_score_keeps_it() -> None:
 
 def test_old_backend_without_language_fields_gives_none() -> None:
     answer = answer_from_events([{"type": "result", "answer": {"sql_code": "s"}}])
-    assert answer.question_language is None and answer.question_english is None
+    assert answer.question_language is None and answer.question_translated is None

@@ -1168,6 +1168,9 @@ class PublicConnection(ApiModel):
 
     database_name: str
     connection: dict[str, Any] | None = None
+    # ISO 639-1 language the database's ontology is built in; questions in
+    # another language are translated into it before retrieval.
+    ontology_language: str = "en"
 
 
 class SsoFederationState(ApiModel):

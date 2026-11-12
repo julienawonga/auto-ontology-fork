@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
-"""Let users ask in any language while the ontology stays English.
+"""Let users ask in any language, whatever language the ontology is in.
 
-The ontology (Terms, definitions, SqlAttributes, labels) is English only, and
-the embedding model is English-centred, so a French question retrieves English
-Terms worse than its English equivalent. With ``QUESTION_TRANSLATION_ENABLED``
-on (default off), a non-English question is translated once to English; that
-English text drives all retrieval, SQL generation sees both the user's own
-words and the translation, and the prose answer is written in the user's
-language. SQL, table and column names are never translated.
+Each database's ontology is built in one language (``ontology_language``, ISO
+639-1, default ``en``): Terms, definitions, SqlAttributes and labels all stay in
+it, and the embedding model is usually English-centred, so a question in another
+language retrieves them worse. When the question's language differs from the
+target database's ontology language, the question is translated once into the
+ontology language; that text drives all retrieval, SQL generation sees both the
+user's own words and the translation, and the prose answer is written in the
+user's language. SQL, table and column names are never translated. When the two
+languages match nothing happens and no model is called.
 
 Everything here is best effort: any failure logs a warning and the original
-question is used unchanged. With the flag off nothing in this module changes
-any prompt or state.
+question is used unchanged. Operators can switch the whole feature off with
+``QUESTION_TRANSLATION_DISABLED=true``.
 """
 
 from __future__ import annotations
@@ -29,28 +31,31 @@ from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)
 
-ENABLED_ENV = "QUESTION_TRANSLATION_ENABLED"
+DISABLED_ENV = "QUESTION_TRANSLATION_DISABLED"
+DEFAULT_ONTOLOGY_LANGUAGE = "en"
 MAX_TRANSLATION_TOKENS = 400
 
 # path_state keys.
 KEY_LANGUAGE = "question_language"
-KEY_ENGLISH = "question_english"
-KEY_TRANSLATED = "question_translated"
+KEY_TRANSLATED_TEXT = "question_translated"
+KEY_ONTOLOGY_LANGUAGE = "ontology_language"
+KEY_WAS_TRANSLATED = "question_was_translated"
 
-TRANSLATION_PROMPT = """Detect the language of the user's question and translate it into English.
+TRANSLATION_PROMPT = """Detect the language of the user's question and translate it into {target_language} ({target_code}).
 
-Return ONLY a JSON object: {{"language": "<ISO 639-1 code of the question's language>", "english": "<the question in English>"}}
+Return ONLY a JSON object: {{"language": "<ISO 639-1 code of the question's language>", "translation": "<the question in {target_language}>"}}
 
 Rules:
 - Translate faithfully. Never add interpretation, explanation or extra detail, and never drop any.
 - Keep quoted strings, proper nouns, numbers and dates exactly as written.
 - Keep anything that looks like a stored data value (people's names, titles, places, product or company names) exactly as written, untranslated.
-- If the question is already English, return the language code "en" and the question unchanged.
+- If the question is already in {target_language}, return its language code ("{target_code}") and the question unchanged.
 
 Question:
 {question}"""
 
 _LANGUAGE_NAMES = {
+    "en": "English",
     "fr": "French",
     "es": "Spanish",
     "de": "German",
@@ -92,9 +97,9 @@ _FOREIGN_WORDS = frozenset(
 _WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 
 
-def question_translation_enabled() -> bool:
-    """Whether question translation is on (``QUESTION_TRANSLATION_ENABLED``, default off)."""
-    return os.environ.get(ENABLED_ENV, "").strip().lower() in {
+def translation_disabled() -> bool:
+    """Operator kill switch: ``QUESTION_TRANSLATION_DISABLED`` (default not set)."""
+    return os.environ.get(DISABLED_ENV, "").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -102,12 +107,23 @@ def question_translation_enabled() -> bool:
     }
 
 
+def normalize_language(code: str | None) -> str:
+    """A lowercase ISO 639-1 code; the default (``en``) for anything unusable."""
+    value = (code or "").strip().lower().split("-")[0].split("_")[0]
+    return value if re.fullmatch(r"[a-z]{2}", value) else DEFAULT_ONTOLOGY_LANGUAGE
+
+
 @dataclass(frozen=True)
 class QuestionLanguage:
-    """The language of a question and its English form."""
+    """A question's language, and its text in the ontology language.
+
+    ``text`` is the question in ``ontology_language`` (the original when the
+    languages match); ``translated`` is True when ``text`` differs from it.
+    """
 
     language: str
-    english: str
+    ontology_language: str
+    text: str
     translated: bool
 
 
@@ -142,7 +158,13 @@ def _content_text(content: Any) -> str:
     return str(content or "")
 
 
-def parse_translation(raw: str, original: str) -> QuestionLanguage | None:
+def language_name(code: str) -> str:
+    return _LANGUAGE_NAMES.get(code.split("-")[0], code)
+
+
+def parse_translation(
+    raw: str, original: str, ontology_language: str
+) -> QuestionLanguage | None:
     """Parse the model's JSON reply; None when it is malformed or implausible."""
     text = raw.strip()
     start, end = text.find("{"), text.rfind("}")
@@ -155,31 +177,44 @@ def parse_translation(raw: str, original: str) -> QuestionLanguage | None:
     if not isinstance(data, dict):
         return None
     language = data.get("language")
-    english = data.get("english")
-    if not isinstance(language, str) or not isinstance(english, str):
+    translation = data.get("translation")
+    if not isinstance(language, str) or not isinstance(translation, str):
         return None
     language = language.strip().lower()
-    english = " ".join(english.split())
-    if not re.fullmatch(r"[a-z]{2,3}(-[a-z0-9]{2,8})?", language) or not english:
+    translation = " ".join(translation.split())
+    if not re.fullmatch(r"[a-z]{2,3}(-[a-z0-9]{2,8})?", language) or not translation:
         return None
     # A translation far longer than its source is the model explaining.
-    if len(english) > 3 * len(original) + 200:
+    if len(translation) > 3 * len(original) + 200:
         return None
-    if language.split("-")[0] == "en":
-        return QuestionLanguage("en", original, False)
-    return QuestionLanguage(language, english, english != original.strip())
+    if language.split("-")[0] == ontology_language:
+        return QuestionLanguage(ontology_language, ontology_language, original, False)
+    return QuestionLanguage(
+        language, ontology_language, translation, translation != original.strip()
+    )
 
 
-def resolve_question_language(question: str, llm: Any) -> QuestionLanguage | None:
-    """Language and English form of *question*, or None when unavailable.
+def resolve_question_language(
+    question: str, llm: Any, ontology_language: str = DEFAULT_ONTOLOGY_LANGUAGE
+) -> QuestionLanguage | None:
+    """The question's language and its text in *ontology_language*, or None.
 
-    Never raises. None means "carry on with the original question".
+    Never raises. None means "carry on with the original question". No model is
+    called when the question is trivially in the ontology language: for an
+    English ontology, the cheap ASCII/stopword check; for any ontology, a
+    question with no letters at all.
     """
     try:
+        ontology_language = normalize_language(ontology_language)
         if not question.strip():
             return None
-        if looks_english(question):
-            return QuestionLanguage("en", question, False)
+        trivial = not any(ch.isalpha() for ch in question) or (
+            ontology_language == "en" and looks_english(question)
+        )
+        if trivial:
+            return QuestionLanguage(
+                ontology_language, ontology_language, question, False
+            )
         if llm is None:
             logger.warning("Question translation skipped: no LLM client")
             return None
@@ -187,21 +222,26 @@ def resolve_question_language(question: str, llm: Any) -> QuestionLanguage | Non
             bound = llm.bind(max_tokens=MAX_TRANSLATION_TOKENS)
         except Exception:  # noqa: BLE001 - a client without bind is called as is
             bound = llm
-        reply = bound.invoke(
-            [HumanMessage(content=TRANSLATION_PROMPT.format(question=question))]
+        prompt = TRANSLATION_PROMPT.format(
+            target_language=language_name(ontology_language),
+            target_code=ontology_language,
+            question=question,
         )
+        reply = bound.invoke([HumanMessage(content=prompt)])
         result = parse_translation(
-            _content_text(getattr(reply, "content", "")), question
+            _content_text(getattr(reply, "content", "")), question, ontology_language
         )
         if result is None:
             logger.warning("Question translation returned unusable output; ignoring it")
             return None
         if result.translated:
             logger.info(
-                "Question translated: language=%s original=%r english=%r",
+                "Question translated: language=%s ontology_language=%s "
+                "original=%r translated=%r",
                 result.language,
+                ontology_language,
                 question,
-                result.english,
+                result.text,
             )
         return result
     except Exception:  # noqa: BLE001 - translation must never break an answer
@@ -212,41 +252,44 @@ def resolve_question_language(question: str, llm: Any) -> QuestionLanguage | Non
 def record_in_path_state(path_state: dict, result: QuestionLanguage) -> None:
     """Store the outcome where later nodes and the final answer read it."""
     path_state[KEY_LANGUAGE] = result.language
-    path_state[KEY_ENGLISH] = result.english
-    path_state[KEY_TRANSLATED] = result.translated
+    path_state[KEY_TRANSLATED_TEXT] = result.text
+    path_state[KEY_ONTOLOGY_LANGUAGE] = result.ontology_language
+    path_state[KEY_WAS_TRANSLATED] = result.translated
 
 
 def is_translated(path_state: dict | None) -> bool:
-    return bool((path_state or {}).get(KEY_TRANSLATED))
-
-
-def language_name(code: str) -> str:
-    return _LANGUAGE_NAMES.get(code.split("-")[0], code)
+    return bool((path_state or {}).get(KEY_WAS_TRANSLATED))
 
 
 def language_instruction(path_state: dict | None) -> str:
     """System note for generation; "" unless the question was translated."""
     if not is_translated(path_state):
         return ""
-    code = str((path_state or {}).get(KEY_LANGUAGE) or "")
-    name = language_name(code)
+    ps = path_state or {}
+    user = language_name(str(ps.get(KEY_LANGUAGE) or ""))
+    onto = language_name(
+        str(ps.get(KEY_ONTOLOGY_LANGUAGE) or DEFAULT_ONTOLOGY_LANGUAGE)
+    )
     return (
-        f"The user wrote their question in {name}. 'Original user request' is the "
+        f"The user wrote their question in {user}. 'Original user request' is the "
         "user's own wording; 'Normalized retrieval question' is a machine "
-        "translation to English used only for searching the English ontology. "
-        "If they differ in meaning, the user's own wording wins. Keep data values "
-        "(names, titles, places) exactly as the user wrote them. "
-        f"Write the prose answer (the response text) in {name}. SQL, table names "
+        f"translation into {onto}, the language of the ontology, used only for "
+        "searching it. If they differ in meaning, the user's own wording wins. "
+        "Keep data values (names, titles, places) exactly as the user wrote them. "
+        f"Write the prose answer (the response text) in {user}. SQL, table names "
         "and column names stay exactly as in the database."
     )
 
 
 def answer_fields(path_state: dict | None) -> dict[str, str]:
-    """``question_language`` / ``question_english`` for the final answer, or {}."""
+    """``question_language``, ``question_translated``, ``ontology_language`` or {}."""
     ps = path_state or {}
     if not ps.get(KEY_LANGUAGE):
         return {}
     return {
         "question_language": str(ps[KEY_LANGUAGE]),
-        "question_english": str(ps.get(KEY_ENGLISH) or ""),
+        "question_translated": str(ps.get(KEY_TRANSLATED_TEXT) or ""),
+        "ontology_language": str(
+            ps.get(KEY_ONTOLOGY_LANGUAGE) or DEFAULT_ONTOLOGY_LANGUAGE
+        ),
     }

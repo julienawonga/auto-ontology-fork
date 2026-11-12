@@ -25,7 +25,7 @@ from auto_ontology.retrieval.text_to_sql.node_labels import NODE_LABELS
 from auto_ontology.retrieval.text_to_sql.question_language import (
     QuestionLanguage,
     answer_fields,
-    question_translation_enabled,
+    translation_disabled,
     record_in_path_state,
     resolve_question_language,
 )
@@ -211,19 +211,25 @@ def _build_state(payload: TextToSQLPayload) -> AgentState:
     initial_path_state["processing_question"] = processing_question
     messages_question = processing_question
 
-    # QUESTION_TRANSLATION_ENABLED (off by default): retrieval runs on the
-    # English translation, set as the processing question; the submitted text
-    # stays in ``initial_question`` so generation sees both and value linking
-    # keeps the user's own wording. A caller that already resolved the language
-    # (the chat worker, for clarification) passes it in ``question_language``.
-    if question_translation_enabled():
+    # When the question is in another language than the target database's
+    # ontology (``ontology_language``, default "en"), retrieval runs on the
+    # question translated into the ontology language, set as the processing
+    # question; the submitted text stays in ``initial_question`` so generation
+    # sees both and value linking keeps the user's own wording. A caller that
+    # already resolved the language (the chat worker, for clarification) passes
+    # it in ``question_language``. QUESTION_TRANSLATION_DISABLED turns it off.
+    if not translation_disabled():
         resolved = payload.get("question_language")
         if not isinstance(resolved, QuestionLanguage):
-            resolved = resolve_question_language(processing_question, llm_client)
+            resolved = resolve_question_language(
+                processing_question,
+                llm_client,
+                payload.get("ontology_language") or "en",
+            )
         if resolved is not None:
             record_in_path_state(initial_path_state, resolved)
             if resolved.translated:
-                initial_path_state["processing_question"] = resolved.english
+                initial_path_state["processing_question"] = resolved.text
 
     main_system_prompt = main_system_prompt_template.format(
         date=datetime.now(),
@@ -466,7 +472,7 @@ def _attach_knowledge_trace(answer: object, final_state: dict) -> None:
 
 
 def _attach_question_language(answer: object, final_state: dict) -> None:
-    """Add ``question_language`` / ``question_english`` when translation ran."""
+    """Add ``question_language`` / ``question_translated`` / ``ontology_language`` when translation ran."""
     if not isinstance(answer, dict):
         return
     answer.update(answer_fields(final_state.get("path_state")))

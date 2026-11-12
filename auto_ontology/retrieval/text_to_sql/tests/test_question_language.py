@@ -45,8 +45,8 @@ class FakeLLM:
         return SimpleNamespace(content=self.reply)
 
 
-def _reply(language: str = "fr", english: str = ENGLISH) -> str:
-    return json.dumps({"language": language, "english": english})
+def _reply(language: str = "fr", translation: str = ENGLISH) -> str:
+    return json.dumps({"language": language, "translation": translation})
 
 
 # --- detection heuristic ----------------------------------------------------
@@ -93,7 +93,7 @@ def test_other_languages_and_accents_are_not_confidently_english(
 def test_translation_returns_language_and_english() -> None:
     llm = FakeLLM(_reply())
     result = ql.resolve_question_language(FRENCH, llm)
-    assert result == ql.QuestionLanguage("fr", ENGLISH, True)
+    assert result == ql.QuestionLanguage("fr", "en", ENGLISH, True)
     assert len(llm.calls) == 1
     prompt = llm.calls[0][0].content
     assert FRENCH in prompt
@@ -108,7 +108,7 @@ def test_fenced_json_and_chatter_are_tolerated() -> None:
 def test_model_saying_english_leaves_the_question_alone() -> None:
     llm = FakeLLM(_reply("en", "whatever"))
     result = ql.resolve_question_language("café sales per country", llm)
-    assert result == ql.QuestionLanguage("en", "café sales per country", False)
+    assert result == ql.QuestionLanguage("en", "en", "café sales per country", False)
 
 
 @pytest.mark.parametrize(
@@ -118,10 +118,10 @@ def test_model_saying_english_leaves_the_question_alone() -> None:
         "{",
         "[]",
         json.dumps({"language": "fr"}),
-        json.dumps({"language": "French please", "english": ENGLISH}),
-        json.dumps({"language": "fr", "english": ""}),
-        json.dumps({"language": "fr", "english": 5}),
-        json.dumps({"language": "fr", "english": "x" * 5000}),
+        json.dumps({"language": "French please", "translation": ENGLISH}),
+        json.dumps({"language": "fr", "translation": ""}),
+        json.dumps({"language": "fr", "translation": 5}),
+        json.dumps({"language": "fr", "translation": "x" * 5000}),
         None,
     ],
 )
@@ -192,7 +192,7 @@ def test_enabled_retrieval_reads_english_and_generation_reads_both(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv(ql.ENABLED_ENV, "true")
+    monkeypatch.delenv(ql.DISABLED_ENV, raising=False)
     llm = FakeLLM(_reply())
     monkeypatch.setattr(main, "llm_client", llm)
     with caplog.at_level(logging.INFO):
@@ -203,7 +203,8 @@ def test_enabled_retrieval_reads_english_and_generation_reads_both(
     # The user's own wording is kept for generation and value linking.
     assert get_original_question(state) == FRENCH
     assert state["path_state"]["question_language"] == "fr"
-    assert state["path_state"]["question_english"] == ENGLISH
+    assert state["path_state"]["ontology_language"] == "en"
+    assert state["path_state"]["question_translated"] == ENGLISH
     assert state["restore_from"]["path_state"]["question_language"] == "fr"
     infos = [r for r in caplog.records if r.getMessage().startswith("Question trans")]
     assert len(infos) == 1
@@ -218,10 +219,9 @@ def test_enabled_retrieval_reads_english_and_generation_reads_both(
 def test_a_resolved_translation_is_not_translated_twice(
     main: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(ql.ENABLED_ENV, "1")
     monkeypatch.setattr(main, "llm_client", FakeLLM(boom=True))
     payload = _payload()
-    payload["question_language"] = ql.QuestionLanguage("fr", ENGLISH, True)
+    payload["question_language"] = ql.QuestionLanguage("fr", "en", ENGLISH, True)
     state = main._build_state(payload)
     assert get_question_for_processing(state) == ENGLISH
 
@@ -229,7 +229,6 @@ def test_a_resolved_translation_is_not_translated_twice(
 def test_translation_failure_keeps_the_original_question(
     main: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(ql.ENABLED_ENV, "true")
     monkeypatch.setattr(main, "llm_client", FakeLLM(boom=True))
     state = main._build_state(_payload())
     assert get_question_for_processing(state) == FRENCH
@@ -239,7 +238,6 @@ def test_translation_failure_keeps_the_original_question(
 def test_english_question_costs_no_call_and_is_recorded_as_english(
     main: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(ql.ENABLED_ENV, "true")
     llm = FakeLLM(boom=True)
     monkeypatch.setattr(main, "llm_client", llm)
     state = main._build_state(_payload("How many orders did we get?"))
@@ -248,45 +246,83 @@ def test_english_question_costs_no_call_and_is_recorded_as_english(
     assert not ql.language_instruction(state["path_state"])
 
 
-# --- flag off: unchanged ----------------------------------------------------
+# --- same language / kill switch: unchanged --------------------------------
 
 
-@pytest.mark.parametrize("value", [None, "", "false", "0", "off"])
-def test_flag_off_state_and_prompts_are_unchanged(
-    main: ModuleType, monkeypatch: pytest.MonkeyPatch, value: str | None
+def test_same_language_as_the_ontology_leaves_state_and_prompts_unchanged(
+    main: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if value is None:
-        monkeypatch.delenv(ql.ENABLED_ENV, raising=False)
-    else:
-        monkeypatch.setenv(ql.ENABLED_ENV, value)
     llm = FakeLLM(_reply())
     monkeypatch.setattr(main, "llm_client", llm)
-    state = main._build_state(_payload())
+    question = "How many orders did we get?"
+    state = main._build_state(_payload(question))
 
-    assert not llm.calls, "the model must not be called with the flag off"
-    # What the state held before this feature: the submitted question, and no
-    # translation key anywhere.
-    assert state["initial_question"] == FRENCH
-    assert state["path_state"] == {"processing_question": FRENCH, "target_db": "db"}
-    assert state["restore_from"]["path_state"] == state["path_state"]
-    assert state["messages"][1].content == FRENCH
-    assert get_question_for_processing(state) == FRENCH
+    # The state holds the submitted question as it did before this feature;
+    # an untranslated question only records its language fields.
+    assert state["initial_question"] == question
+    assert state["path_state"]["processing_question"] == question
+    assert not state["path_state"]["question_was_translated"]
+    assert state["messages"][1].content == question
+    assert get_question_for_processing(state) == question
+    assert not llm.calls, "the model must not be called when the languages match"
 
     messages_before = list(state["messages"])
-    flag_off_prompt = _run_generation(monkeypatch, state)
+    actual_prompt = _run_generation(monkeypatch, state)
 
     # The same call on a state hand-built as it was before the feature existed:
     # the prompts must be identical, message for message.
     legacy: dict[str, Any] = {
         "llm": None,
-        "initial_question": FRENCH,
+        "initial_question": question,
         "evidence": "",
         "messages": messages_before,
         "connectors": state["connectors"],
-        "path_state": {"processing_question": FRENCH, "target_db": "db"},
+        "path_state": {"processing_question": question, "target_db": "db"},
     }
-    assert _run_generation(monkeypatch, legacy) == flag_off_prompt
-    assert not any("Write the prose answer" in str(c) for _k, c in flag_off_prompt)
+    assert _run_generation(monkeypatch, legacy) == actual_prompt
+    assert not any("Write the prose answer" in str(c) for _k, c in actual_prompt)
+
+
+def test_a_french_question_on_a_french_ontology_is_not_translated(
+    main: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The model reports the question as French and the ontology is French.
+    llm = FakeLLM(_reply("fr", FRENCH))
+    monkeypatch.setattr(main, "llm_client", llm)
+    payload = _payload()
+    payload["ontology_language"] = "fr"
+    state = main._build_state(payload)
+    assert len(llm.calls) == 1  # detection only; the heuristic covers English
+    assert get_question_for_processing(state) == FRENCH
+    assert not state["path_state"]["question_was_translated"]
+
+
+def test_an_english_question_on_a_french_ontology_is_translated_to_french(
+    main: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    llm = FakeLLM(_reply("en", FRENCH))
+    monkeypatch.setattr(main, "llm_client", llm)
+    payload = _payload("How many orders did we receive in March?")
+    payload["ontology_language"] = "fr"
+    state = main._build_state(payload)
+    assert get_question_for_processing(state) == FRENCH
+    assert state["path_state"]["ontology_language"] == "fr"
+    assert "into French (fr)" in llm.calls[0][0].content
+    text = "\n".join(str(c) for _k, c in _run_generation(monkeypatch, state))
+    assert "Write the prose answer (the response text) in English" in text
+
+
+@pytest.mark.parametrize("value", ["true", "1", "on"])
+def test_kill_switch_disables_translation(
+    main: ModuleType, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv(ql.DISABLED_ENV, value)
+    llm = FakeLLM(_reply())
+    monkeypatch.setattr(main, "llm_client", llm)
+    state = main._build_state(_payload())
+    assert get_question_for_processing(state) == FRENCH
+    assert state["path_state"] == {"processing_question": FRENCH, "target_db": "db"}
+    assert not llm.calls
 
 
 def test_no_instruction_or_fields_without_a_translation() -> None:
@@ -329,10 +365,17 @@ def test_answer_carries_language_and_english(
     main: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     answer = _stream(
-        main, monkeypatch, {"question_language": "fr", "question_english": ENGLISH}
+        main,
+        monkeypatch,
+        {
+            "question_language": "fr",
+            "question_translated": ENGLISH,
+            "ontology_language": "en",
+        },
     )
     assert answer["question_language"] == "fr"
-    assert answer["question_english"] == ENGLISH
+    assert answer["question_translated"] == ENGLISH
+    assert answer["ontology_language"] == "en"
 
 
 def test_answer_has_no_language_fields_when_translation_did_not_run(
@@ -340,4 +383,5 @@ def test_answer_has_no_language_fields_when_translation_did_not_run(
 ) -> None:
     answer = _stream(main, monkeypatch, {})
     assert "question_language" not in answer
-    assert "question_english" not in answer
+    assert "question_translated" not in answer
+    assert "ontology_language" not in answer
