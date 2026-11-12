@@ -212,6 +212,8 @@ with its reason (`Clarification decision: <reason>`), for example
 
 Call the Next.js gateway (`APP_URL`, port 3000 in Docker Compose). It resolves
 the user and forwards an internal `x-auto-ontology-user-id` header to FastAPI
-(port 3001). FastAPI trusts that header without verifying it, so keep port 3001
-on a private network. A direct FastAPI request without `conversation_id` stays
-stateless; one with `conversation_id` requires the trusted identity header.
+(port 3001). Unless `INTERNAL_API_TOKEN` is set (see
+[SECURITY.md](../SECURITY.md#internal-api-token)), FastAPI trusts that header without
+verifying it; either way, keep port 3001 on a private network. A direct FastAPI request
+without `conversation_id` stays stateless; one with `conversation_id` requires the
+trusted identity header.

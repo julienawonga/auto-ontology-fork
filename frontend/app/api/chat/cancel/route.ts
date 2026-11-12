@@ -13,7 +13,7 @@
 
 import { withPermission } from '@/auth/with-auth';
 import { findOwnedConversation } from '@/lib/chatConversations';
-import { buildInternalIdentityHeaders } from '@/lib/internalIdentity';
+import { buildInternalHeaders } from '@/lib/internalIdentity';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL ?? 'http://127.0.0.1:3001';
 
@@ -39,7 +39,7 @@ export const POST = withPermission({ conversation: ['write'] })(async (req, { us
 		`${PYTHON_API_URL}/api/chat/cancel?conversation_id=${encodeURIComponent(conversation.id)}`,
 		{
 			method: 'POST',
-			headers: buildInternalIdentityHeaders(user.id),
+			headers: buildInternalHeaders(user.id),
 		},
 	);
 

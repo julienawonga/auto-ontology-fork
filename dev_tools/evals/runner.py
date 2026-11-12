@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable, Iterator, Sequence
 
 import httpx
 
+from auto_ontology.server.internal_auth import INTERNAL_TOKEN_HEADER
 from dev_tools.evals.cases import Case
 from dev_tools.evals.compare import compare_any
 from dev_tools.evals.report import CaseResult, Report, Run, new_meta
@@ -194,16 +195,19 @@ def run_jobs(
     *,
     workers: int = 1,
     timeout: float = DEFAULT_TIMEOUT_S,
+    token: str | None = None,
     on_run: Callable[[Case, int, Run], None] | None = None,
 ) -> list[Run]:
     """Run every job, up to *workers* at a time; results are in job order.
 
     A job that dies of an unexpected (non-HTTP) exception -- a case without a
     snapshot, a bug in scoring -- is recorded as that case's error instead of
-    aborting the whole run.
+    aborting the whole run. *token* is the backend's internal token, sent as a
+    header on every request and never written to a report.
     """
     lock = threading.Lock()
-    with httpx.Client() as client:
+    headers = {INTERNAL_TOKEN_HEADER: token} if token else {}
+    with httpx.Client(headers=headers) as client:
 
         def one(job: Job) -> Run:
             try:
@@ -249,6 +253,7 @@ def run_cases(
     repeats: int = 3,
     target_db: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_S,
+    token: str | None = None,
     on_run: Callable[[Case, int, Run], None] | None = None,
     provenance: dict[str, Any] | None = None,
     workers: int = 1,
@@ -257,7 +262,10 @@ def run_cases(
 
     *provenance* (index state, cases hash, ...) is stored in the report meta.
     With *workers* above 1 the runs go out concurrently (capped at
-    ``MAX_WORKERS``); each case keeps its runs in repeat order.
+    ``MAX_WORKERS``); each case keeps its runs in repeat order. *token* is the
+    backend's ``INTERNAL_API_TOKEN``: this talks to the API directly, not
+    through the web app, so it must present it itself when the backend
+    requires one.
     """
     report = Report(
         meta=new_meta(
@@ -273,7 +281,9 @@ def run_cases(
         for case in cases
         for i in range(repeats)
     ]
-    runs = run_jobs(jobs, base_url, workers=workers, timeout=timeout, on_run=on_run)
+    runs = run_jobs(
+        jobs, base_url, workers=workers, timeout=timeout, token=token, on_run=on_run
+    )
     for case in cases:
         report.cases[case.id] = CaseResult(case.question)
     for job, run in zip(jobs, runs):

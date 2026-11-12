@@ -80,6 +80,11 @@ vaultKvMount: "auto-ontology"
 # auto-generate a stable random secret on first install and preserve it across
 # upgrades. Set explicitly to share one value across environments/replicas.
 authSecret: ""
+# Shared secret the web app presents to the API and the ingestion service, which
+# refuse any request without it (and only then trust the forwarded user identity).
+# Leave empty to auto-generate one on first install, preserved across upgrades;
+# set explicitly (at least 32 characters) to share one value across environments.
+internalApiToken: ""
 # Public origin of the app — REQUIRED by Better Auth (sessions, CSRF, OIDC
 # redirect URIs). It must match the URL you actually browse to, or auth
 # requests 404 / fail CSRF. The default works when reaching the frontend via

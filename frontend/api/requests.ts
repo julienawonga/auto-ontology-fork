@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
+import { buildInternalHeaders } from '@/lib/internalIdentity';
 import { ApiError, PageParams, ResponseWithError } from './types';
 
 // Query params accepted by `requests.get`. Numbers/booleans are serialised by
@@ -27,6 +28,17 @@ const api = axios.create({
 		'Content-Type': 'application/json',
 	},
 });
+
+// Server-side calls reach the Python API directly, so they present the internal
+// token themselves. Skipped in the browser: the token must never leave the server.
+if (isServer) {
+	api.interceptors.request.use((config) => {
+		Object.entries(buildInternalHeaders()).forEach(([name, value]) =>
+			config.headers.set(name, value),
+		);
+		return config;
+	});
+}
 
 const responseBody = <DataType>({ data }: AxiosResponse<DataType>): DataType => data;
 

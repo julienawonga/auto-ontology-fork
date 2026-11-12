@@ -58,6 +58,7 @@ To build or push the images by hand, see `make help`
    postgresPassword: <POSTGRES-PASSWORD>
    adminEmail: <ADMIN-EMAIL>
    adminPassword: <ADMIN-PASSWORD>
+   internalApiToken: <INTERNAL-API-TOKEN>    # optional; generated and kept across upgrades when empty
    connectionStrings: <CONNECTION-STRINGS>   # optional; or add connections in the UI
    ```
 
@@ -84,6 +85,14 @@ To build or push the images by hand, see `make help`
    them. If users will reach the app somewhere other than
    `http://localhost:3000` (the port-forward below), also set `appUrl` to that
    exact origin.
+
+   `internalApiToken` is the shared secret the web app presents to the API and
+   the ingestion service, which refuse requests without it. The chart generates
+   one on first install and preserves it across `helm upgrade`; set it
+   explicitly if you render with `helm template` or a GitOps tool without
+   cluster access, or the value changes on every render. See
+   [SECURITY.md](SECURITY.md#internal-api-token). The pods restart together on
+   upgrade, so expect a few failed requests while the old and new pods overlap.
 
 4. Expose the UI:
 

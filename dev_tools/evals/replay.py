@@ -77,6 +77,7 @@ def replay_report(
     target_db: str | None = None,
     workers: int = 1,
     timeout: float | None = None,
+    token: str | None = None,
     on_run: Callable[[Case, int, Run], None] | None = None,
 ) -> tuple[Report, int]:
     """Replay the selected runs; returns the new report and how many were re-run."""
@@ -91,7 +92,7 @@ def replay_report(
         Job(by_id[cid], i, effective_target_db(by_id[cid], target_db))
         for cid, i in selected
     ]
-    kwargs: dict[str, Any] = {"workers": workers, "on_run": on_run}
+    kwargs: dict[str, Any] = {"workers": workers, "token": token, "on_run": on_run}
     if timeout is not None:
         kwargs["timeout"] = timeout
     fresh = run_jobs(jobs, base_url, **kwargs)

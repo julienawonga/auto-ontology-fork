@@ -12,7 +12,7 @@
 
 import { withPermission } from '@/auth/with-auth';
 import { findOwnedConversation } from '@/lib/chatConversations';
-import { buildInternalIdentityHeaders } from '@/lib/internalIdentity';
+import { buildInternalHeaders } from '@/lib/internalIdentity';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL ?? 'http://127.0.0.1:3001';
 
@@ -41,7 +41,7 @@ export const GET = withPermission({ conversation: ['read'] })(async (req, { user
 		{
 			headers: {
 				Accept: 'text/event-stream',
-				...buildInternalIdentityHeaders(user.id),
+				...buildInternalHeaders(user.id),
 			},
 		},
 	);
