@@ -79,6 +79,7 @@ import logging
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Generator
 from uuid import UUID
@@ -177,6 +178,18 @@ _BUFFER_POLL_S = 0.25
 # wait budget: retry soon (a slot usually frees up in seconds), and the
 # request itself will wait again up to CHAT_WAIT_S before giving up.
 _RETRY_AFTER_S = "5"
+
+# Requests waiting for a chat worker slot block a thread for up to CHAT_WAIT_S.
+# They wait on this dedicated pool, never on asyncio's default executor: that
+# one has only min(32, cpus + 4) threads and is shared with every other
+# ``asyncio.to_thread`` call here, including the steps the conversations
+# *holding* a slot still have to run (``prepare_conversation``, clarification
+# checks). Parked waiters filling it would stall the holders, so no slot would
+# ever be released and every waiter would time out together. Waiters beyond
+# this pool's size queue inside it; their wait budget starts when they run.
+_SLOT_WAIT_EXECUTOR = ThreadPoolExecutor(
+    max_workers=64, thread_name_prefix="chat-slot-wait"
+)
 
 # Headers every SSE response here carries. Shared so the two endpoints cannot
 # drift apart — ``/chat/watch`` is a GET, so it is the one a shared cache would
@@ -649,7 +662,9 @@ async def chat_completions(
 
     pool = get_pool()
     try:
-        worker = await asyncio.to_thread(pool.acquire)
+        worker = await asyncio.get_running_loop().run_in_executor(
+            _SLOT_WAIT_EXECUTOR, pool.acquire
+        )
     except ChatBusyTimeout as exc:
         raise HTTPException(
             status_code=503,

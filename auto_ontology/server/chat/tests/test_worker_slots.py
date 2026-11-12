@@ -528,3 +528,54 @@ def test_a_client_that_vanished_while_waiting_gets_no_run(
     assert returned and isinstance(returned[0], _FakeWorker)
     assert not returned[0].submitted
     assert harness.pool.slots_in_use() == 0
+
+
+def test_waiters_do_not_starve_the_default_executor(monkeypatch: MonkeyPatch) -> None:
+    """Requests parked for a slot must not occupy asyncio's default executor.
+
+    That executor is shared with the steps the slot *holders* still run
+    (``prepare_conversation`` and friends). If waiters filled it, no holder could
+    finish, no slot would be released, and every waiter would time out together.
+    """
+    release = threading.Event()
+
+    def blocked_acquire() -> Any:
+        release.wait(10)
+        raise ChatBusyTimeout("busy")
+
+    pool = type("_P", (), {"acquire": staticmethod(blocked_acquire)})()
+    monkeypatch.setattr(router, "get_pool", lambda: pool)
+    monkeypatch.setattr(router, "semantic_layer_calculated", lambda: True)
+    monkeypatch.setattr(router, "_subject_token", lambda _r: None)
+    monkeypatch.setattr(router, "_resolve_chat_target_db", lambda target_db: None)
+    monkeypatch.setattr(
+        router, "resolve_internal_user", lambda _r, required=False: "user"
+    )
+
+    class _Http:
+        headers: dict[str, str] = {}
+
+        async def is_disconnected(self) -> bool:
+            return False
+
+    async def run() -> float:
+        from concurrent.futures import ThreadPoolExecutor
+
+        loop = asyncio.get_running_loop()
+        loop.set_default_executor(ThreadPoolExecutor(max_workers=2))
+        waiters = [
+            asyncio.create_task(
+                router.chat_completions(ChatRequest(question="q"), _Http())  # type: ignore[arg-type]
+            )
+            for _ in range(6)  # three times the default executor's size
+        ]
+        await asyncio.sleep(0.3)  # let every waiter park on its slot wait
+        started = time.monotonic()
+        # What a slot holder does next: it must not queue behind the waiters.
+        await asyncio.wait_for(asyncio.to_thread(lambda: None), timeout=2)
+        elapsed = time.monotonic() - started
+        release.set()
+        await asyncio.gather(*waiters, return_exceptions=True)
+        return elapsed
+
+    assert asyncio.run(run()) < 1.0
