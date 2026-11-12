@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Literal
 from auto_ontology.catalog.constants import Labels
 
 from auto_ontology.semantic.constants import LABEL_COLUMN_VALUE, LABEL_SQL_ATTRIBUTE
+from auto_ontology.utils.http_limits import backoff_exhausted
 
 if TYPE_CHECKING:
     from auto_ontology.utils.retriever import Retriever
@@ -78,6 +79,10 @@ def _is_retryable(exc: Exception) -> bool:
     """Whether *exc* is an endpoint blip rather than a problem with the query."""
     from openai import APIConnectionError, APIStatusError
 
+    # The HTTP transport already backed off on this 429/503 until its budget ran
+    # out; retrying here would start another budget.
+    if backoff_exhausted(exc):
+        return False
     # APIConnectionError covers timeouts too, whose message ("Request timed
     # out.") none of the tokens below would match.
     if isinstance(exc, APIConnectionError):

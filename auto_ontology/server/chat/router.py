@@ -37,16 +37,25 @@ per request instead and so never contend with anything.
   a second submit into the same conversation still gets 409 until the run
   completes. Use ``/chat/watch`` to reattach instead.
 
-Disconnecting never cuts the answer short
-------------------------------------------
-A disconnected client (navigate-away, switch to another conversation, closed
-tab) only clears ``client_alive`` — it does **not** cancel the run. ``_pump``
-keeps draining the worker and persisting the result independently of any HTTP
-connection, so the agent always finishes and the full answer always lands in
-the conversation, whether or not anyone is still watching. The only things
-that actually kill an in-flight worker are an explicit ``POST /chat/cancel``
-(Stop button) or a genuinely new question preempting an orphaned slot above.
-Reattach with ``/chat/watch`` to see a run that kept going after you left.
+Disconnects, orphans and the run time limit
+--------------------------------------------
+A disconnected **conversation** run (navigate-away, switch conversation, closed
+tab) keeps going for a bounded grace period (``CHAT_ORPHAN_GRACE_S``, default
+60 s): ``_pump`` keeps draining the worker and persisting the result, so a
+quick reload still finds the full answer, and ``/chat/watch`` reattaches to it
+(a reattached watcher cancels the countdown). Once the grace period passes with
+nobody watching, the run is cancelled: worker killed, permit released.
+
+A **stateless** run (no ``conversation_id``) cannot be reattached to, so it is
+cancelled the moment its client disconnects. Before this, such runs (and the
+requests still queued for a slot) kept burning LLM calls for minutes after an
+eval client was killed: the old design never cancelled on disconnect.
+
+Every run is also bounded by ``CHAT_MAX_RUN_S`` (default 300 s): over it, the
+run is cancelled, the client gets an ``error`` event, and the conversation
+records a failed turn. Every cancellation is logged with its reason. Other
+things that kill an in-flight worker: ``POST /chat/cancel`` (Stop button) and
+a genuinely new question preempting an orphaned slot above.
 
 The chart/table bubble is guaranteed too
 -----------------------------------------
@@ -100,7 +109,12 @@ from auto_ontology.server.chat.helpers import (
     ChatRequest,
     build_result_message,
 )
-from auto_ontology.server.chat.limits import ChatBusyTimeout
+from auto_ontology.server.chat.limits import (
+    ChatAbandoned,
+    ChatBusyTimeout,
+    max_run_s,
+    orphan_grace_s,
+)
 from auto_ontology.server.chat.clarification import (
     ClarificationStateError,
     answer_text,
@@ -281,6 +295,17 @@ class _Slot:
     # never got a query past validation has no ``sql`` event and so persists
     # none. See ``_pump``.
     last_sql: str | None = None
+    # --- supervision (see ``_supervise_step``) ---
+    # When the run started, for the CHAT_MAX_RUN_S limit.
+    started: float = field(default_factory=time.monotonic)
+    # Number of ``/chat/watch`` readers currently attached (guarded by
+    # ``buffer_lock``); a watcher keeps an otherwise-orphaned run alive.
+    watchers: int = 0
+    # Since when nobody has been attached (None while someone is).
+    orphaned_since: float | None = None
+    # Why the supervisor cancelled the run; ``_pump`` turns it into an error
+    # event and a persisted failed turn.
+    cancel_message: str | None = None
 
 
 # Keyed by authenticated user + conversation_id (or a per-request unique key
@@ -339,36 +364,126 @@ def _release(slot: _Slot) -> None:
         pool.return_alive(slot.worker)
 
 
-async def _watch_disconnect(http_request: Request, slot: _Slot) -> None:
-    """Mark the slot orphaned the moment the ASGI client disconnects.
+def _supervise_step(slot: _Slot, now: float) -> tuple[str, str] | None:
+    """Decide whether the run must be cancelled now: ``(reason, message)``.
 
-    Without this, the sync streaming generator only learns the client is
-    gone when its next write to the socket fails — and the kernel happily
-    buffers small heartbeat writes, so that signal can lag by tens of
-    seconds, holding the slot and forcing follow-up requests into 409.
-
-    Crucially, this only clears ``client_alive`` — it never cancels the
-    run or releases the slot itself. A disconnected client (navigated
-    away, switched to another conversation, closed the tab) must not cut
-    the agent off mid-answer: ``_pump`` keeps draining the worker and
-    persisting the result regardless of whether anyone is watching, so the
-    run always finishes and the full answer always lands in the
-    conversation. Clearing ``client_alive`` only makes the slot eligible
-    for preemption — i.e. a genuinely new question posted into the same
-    conversation (see ``_try_claim_slot``) is what actually cancels an
-    orphaned run, not the mere act of disconnecting.
+    Pure bookkeeping on the slot, so it is testable with a fake clock.
     """
 
-    while slot.client_alive.is_set():
-        try:
-            disconnected = await http_request.is_disconnected()
-        except Exception:  # noqa: BLE001 — defensive; never want to leak
-            logger.exception("Disconnect watchdog failed")
-            return
-        if disconnected:
-            slot.client_alive.clear()
+    if slot.released.is_set() or slot.finished.is_set():
+        return None
+
+    limit = max_run_s()
+    if now - slot.started > limit:
+        return (
+            "max_run_time",
+            f"This question exceeded the CHAT_MAX_RUN_S limit ({limit:g} s) and was "
+            "cancelled. Try a narrower question, or ask an operator to raise "
+            "CHAT_MAX_RUN_S.",
+        )
+
+    with slot.buffer_lock:
+        watched = slot.watchers > 0
+    if slot.client_alive.is_set() or watched:
+        slot.orphaned_since = None
+        return None
+    if slot.orphaned_since is None:
+        slot.orphaned_since = now
+    # A stateless run has no conversation to reattach to: nothing to wait for.
+    grace = 0.0 if slot.conversation_id is None else orphan_grace_s()
+    if now - slot.orphaned_since >= grace:
+        if slot.conversation_id is None:
+            return (
+                "client_disconnected",
+                "The client disconnected and a stateless run cannot be reattached.",
+            )
+        return (
+            "orphaned",
+            f"No client was watching for {grace:g} s (CHAT_ORPHAN_GRACE_S), so the "
+            "run was cancelled.",
+        )
+    return None
+
+
+def _cancel_run(slot: _Slot, reason: str, message: str) -> None:
+    """Cancel a run on the supervisor's authority (kills the worker; blocking)."""
+
+    if slot.released.is_set():
+        return
+    logger.warning(
+        "Cancelling chat run %s (conversation=%s) after %.1fs: %s",
+        slot.key,
+        slot.conversation_id,
+        time.monotonic() - slot.started,
+        reason,
+    )
+    slot.cancel_message = message
+    slot.cancelled.set()
+    _release(slot)
+
+
+async def _watch_disconnect(http_request: Request, slot: _Slot) -> None:
+    """Supervise one run: detect disconnect, apply grace, enforce the time limit.
+
+    Polls the ASGI disconnect signal (a relying-on-write-failure detection is
+    too slow: the kernel buffers small writes) and clears ``client_alive``
+    within one poll interval, then every tick asks ``_supervise_step`` whether
+    the run must be cancelled: stateless runs the instant the client is gone,
+    conversation runs once ``CHAT_ORPHAN_GRACE_S`` passes with no client and
+    no ``/chat/watch`` reader, any run once it exceeds ``CHAT_MAX_RUN_S``.
+    """
+
+    while not slot.released.is_set() and not slot.finished.is_set():
+        if slot.client_alive.is_set():
+            try:
+                if await http_request.is_disconnected():
+                    slot.client_alive.clear()
+                    logger.info("Chat client disconnected (run %s)", slot.key)
+            except Exception:  # noqa: BLE001 - defensive; never want to leak
+                logger.exception("Disconnect watchdog failed")
+                return
+        decision = _supervise_step(slot, time.monotonic())
+        if decision is not None:
+            # Killing the worker joins the subprocess: keep it off the loop.
+            await asyncio.to_thread(_cancel_run, slot, *decision)
             return
         await asyncio.sleep(_DISCONNECT_POLL_S)
+
+
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _spawn_task(coro: Any) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def _hold_watch(http_request: Request, slot: _Slot) -> None:
+    """Count a ``/chat/watch`` reader as attached until it goes away."""
+
+    with slot.buffer_lock:
+        slot.watchers += 1
+    try:
+        while not slot.finished.is_set():
+            if await http_request.is_disconnected():
+                return
+            await asyncio.sleep(_BUFFER_POLL_S)
+    finally:
+        with slot.buffer_lock:
+            slot.watchers -= 1
+
+
+async def _abandon_on_disconnect(
+    http_request: Request, abandon: threading.Event
+) -> None:
+    """Flag *abandon* if the client leaves while still queued for a slot."""
+
+    while not abandon.is_set():
+        if await http_request.is_disconnected():
+            abandon.set()
+            return
+        await asyncio.sleep(0.5)
 
 
 def _build_charts_event(slot: _Slot, answer: dict[str, Any]) -> dict[str, Any] | None:
@@ -531,6 +646,19 @@ def _pump(slot: _Slot) -> None:
                 if charts_event is not None:
                     with slot.buffer_lock:
                         slot.buffer.append(charts_event)
+        if slot.cancel_message is not None:
+            # The supervisor killed the run (time limit / orphaned): the worker
+            # stream just ended, so say why and record a failed turn rather
+            # than leaving the conversation hanging without an answer.
+            with slot.buffer_lock:
+                answered = any(
+                    e.get("type") in ("result", "clarification") for e in slot.buffer
+                )
+            if not answered:
+                cancel_event = {"type": "error", "message": slot.cancel_message}
+                persist_event(cancel_event)
+                with slot.buffer_lock:
+                    slot.buffer.append(cancel_event)
     except RuntimeError as exc:
         logger.exception("Agent stream failed")
         error_event = {"type": "error", "message": f"Agent stream failed: {exc}"}
@@ -631,6 +759,12 @@ async def chat_completions(
     process; beyond that, requests wait up to ``CHAT_WAIT_S`` for a free
     worker slot and are then refused with 503 and a ``Retry-After`` header —
     before any stream starts, so the client sees an error instead of a hang.
+
+    A run is cancelled when its client goes away: immediately for a stateless
+    call (nothing to reattach to), after ``CHAT_ORPHAN_GRACE_S`` (default 60)
+    with no ``/chat/watch`` reader for a conversation. Any run exceeding
+    ``CHAT_MAX_RUN_S`` (default 300) is cancelled and ends with an ``error``
+    event.
     """
     logger.info("Chat completions request: %s", request.model_dump())
 
@@ -662,8 +796,20 @@ async def chat_completions(
 
     pool = get_pool()
     try:
-        worker = await asyncio.get_running_loop().run_in_executor(
-            _SLOT_WAIT_EXECUTOR, pool.acquire
+        abandon = threading.Event()
+        _spawn_task(_abandon_on_disconnect(http_request, abandon))
+        try:
+            worker = await asyncio.get_running_loop().run_in_executor(
+                _SLOT_WAIT_EXECUTOR, pool.acquire, abandon
+            )
+        finally:
+            abandon.set()  # stops the poller
+    except ChatAbandoned:
+        logger.info("Chat client left while queued for a slot; request dropped")
+        return StreamingResponse(
+            iter(["data: [DONE]\n\n"]),
+            media_type="text/event-stream",
+            headers=_SSE_HEADERS,
         )
     except ChatBusyTimeout as exc:
         raise HTTPException(
@@ -805,7 +951,7 @@ async def chat_completions(
         _release(slot)
         raise
 
-    asyncio.create_task(_watch_disconnect(http_request, slot))
+    _spawn_task(_watch_disconnect(http_request, slot))
 
     return StreamingResponse(
         _stream_slot(slot),
@@ -848,6 +994,7 @@ async def chat_watch(conversation_id: UUID, request: Request) -> StreamingRespon
             headers=_SSE_HEADERS,
         )
 
+    _spawn_task(_hold_watch(request, slot))
     return StreamingResponse(
         _stream_slot(slot),
         media_type="text/event-stream",

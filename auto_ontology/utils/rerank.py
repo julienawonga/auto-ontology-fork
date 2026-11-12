@@ -23,8 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
+from auto_ontology.utils.http_limits import shared_http_client
 from auto_ontology.utils.model_config import ModelConfigError, env_names, resolve
 
 # Remote reranking endpoint — hosted or a self-hosted vLLM/TEI ranking server.
@@ -80,7 +79,9 @@ def _scores(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    response = httpx.post(url, json=payload, headers=headers, timeout=_TIMEOUT_S)
+    response = shared_http_client().post(
+        url, json=payload, headers=headers, timeout=_TIMEOUT_S
+    )
     response.raise_for_status()
     data = response.json()
 

@@ -196,6 +196,83 @@ def test_rescore_rejects_a_case_missing_from_the_cases_file() -> None:
         rescore(_report(Run(True, "match", actual=[["x"]])), [])
 
 
+def _busy_then_ok(retry_after: str | None, busy: int) -> httpx.MockTransport:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] <= busy:
+            headers = {"Retry-After": retry_after} if retry_after else {}
+            return httpx.Response(503, text="busy", headers=headers)
+        return httpx.Response(
+            200, text="\n".join(_frames({"type": "result", "answer": {}}))
+        )
+
+    return httpx.MockTransport(handler)
+
+
+def test_ask_retries_a_503_and_honours_retry_after() -> None:
+    slept: list[float] = []
+    with httpx.Client(transport=_busy_then_ok("7", 2)) as client:
+        answer = ask(client, "http://backend:3001", "q", sleep=slept.append)
+
+    assert slept == [7.0, 7.0]
+    assert answer.busy_waits == [7.0, 7.0]
+    assert answer.error is None
+
+
+def test_ask_gives_up_after_the_retry_budget() -> None:
+    slept: list[float] = []
+    with httpx.Client(transport=_busy_then_ok(None, 99)) as client:
+        answer = ask(
+            client, "http://backend:3001", "q", max_busy_retries=3, sleep=slept.append
+        )
+
+    assert slept == [5.0, 5.0, 5.0]  # no header -> the default delay
+    assert answer.error is not None and answer.error.startswith("HTTP 503")
+
+
+def test_ask_stops_retrying_once_the_total_wait_budget_is_spent() -> None:
+    slept: list[float] = []
+    with httpx.Client(transport=_busy_then_ok("40", 99)) as client:
+        answer = ask(
+            client, "http://backend:3001", "q", max_busy_wait_s=100, sleep=slept.append
+        )
+
+    assert slept == [40.0, 40.0]
+    assert answer.error is not None and answer.error.startswith("HTTP 503")
+
+
+def test_run_cases_records_the_waits_in_the_report_meta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dev_tools.evals import runner
+
+    def fake_ask(*args: object, **kwargs: object) -> Answer:
+        return Answer(rows=[[1]], busy_waits=[5.0, 5.0])
+
+    monkeypatch.setattr(runner, "ask", fake_ask)
+    report = runner.run_cases([_case()], "http://backend:3001", label="x", repeats=2)
+
+    assert report.meta["busy_retries"] == 4
+    assert report.meta["busy_wait_s"] == 20.0
+
+
+def test_warn_if_over_cap(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from dev_tools.evals import __main__ as cli
+
+    monkeypatch.setattr(cli, "backend_chat_cap", lambda url, token=None: 4)
+    cli.warn_if_over_cap("http://x", 6)
+    assert "exceeds the backend's chat cap of 4" in capsys.readouterr().err
+    cli.warn_if_over_cap("http://x", 4)
+    assert capsys.readouterr().err == ""
+    monkeypatch.setattr(cli, "backend_chat_cap", lambda url, token=None: None)
+    cli.warn_if_over_cap("http://x", 6)
+    assert capsys.readouterr().err == ""
+
+
 # --- the internal token (a backend gated by INTERNAL_API_TOKEN) ---------------
 
 

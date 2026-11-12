@@ -13,6 +13,7 @@ back to the first Term without anyone noticing.
 from __future__ import annotations
 
 import json
+import types
 from typing import Any, Callable
 
 import httpx
@@ -47,7 +48,11 @@ def server(
             assert kwargs["timeout"] == rerank._TIMEOUT_S
             return httpx.Response(status, json=body, request=request)
 
-        monkeypatch.setattr(rerank.httpx, "post", _post)
+        monkeypatch.setattr(
+            rerank,
+            "shared_http_client",
+            lambda: types.SimpleNamespace(post=_post),
+        )
         return seen
 
     return _install

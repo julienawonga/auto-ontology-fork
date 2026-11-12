@@ -71,7 +71,7 @@ class _Harness:
         self.released: list[str] = []
 
         pool = SimpleNamespace(
-            acquire=lambda: self.worker,
+            acquire=lambda cancel=None: self.worker,
             return_alive=lambda w: self.released.append("alive"),
             replace=lambda w: self.released.append("replaced"),
         )
