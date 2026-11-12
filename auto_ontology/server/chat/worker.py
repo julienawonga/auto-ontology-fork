@@ -72,6 +72,23 @@ _QUEUE_POLL_S = 0.25
 _TERMINATE_GRACE_S = 1.0
 
 
+def _ontology_language_of(target_db: str | None, connectors: list) -> str:
+    """The ontology language of the database a question targets ("en" if unknown).
+
+    Never raises: a lookup failure must not cost the user an answer.
+    """
+    try:
+        from auto_ontology.dal.connections import get_ontology_language
+
+        name = target_db
+        if not name and len(connectors) == 1:
+            name = getattr(connectors[0], "database_name", None)
+        return get_ontology_language(name) if name else "en"
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not read the ontology language", exc_info=True)
+        return "en"
+
+
 def _worker_loop(
     in_q: "mp.Queue[tuple[str, Any]]",
     out_q: "mp.Queue[tuple[str, Any]]",
@@ -96,6 +113,11 @@ def _worker_loop(
             stream_agent_response,
         )
         from auto_ontology.retrieval.text_to_sql.follow_up import resolve_follow_up
+        from auto_ontology.retrieval.text_to_sql.question_language import (
+            language_name,
+            translation_disabled,
+            resolve_question_language,
+        )
         from auto_ontology.retrieval.text_to_sql.clarification import (
             detect_clarification as detect_clarification_fn,
         )
@@ -203,6 +225,22 @@ def _worker_loop(
                 is_follow_up,
                 processing_question,
             )
+            # Resolve the question's language against the target database's
+            # ontology language once: clarification searches with the translated
+            # text and asks in the user's language, and the graph reuses the result.
+            question_language = None
+            clarification_extra: dict = {}
+            ontology_language = "en"
+            if not translation_disabled():
+                ontology_language = _ontology_language_of(target_db, ask_connectors)
+                question_language = resolve_question_language(
+                    processing_question, follow_up_llm, ontology_language
+                )
+                if question_language is not None and question_language.translated:
+                    clarification_extra = {
+                        "retrieval_question": question_language.text,
+                        "answer_language": language_name(question_language.language),
+                    }
             if detect_clarification:
                 decision = detect_clarification_fn(
                     question=processing_question,
@@ -211,6 +249,7 @@ def _worker_loop(
                     semantic_retriever=semantic_retriever,
                     target_db=target_db,
                     history=conversation_history,
+                    **clarification_extra,
                 )
                 if decision.clarification is not None:
                     # The turn ends with the question; ``finally`` sends DONE,
@@ -232,6 +271,9 @@ def _worker_loop(
             }
             if target_db:
                 agent_payload["target_db"] = target_db
+            agent_payload["ontology_language"] = ontology_language
+            if question_language is not None:
+                agent_payload["question_language"] = question_language
             for event in stream_agent_response(agent_payload):
                 out_q.put((_TAG_EVENT, event))
         except BaseException as exc:  # noqa: BLE001 — surface to parent

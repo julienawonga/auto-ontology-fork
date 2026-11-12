@@ -11,9 +11,13 @@ import os
 from typing import Any, TypedDict
 
 from fastapi import APIRouter, HTTPException, Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from auto_ontology.dal.connections import list_connections as _list_connections
+from auto_ontology.dal.connections import (
+    get_ontology_language,
+    list_connections as _list_connections,
+    list_ontology_languages,
+)
 from auto_ontology.server.connections import service
 from auto_ontology.server.responses import (
     ConnectionListResponse,
@@ -29,6 +33,15 @@ router = APIRouter()
 
 class ConnectionBody(BaseModel):
     connection: dict[str, Any]
+    ontology_language: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z]{2}$",
+        description=(
+            "ISO 639-1 code of the language the database's ontology is built "
+            'in. Defaults to "en" on create and keeps the stored value on '
+            "update."
+        ),
+    )
 
 
 class ConnectionTestBody(ConnectionBody):
@@ -38,9 +51,12 @@ class ConnectionTestBody(ConnectionBody):
 class PublicConnection(TypedDict):
     database_name: str
     connection: dict[str, Any]
+    ontology_language: str
 
 
-def _serialize_connection(connection: dict[str, Any]) -> PublicConnection:
+def _serialize_connection(
+    connection: dict[str, Any], ontology_language: str = "en"
+) -> PublicConnection:
     """Shape a connection object into a credential-free public payload."""
     public_connection = {
         key: value
@@ -50,7 +66,14 @@ def _serialize_connection(connection: dict[str, Any]) -> PublicConnection:
     return {
         "database_name": str(connection.get("database") or ""),
         "connection": public_connection,
+        "ontology_language": ontology_language,
     }
+
+
+def _serialize_with_language(connection: dict[str, Any]) -> PublicConnection:
+    """Like ``_serialize_connection``, with the language read back from the catalog."""
+    name = str(connection.get("database") or "")
+    return _serialize_connection(connection, get_ontology_language(name))
 
 
 @router.get("/connections/source", response_model=bool)
@@ -72,7 +95,12 @@ def list_connections() -> dict:
     in the UI. ``database_name`` doubles as the connection's identity in the
     other routes here.
     """
-    rows = [_serialize_connection(conn) for conn in _list_connections()]
+    languages = list_ontology_languages()
+    rows = []
+    for conn in _list_connections():
+        row = _serialize_connection(conn)
+        row["ontology_language"] = languages.get(row["database_name"], "en")
+        rows.append(row)
     return {"data": rows, "count": len(rows)}
 
 
@@ -109,7 +137,9 @@ def create_connection(body: ConnectionBody) -> dict:
     available for the picker.
     """
     try:
-        row = service.create_connection(connection=body.connection)
+        row = service.create_connection(
+            connection=body.connection, ontology_language=body.ontology_language
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
@@ -118,7 +148,7 @@ def create_connection(body: ConnectionBody) -> dict:
             detail=f"Failed to create connection: {exc}",
         ) from exc
 
-    return {"data": _serialize_connection(row)}
+    return {"data": _serialize_with_language(row)}
 
 
 @router.put("/connections/{database_name}", response_model=ConnectionResponse)
@@ -141,7 +171,9 @@ def update_connection(
     """
     try:
         row = service.update_connection(
-            database_name=database_name, connection=body.connection
+            database_name=database_name,
+            connection=body.connection,
+            ontology_language=body.ontology_language,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -153,7 +185,7 @@ def update_connection(
             detail=f"Failed to update connection: {exc}",
         ) from exc
 
-    return {"data": _serialize_connection(row)}
+    return {"data": _serialize_with_language(row)}
 
 
 class SsoFederationBody(BaseModel):

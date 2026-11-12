@@ -135,6 +135,47 @@ connection instead of failing when many arrive at once. The limits are
 `SOURCE_CONNECTION_WAIT_S`; see [source-connections.md](./source-connections.md) for
 defaults and how to size them against a source's `max_connections`.
 
+## Question language
+
+A database's ontology (Terms, definitions, SqlAttributes, labels) is built in one
+language, its `ontology_language` (ISO 639-1, default `en`). The embedding model is
+usually English-centred, so a question in another language retrieves the ontology
+worse than the same question in the ontology's language. Users can ask in any
+language; the ontology language is a property of the database, not of the question.
+
+**Setting it.** Pass `ontology_language` next to `connection` in
+`POST /connections` (default `en`) or `PUT /connections/{database_name}` (omitted
+keeps the stored value). It is stored on `catalog_database.ontology_language`
+(Alembic revision `a7c2e91d4b68`; existing databases read as `en`) and returned in
+every connection payload. Changing it later only declares which language the
+existing ontology is in; it does not rebuild it. The build UI has no language
+selector yet: until it does, set the field through the API.
+
+**At question time**, per question:
+
+- The question's language is compared with the target database's
+  `ontology_language`. If they match, nothing happens and no model is called.
+- If not, one short LLM call returns `{"language": ..., "translation": ...}`, the
+  translation being in the ontology language. Quoted strings, proper nouns,
+  numbers, dates and anything that looks like a stored value are kept as written.
+  For an English ontology a deterministic check (plain ASCII, no foreign
+  stopwords) skips the call for obviously English questions; for other ontology
+  languages the model decides.
+- The translated text is used for all retrieval: semantic search of Terms,
+  ColumnAttributes, SqlAttributes and term definitions, and entity extraction.
+- SQL generation sees both the user's own wording and the translation, labelled as
+  such. Value linking keeps working on the user's wording; values are not translated.
+- The prose answer, and a clarification question if one is asked, are written in
+  the user's language. SQL, table and column names are unchanged.
+- The final answer carries `question_language`, `question_translated` (the text in
+  the ontology language) and `ontology_language` when the check ran; the eval
+  harness stores them per run, and one INFO log line is written per translation.
+- Any failure in detection or translation logs a warning and the original question
+  is used as is.
+
+Operators can switch the feature off for the whole deployment with
+`QUESTION_TRANSLATION_DISABLED=true` (default not set).
+
 ## Chat concurrency
 
 Every conversation runs in its own agent subprocess — a full Python process that imports

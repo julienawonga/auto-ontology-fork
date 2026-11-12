@@ -18,6 +18,10 @@ from auto_ontology.retrieval.text_to_sql.agents.information_tools import (
     run_information_tool,
 )
 from auto_ontology.retrieval.text_to_sql.base import BaseAgent
+from auto_ontology.retrieval.text_to_sql.question_language import (
+    is_translated,
+    language_name,
+)
 from auto_ontology.retrieval.text_to_sql.state import (
     AgentState,
     get_question_for_processing,
@@ -133,7 +137,7 @@ def _initial_context(state: AgentState) -> dict[str, Any]:
             if (view := _candidate_view(item))
         ]
 
-    return {
+    context = {
         "question": get_question_for_processing(state),
         "entities": path_state.get("entities") or [],
         "subject": path_state.get("subject"),
@@ -144,6 +148,14 @@ def _initial_context(state: AgentState) -> dict[str, Any]:
         "custom_analysis_candidates": candidates("retrieved_custom_analyses"),
         "subject_candidate": _candidate_view(path_state.get("retrieved_subject_term")),
     }
+    # Only when question translation ran: ``question`` above is then the English
+    # translation, and the answer goes back in the user's language.
+    if is_translated(path_state):
+        context["user_wording"] = state.get("initial_question", "")
+        context["write_the_answer_in"] = language_name(
+            str(path_state.get("question_language") or "")
+        )
+    return context
 
 
 def _render_prompt(

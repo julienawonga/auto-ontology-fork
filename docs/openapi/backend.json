@@ -956,6 +956,19 @@
             "additionalProperties": true,
             "title": "Connection",
             "type": "object"
+          },
+          "ontology_language": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 639-1 code of the language the database's ontology is built in. Defaults to \"en\" on create and keeps the stored value on update.",
+            "title": "Ontology Language"
           }
         },
         "required": [
@@ -970,6 +983,19 @@
             "additionalProperties": true,
             "title": "Connection",
             "type": "object"
+          },
+          "ontology_language": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 639-1 code of the language the database's ontology is built in. Defaults to \"en\" on create and keeps the stored value on update.",
+            "title": "Ontology Language"
           },
           "replacing": {
             "anyOf": [
@@ -3413,6 +3439,11 @@
           },
           "database_name": {
             "title": "Database Name",
+            "type": "string"
+          },
+          "ontology_language": {
+            "default": "en",
+            "title": "Ontology Language",
             "type": "string"
           }
         },

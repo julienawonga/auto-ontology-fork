@@ -25,8 +25,10 @@
   },
   "connections": {
     "clear_connection": "(*, database_name: 'str') -> 'None'",
-    "insert_connection": "(*, connection: 'str', database_name: 'str') -> 'dict[str, Any]'",
+    "get_ontology_language": "(database_name: 'str') -> 'str'",
+    "insert_connection": "(*, connection: 'str', database_name: 'str', ontology_language: 'str | None' = None) -> 'dict[str, Any]'",
     "list_connections": "() -> 'list[dict[str, Any]]'",
+    "list_ontology_languages": "() -> 'dict[str, str]'",
     "verify_connectivity": "() -> 'None'"
   },
   "custom_analyses": {

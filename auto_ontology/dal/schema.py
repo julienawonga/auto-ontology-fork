@@ -194,6 +194,12 @@ catalog_database = Table(
     _certified("description_certified"),
     _imported_id(),
     _owner_id(),
+    # The language the database's ontology (Terms, definitions, SqlAttributes,
+    # labels) is built in, ISO 639-1. Chosen when the database is registered.
+    # Questions in another language are translated into it before retrieval
+    # (retrieval/text_to_sql/question_language.py). The server default makes
+    # every row that existed before this column read as English.
+    Column("ontology_language", Text, nullable=False, server_default="en"),
     Column("created", DateTime(timezone=True), server_default=func.now()),
     Column("pulled", DateTime(timezone=True), nullable=True),
 )

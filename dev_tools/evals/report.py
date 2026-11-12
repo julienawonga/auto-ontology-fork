@@ -35,6 +35,11 @@ class Run:
     # have used (``auto_ontology.retrieval.text_to_sql.knowledge_trace``). None
     # for reports written before the field existed.
     knowledge_trace: list[dict[str, Any]] | None = None
+    # The language the question was detected in its text in the ontology language, and that language, recorded
+    # when question translation ran. None for older reports.
+    question_language: str | None = None
+    question_translated: str | None = None
+    ontology_language: str | None = None
 
 
 @dataclass

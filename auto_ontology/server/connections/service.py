@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from auto_ontology.connectors.connection_string_factory import build_connection_string
@@ -188,11 +189,29 @@ def test_connection(
         connector.close()
 
 
+def validate_ontology_language(code: str | None) -> str | None:
+    """Return *code* normalised, or raise ``ValueError`` unless it is ISO 639-1."""
+    if code is None:
+        return None
+    value = code.strip().lower()
+    if not re.fullmatch(r"[a-z]{2}", value):
+        raise ValueError(
+            f"ontology_language must be a two-letter ISO 639-1 code, got {code!r}"
+        )
+    return value
+
+
 def create_connection(
     *,
     connection: dict[str, Any],
+    ontology_language: str | None = None,
 ) -> dict[str, Any]:
-    """Create a UI-managed connection stored on the catalog database row."""
+    """Create a UI-managed connection stored on the catalog database row.
+
+    ``ontology_language`` is the language the database's ontology is built in
+    (default English); see ``dal.schema.catalog_database``.
+    """
+    ontology_language = validate_ontology_language(ontology_language)
 
     # ``schema`` is the form's shorthand for a single-schema allowlist; the caller
     # turns it into ``schemas``. Storing the raw field too would leave two sources of
@@ -218,6 +237,7 @@ def create_connection(
     insert_connection(
         connection=json.dumps(connection) if not vault_configured else "",
         database_name=database_name,
+        ontology_language=ontology_language,
     )
 
     _refresh_connection_caches()
@@ -231,8 +251,12 @@ def update_connection(
     *,
     database_name: str,
     connection: dict[str, Any],
+    ontology_language: str | None = None,
 ) -> dict[str, Any]:
     """Rewrite an existing connection's settings, keeping its identity.
+
+    ``ontology_language`` left out keeps the stored one. Changing it does not
+    rebuild the ontology: it only declares which language the existing one is in.
 
     ``database`` and ``type`` are the connection's identity — the catalog row is
     keyed by the name, and its ingested graph was built by that connector — so
@@ -243,6 +267,7 @@ def update_connection(
     hostname leaves the ingested graph correct, and re-ingesting it would be a
     long, surprising side effect of saving a form.
     """
+    ontology_language = validate_ontology_language(ontology_language)
     # Same shorthand the create path drops: `schema` is the single-schema form
     # of `schemas`, and storing both leaves two sources of truth.
     connection = {key: value for key, value in connection.items() if key != "schema"}
@@ -273,11 +298,16 @@ def update_connection(
         write_secret(database_name, updated)
         # Blank out any credentials the row still carries from before Vault was
         # configured, so there is only ever one copy of them.
-        insert_connection(connection="", database_name=database_name)
+        insert_connection(
+            connection="",
+            database_name=database_name,
+            ontology_language=ontology_language,
+        )
     else:
         insert_connection(
             connection=json.dumps(updated),
             database_name=database_name,
+            ontology_language=ontology_language,
         )
 
     _refresh_connection_caches()
