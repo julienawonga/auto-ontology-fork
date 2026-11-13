@@ -59,6 +59,7 @@ class _Fakes:
         self.proposal = proposal
         self.searches: list[str] = []
         self.model_calls = 0
+        self.prompt_text: str | None = None
 
     def search(self, retriever: object, entity: str, **kwargs: Any) -> list[dict]:
         label = kwargs["label_filter"][0]
@@ -69,6 +70,7 @@ class _Fakes:
 
     def invoke(self, llm: object, messages: list, schema: type) -> Any:
         self.model_calls += 1
+        self.prompt_text = str(messages[0].content)
         if isinstance(self.proposal, Exception):
             raise self.proposal
         return self.proposal
@@ -87,6 +89,7 @@ def _detect(**overrides: Any):
         "question": QUESTION,
         "llm": object(),
         "semantic_retriever": object(),
+        "certified_lookup": lambda _attr_id: None,
     }
     kwargs.update(overrides)
     return detect_clarification(**kwargs)
@@ -152,11 +155,51 @@ def test_a_verified_definition_means_no_question_and_no_model_call(
         {"id": "s1", "label": "SqlAttribute", "score": 0.3, "text": "VIP customer: ..."}
     ]
 
-    decision = _detect()
+    decision = _detect(certified_lookup=lambda _attr_id: True)
 
     assert decision.clarification is None
     assert decision.reason == "skipped_verified_definition"
     assert fakes.model_calls == 0
+
+
+@pytest.mark.parametrize("certification", [False, None])
+def test_an_uncertified_or_unavailable_attribute_asks_model(
+    fakes: _Fakes, certification: bool | None
+) -> None:
+    fakes.definitions = [
+        {"id": "s1", "label": "SqlAttribute", "score": 0.3, "text": "VIP customer: ..."}
+    ]
+
+    decision = _detect(certified_lookup=lambda _attr_id: certification)
+
+    assert decision.reason == "asked"
+    assert fakes.model_calls == 1
+
+
+def test_a_close_custom_analysis_skips_without_certification_lookup(
+    fakes: _Fakes,
+) -> None:
+    fakes.definitions = [
+        {"id": "a1", "label": "CustomAnalysis", "score": 0.3, "text": "VIP analysis"}
+    ]
+
+    assert _detect().reason == "skipped_verified_definition"
+    assert fakes.model_calls == 0
+
+
+def test_a_close_term_is_shown_to_model_but_does_not_skip(fakes: _Fakes) -> None:
+    fakes.definitions = [
+        {
+            "id": "t1",
+            "label": "Term",
+            "score": 0.3,
+            "text": "Customer: a person with a customer record",
+        }
+    ]
+
+    assert _detect().reason == "asked"
+    assert fakes.model_calls == 1
+    assert "Customer: a person with a customer record" in (fakes.prompt_text or "")
 
 
 def test_a_distant_definition_does_not_count_as_verified(fakes: _Fakes) -> None:
@@ -169,10 +212,13 @@ def test_a_distant_definition_does_not_count_as_verified(fakes: _Fakes) -> None:
 
 def test_the_definition_distance_is_a_knob(fakes: _Fakes) -> None:
     fakes.definitions = [
-        {"id": "s1", "label": "Term", "score": 0.7, "text": "loosely related"}
+        {"id": "s1", "label": "CustomAnalysis", "score": 0.7, "text": "loosely related"}
     ]
 
-    decision = _detect(config=ClarificationConfig(definition_max_distance=0.8))
+    decision = _detect(
+        config=ClarificationConfig(definition_max_distance=0.8),
+        certified_lookup=lambda _attr_id: True,
+    )
 
     assert decision.reason == "skipped_verified_definition"
 

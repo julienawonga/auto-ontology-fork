@@ -26,7 +26,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
@@ -66,9 +66,9 @@ _VAGUE_LABEL = re.compile(
 class ClarificationConfig:
     """Thresholds of the detector. Defaults are conservative; none is tuned yet."""
 
-    # A SqlAttribute, CustomAnalysis or Term this close to the question counts
-    # as a verified definition: the model is not asked at all. 0.62 is the
-    # distance the interactive package already uses for "this term is covered".
+    # Only a certified SqlAttribute or human-written CustomAnalysis this close
+    # to the question counts as verified. 0.62 is the distance the interactive
+    # package already uses for "this term is covered".
     definition_max_distance: float = 0.62
     # Hits farther than this are not shown to the model as possibly related.
     related_max_distance: float = 0.75
@@ -79,6 +79,22 @@ class ClarificationConfig:
 
 
 DEFAULT_CONFIG = ClarificationConfig()
+
+
+def _default_certified(attr_id: str) -> bool | None:
+    """Read SqlAttribute certification from the store; return None on failure."""
+    try:
+        from auto_ontology.dal.sql_attributes import get_full_sql_attribute_by_id
+
+        row = get_full_sql_attribute_by_id(attr_id)
+    except Exception:
+        logger.debug(
+            "clarification certification lookup failed for %s", attr_id, exc_info=True
+        )
+        return None
+    if not row or row.get("certified") is None:
+        return None
+    return bool(row["certified"])
 
 
 class ClarificationOption(BaseModel):
@@ -328,6 +344,7 @@ def _decide(
     config: ClarificationConfig,
     retrieval_question: str | None = None,
     answer_language: str | None = None,
+    certified_lookup: Callable[[str], bool | None] | None = None,
 ) -> ClarificationDecision:
     if len(question.strip()) < config.min_question_chars:
         return ClarificationDecision(None, "skipped_question_too_short")
@@ -369,13 +386,31 @@ def _decide(
         ],
         key=_distance,
     )
-    if definitions and _distance(definitions[0]) <= config.definition_max_distance:
+    lookup = certified_lookup or _default_certified
+    eligible = []
+    for hit in definitions:
+        if _distance(hit) > config.definition_max_distance:
+            continue
+        if hit.get("label") == Labels.CUSTOM_ANALYSIS:
+            eligible.append(hit)
+        elif (
+            hit.get("label") == LABEL_SQL_ATTRIBUTE
+            and lookup(str(hit.get("id") or "")) is True
+        ):
+            eligible.append(hit)
+    if eligible:
+        verified_hit = min(eligible, key=_distance)
         logger.info(
             "Clarification skipped: verified definition within %.2f: %s",
             config.definition_max_distance,
-            _format_hits(definitions[:1], ""),
+            _format_hits([verified_hit], ""),
         )
         return ClarificationDecision(None, "skipped_verified_definition")
+    if definitions and _distance(definitions[0]) <= config.definition_max_distance:
+        logger.info(
+            "Clarification: closest definition is not certified, asking the model: %s",
+            _format_hits(definitions[:1], ""),
+        )
     related = [h for h in definitions if _distance(h) <= config.related_max_distance]
     schema = _search(
         semantic_retriever,
@@ -456,6 +491,7 @@ def detect_clarification(
     config: ClarificationConfig = DEFAULT_CONFIG,
     retrieval_question: str | None = None,
     answer_language: str | None = None,
+    certified_lookup: Callable[[str], bool | None] | None = None,
 ) -> ClarificationDecision:
     """Return the clarification to ask, or why not. Never raises."""
     try:
@@ -469,6 +505,7 @@ def detect_clarification(
             config=config,
             retrieval_question=retrieval_question,
             answer_language=answer_language,
+            certified_lookup=certified_lookup,
         )
     except Exception:  # noqa: BLE001 - a detector failure must never fail the chat
         logger.exception("Clarification detector failed; answering without asking")
