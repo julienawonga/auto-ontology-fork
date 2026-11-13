@@ -5,6 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Verification status
 
+
 What each capability of this fork has actually been checked against. A claim
 here is only as strong as its **Verification level**; a feature is not "done"
 because its unit tests pass, and a number is not a measurement because a script
@@ -36,6 +37,7 @@ the maintainer reviewed them that day, not because everything was re-run.
 
 | Capability | Claim | Verification level | Evidence | Last verified |
 |---|---|---|---|---|
+| Value repair on anchors and zero-like results | Linked value anchors are retained through execution; a still-used phrase routes once to reconstruction, and probe-based near-miss checks also cover one-row zero/NULL aggregates without enabling the undiagnosed empty-result retry. Unit coverage uses invented place/city values and fake or absent probes. NOT verified: live effect on the Chinook value cases. | FAKES | `auto_ontology/tests/test_empty_result_retry.py`, `auto_ontology/tests/test_literal_check.py` | 2026-11-13 |
 | Parse-time read-only SQL guard | Agent SQL that is not a single read-only SELECT is refused before it reaches a database (nested writes, SELECT INTO, row locks, several statements, unparseable SQL). The tests use the real sqlglot parser but never execute against a database, so what the guard accepts is not cross-checked against a real engine. | FAKES | `auto_ontology/retrieval/text_to_sql/tests/test_sql_guard.py`, PR #8 | 2026-11-10 |
 | Postgres read-only transaction | A write issued through agent SQL is refused by PostgreSQL itself, and the setting does not leak to the pooled connection. | REAL-ENGINE | `auto_ontology/connectors/tests/test_statement_timeouts.py` (live tests, run in CI against pgvector Postgres 17), PR #8 | 2026-11-10 |
 | SQLite and DuckDB read-only | The database refuses a write (SQLite `query_only`, DuckDB read-only transaction) and the mode does not outlive the statement. | REAL-ENGINE | `auto_ontology/connectors/tests/test_statement_timeouts.py` (real in-process engines), PR #14 | 2026-11-10 |

@@ -27,6 +27,7 @@ the cost of being wrong here is one extra reconstruction, not a lost answer.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Dict
 
 from auto_ontology.retrieval.text_to_sql.agents.empty_like_result_check import (
@@ -42,8 +43,57 @@ from auto_ontology.retrieval.text_to_sql.db_probe.literal_check import (
     build_value_repair_error,
     find_literal_mismatches,
     find_numeric_scale_mismatches,
+    extract_string_literals,
 )
 from auto_ontology.retrieval.text_to_sql.state import AgentState
+from auto_ontology.retrieval.text_to_sql.value_text import normalize_value
+
+
+def _is_zero_like_result(result: Any) -> bool:
+    """Whether a single-row result consists only of zero values or NULLs."""
+    if not isinstance(result, list) or len(result) != 1:
+        return False
+    row = result[0]
+    if isinstance(row, dict):
+        values = list(row.values())
+    elif isinstance(row, (list, tuple)):
+        values = list(row)
+    else:
+        values = [row]
+    return bool(values) and all(
+        value is None or (isinstance(value, (int, float, Decimal)) and value == 0)
+        for value in values
+    )
+
+
+def find_anchor_mismatches(
+    sql: str, anchors: list[dict[str, Any]], dialect: str | None = None
+) -> list[dict[str, Any]]:
+    """Find linked phrases still used instead of their stored values in SQL."""
+    literals = extract_string_literals(sql, dialect)
+    normalized_literals = {normalize_value(value) for value in literals}
+    mismatches = []
+    for anchor in anchors:
+        phrase, stored = anchor.get("phrase"), anchor.get("stored_value")
+        if not phrase or not stored:
+            continue
+        if normalize_value(phrase) == normalize_value(stored):
+            continue
+        if (
+            normalize_value(phrase) in normalized_literals
+            and normalize_value(stored) not in normalized_literals
+        ):
+            mismatches.append({**anchor, "used": phrase, "suggested": [stored]})
+    return mismatches
+
+
+def build_anchor_repair_error(mismatch: dict[str, Any]) -> str:
+    """Build a targeted instruction from one linked value anchor."""
+    return (
+        f"The filter uses '{mismatch['used']}' but the database stores "
+        f"'{mismatch['stored_value']}' in {mismatch.get('tbl')}.{mismatch.get('col')}; "
+        "use the stored value."
+    )
 
 
 def build_empty_result_retry_error() -> str:
@@ -89,13 +139,46 @@ class EmptyResultValueRepairAgent(BaseAgent):
         db_result = path_state.get("sql_response_from_db")
 
         empty = _is_empty_db_result(db_result)
+        zero_like = _is_zero_like_result(db_result)
+        attempted = bool(path_state.get("value_repair_attempted"))
+
+        anchors = list(path_state.get("linked_value_anchors") or [])
+        anchor_mismatches = (
+            find_anchor_mismatches(
+                sql_code,
+                anchors,
+                getattr(
+                    resolve_connector_from_tables(
+                        list(path_state.get("relevant_tables") or []),
+                        state.get("connectors") or [],
+                    ),
+                    "dialect",
+                    None,
+                ),
+            )
+            if anchors and not attempted
+            else []
+        )
+        if anchor_mismatches:
+            mismatch = anchor_mismatches[0]
+            path_state["value_repair_attempted"] = True
+            path_state["error"] = build_anchor_repair_error(mismatch)
+            path_state["error_known_fixable"] = True
+            self.logger.info(
+                "Anchor value repair: '%s' -> '%s' in %s.%s",
+                mismatch["used"],
+                mismatch["stored_value"],
+                mismatch.get("tbl"),
+                mismatch.get("col"),
+            )
+            return {"decision": "invalid_sql", "path_state": path_state}
 
         # Common path: query returned rows → nothing to repair, zero cost.
-        if not empty:
+        if not empty and not zero_like:
             return {"decision": "valid_sql", "path_state": path_state}
 
         mismatches: list[dict[str, Any]] = []
-        if path_state.get("value_repair_attempted"):
+        if attempted:
             self.logger.info("Value repair already attempted — skipping the probe")
         else:
             connectors = state.get("connectors") or []
@@ -107,9 +190,12 @@ class EmptyResultValueRepairAgent(BaseAgent):
                 # Reached only when the query came back empty, so the extra
                 # high-cardinality literal check is warranted here (and only here).
                 mismatches = find_literal_mismatches(
-                    executor, dialect, sql_code, result_was_empty=True
+                    executor, dialect, sql_code, result_was_empty=empty or zero_like
                 )
-                mismatches += find_numeric_scale_mismatches(executor, dialect, sql_code)
+                if empty:
+                    mismatches += find_numeric_scale_mismatches(
+                        executor, dialect, sql_code
+                    )
 
         if mismatches:
             path_state["value_repair_attempted"] = True
@@ -121,8 +207,9 @@ class EmptyResultValueRepairAgent(BaseAgent):
             # sql_reconstruction.py) so it can't be misread as missing_data.
             path_state["error_known_fixable"] = True
             self.logger.info(
-                "[%s] Empty result — routing to reconstruction to fix %d literal(s): %s",
+                "[%s] %s result — routing to reconstruction to fix %d literal(s): %s",
                 path_state.get("task_id", "?"),
+                "Zero-like" if zero_like else "Empty",
                 len(mismatches),
                 [f"{m['table']}.{m['column']}='{m['used']}'" for m in mismatches],
             )
@@ -132,6 +219,9 @@ class EmptyResultValueRepairAgent(BaseAgent):
             self.logger.info(
                 "Empty result persisted after an undiagnosed retry — passing through"
             )
+            return {"decision": "valid_sql", "path_state": path_state}
+
+        if zero_like:
             return {"decision": "valid_sql", "path_state": path_state}
 
         # Nothing diagnosable, and an empty result answers nothing. Regenerate
