@@ -56,6 +56,7 @@ __all__ = [
     "Rule",
     "RuleFilters",
     "SchemaSummary",
+    "SemanticDatabaseOverviewItem",
     "SemanticExplorationGraph",
     "SemanticGraphNode",
     "SqlAttribute",
@@ -827,6 +828,14 @@ class SemanticExplorationGraph(ApiModel):
 
     nodes: list[SemanticGraphNode] = Field(default_factory=list)
     links: list[GraphLink] = Field(default_factory=list)
+
+
+class SemanticDatabaseOverviewItem(ApiModel):
+    """One database bubble and the number of distinct Terms linked to it."""
+
+    database_id: str
+    database_name: str
+    term_count: int
 
 
 class TableSqlQuery(ApiModel):
