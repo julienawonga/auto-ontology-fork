@@ -214,7 +214,7 @@ can express, with a short label and an optional one-line description. Never add
 a vague option such as "other" or "something else": the interface adds its own
 free-text choice. When you do not ask, leave question and options empty.
 
-VERIFIED DEFINITIONS (business definitions, saved analyses, glossary terms):
+RELATED DEFINITIONS (business definitions, saved analyses, glossary terms; not all are verified):
 {definitions}
 
 SCHEMA AND VALUES (closest columns to the question):
@@ -322,14 +322,19 @@ def _format_history(history: list[dict[str, str | None]]) -> str:
     return "\n".join(lines)
 
 
-def _language_note(answer_language: str | None, translated: str) -> str:
-    """Prompt suffix for a question in another language than the ontology; else ""."""
+def _language_note(answer_language: str | None, translated: str, original: str) -> str:
+    """Prompt suffix that explicitly names the clarification answer language."""
     if not answer_language:
         return ""
+    translation_note = ""
+    if translated.strip() != original.strip():
+        translation_note = (
+            f"\n\nThe question is written in {answer_language}; its translation into the "
+            f"ontology's language, used for searching, is: {translated.strip()}"
+        )
     return (
-        f"\n\nThe question is written in {answer_language}; its translation into the "
-        f"ontology's language, used for searching, is: {translated.strip()}\n"
-        f"Write the clarification question and the option labels in {answer_language}."
+        f"{translation_note}\n\nWrite the clarification question and the option labels "
+        f"in {answer_language}."
     )
 
 
@@ -431,7 +436,7 @@ def _decide(
                     evidence=evidence.strip() or "None",
                     question=question.strip(),
                 )
-                + _language_note(answer_language, search_question)
+                + _language_note(answer_language, search_question, question)
             )
         ],
         ClarificationProposalModel,

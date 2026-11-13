@@ -114,6 +114,38 @@ def test_asks_when_the_term_is_undefined_and_matters(fakes: _Fakes) -> None:
     assert fakes.model_calls == 1
 
 
+def test_answer_language_instruction_reaches_prompt_without_translation(
+    fakes: _Fakes,
+) -> None:
+    decision = _detect(answer_language="English")
+
+    assert decision.reason == "asked"
+    assert fakes.prompt_text is not None
+    assert "Write the clarification question and the option labels in English." in (
+        fakes.prompt_text
+    )
+
+
+def test_language_note_omits_identical_translation() -> None:
+    note = module._language_note(
+        "English", "  How many VIP customers do we have?  ", QUESTION
+    )
+
+    assert "Write the clarification question and the option labels in English." in note
+    assert "translation into the ontology's language" not in note
+
+
+def test_language_note_includes_different_translation() -> None:
+    note = module._language_note("English", "¿Cuántos clientes VIP hay?", QUESTION)
+
+    assert "Write the clarification question and the option labels in English." in note
+    assert "translation into the ontology's language" in note
+
+
+def test_language_note_without_language_is_empty() -> None:
+    assert module._language_note(None, QUESTION, QUESTION) == ""
+
+
 def test_event_shape_is_the_documented_contract(fakes: _Fakes) -> None:
     clarification = _detect().clarification
     assert clarification is not None
