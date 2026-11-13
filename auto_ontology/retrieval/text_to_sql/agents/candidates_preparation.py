@@ -789,6 +789,7 @@ class CandidatePreparationAgent(BaseAgent):
             "path_state": {
                 **path_state,
                 "relevant_tables": relevant_tables,
+                "linked_value_anchors": kept_anchors,
                 "relevant_queries": [
                     r["sql"] for r in relevant_queries if r.get("sql")
                 ],

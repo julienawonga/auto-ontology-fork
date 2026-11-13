@@ -11,8 +11,13 @@ the end of the graph undiagnosed, and is regenerated once instead of being
 returned as an empty answer.
 """
 
+from decimal import Decimal
+
+from auto_ontology.retrieval.text_to_sql.agents import empty_result_value_repair
 from auto_ontology.retrieval.text_to_sql.agents.empty_result_value_repair import (
     EmptyResultValueRepairAgent,
+    _is_zero_like_result,
+    find_anchor_mismatches,
 )
 
 
@@ -74,3 +79,90 @@ def test_retry_still_runs_after_a_spent_literal_repair():
 
     assert out["decision"] == "invalid_sql"
     assert out["path_state"]["empty_result_retry_attempted"] is True
+
+
+def test_zero_like_detection():
+    assert all(
+        _is_zero_like_result(result)
+        for result in ([[0]], [[None]], [[0, None]], [[Decimal("0")]])
+    )
+    assert not any(_is_zero_like_result(result) for result in ([[1]], [], [[0], [0]]))
+
+
+def test_anchor_mismatch_routes_even_with_non_empty_result():
+    anchor = {
+        "phrase": "Lisbn",
+        "stored_value": "Lisbon",
+        "tbl": "Place",
+        "col": "City",
+    }
+    state = _state(
+        [{"count": 0}],
+        linked_value_anchors=[anchor],
+        sql_code="SELECT COUNT(*) FROM place WHERE city='Lisbn'",
+    )
+    out = EmptyResultValueRepairAgent().execute(state)
+    assert out["decision"] == "invalid_sql"
+    assert "Lisbon" in out["path_state"]["error"]
+
+
+def test_anchor_check_skips_stored_value_and_absent_anchors():
+    anchor = {
+        "phrase": "Lisbn",
+        "stored_value": "Lisbon",
+        "tbl": "Place",
+        "col": "City",
+    }
+    assert (
+        find_anchor_mismatches(
+            "SELECT * FROM place WHERE city='Lisbn' AND city='Lisbon'", [anchor]
+        )
+        == []
+    )
+    out = EmptyResultValueRepairAgent().execute(_state([{"count": 0}]))
+    assert out["decision"] == "valid_sql"
+
+
+def test_zero_like_result_without_fix_does_not_retry():
+    out = EmptyResultValueRepairAgent().execute(_state([[0]]))
+    assert out["decision"] == "valid_sql"
+    assert "empty_result_retry_attempted" not in out["path_state"]
+
+
+def test_zero_like_near_miss_uses_literal_repair(monkeypatch):
+    mismatch = {
+        "kind": "string",
+        "table": "place",
+        "column": "city",
+        "used": "Lisbn",
+        "suggested": ["Lisbon"],
+        "actual": ["Lisbon"],
+    }
+    monkeypatch.setattr(
+        empty_result_value_repair,
+        "find_literal_mismatches",
+        lambda *args, **kwargs: [mismatch],
+    )
+    out = EmptyResultValueRepairAgent().execute(
+        _state([[0]], sql_code="SELECT COUNT(*) FROM place WHERE city='Lisbn'")
+    )
+    assert out["decision"] == "invalid_sql"
+    assert out["path_state"]["value_repair_attempted"] is True
+
+
+def test_anchor_repair_uses_shared_one_shot_guard():
+    anchor = {
+        "phrase": "Lisbn",
+        "stored_value": "Lisbon",
+        "tbl": "Place",
+        "col": "City",
+    }
+    out = EmptyResultValueRepairAgent().execute(
+        _state(
+            [{"count": 0}],
+            linked_value_anchors=[anchor],
+            value_repair_attempted=True,
+            sql_code="SELECT COUNT(*) FROM place WHERE city='Lisbn'",
+        )
+    )
+    assert out["decision"] == "valid_sql"

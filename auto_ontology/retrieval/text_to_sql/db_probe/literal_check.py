@@ -124,6 +124,15 @@ def _string_predicates(tree: exp.Expression) -> list[tuple[exp.Column, list[str]
     return out
 
 
+def extract_string_literals(sql: str, dialect: Optional[str] = None) -> list[str]:
+    """Return string literals in positive equality and IN predicates."""
+    try:
+        tree = sqlglot.parse_one(sql, read=dialect or None)
+    except Exception:  # noqa: BLE001
+        return []
+    return [value for _, values in _string_predicates(tree) for value in values]
+
+
 def _like_predicates(tree: exp.Expression) -> list[tuple[exp.Column, str]]:
     """Positive, case-sensitive ``LIKE`` predicates as ``(column_node, pattern)``.
 
@@ -1048,6 +1057,7 @@ def build_value_repair_error(mismatches: list[dict[str, Any]]) -> str:
 
 __all__ = [
     "find_literal_mismatches",
+    "extract_string_literals",
     "find_numeric_scale_mismatches",
     "find_integer_division_mismatches",
     "try_self_apply_integer_division_fixes",

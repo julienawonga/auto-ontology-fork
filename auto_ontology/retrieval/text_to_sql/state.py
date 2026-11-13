@@ -42,6 +42,7 @@ class TextToSQLPayload(TypedDict):
     # query shape only — never identifiers or filter values.
     sql_examples: NotRequired[list[dict[str, str]]]
     value_anchors: NotRequired[list[dict[str, str]]]
+    linked_value_anchors: NotRequired[list[dict[str, str]]]
     # When true, intent preprocessing skips top-level type selection but still
     # classifies the calculation subtype and extracts inline evidence.
     calculation_only: NotRequired[bool]
@@ -96,6 +97,7 @@ class AgentState(TypedDict):
     evidence: NotRequired[str]
     sql_examples: NotRequired[list[dict[str, str]]]
     value_anchors: NotRequired[list[dict[str, str]]]
+    linked_value_anchors: NotRequired[list[dict[str, str]]]
     calculation_only: bool
     shorten_answer: bool
     validate_sql_values: bool
