@@ -187,7 +187,7 @@ generated from).
 ## Extending the tool surface
 
 The tool set is an explicit allow-list in
-[`mcp/auto_ontology_mcp/tools.py`](../mcp/auto_ontology_mcp/tools.py). The spec publishes 87
+[`mcp/auto_ontology_mcp/tools.py`](https://github.com/julienawonga/lexis/blob/main/mcp/auto_ontology_mcp/tools.py). The spec publishes 87
 operations, and exposing all of them would degrade tool selection badly. To
 publish another, add a `ToolSpec` naming its method, path, an agent-facing name,
 and a description that says *when to reach for it*. Startup fails loudly if a

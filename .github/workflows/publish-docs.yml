@@ -2,26 +2,25 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Renders docs/openapi/auto-ontology-api.json as a Redoc site and publishes it to GitHub
-# Pages, because GitHub itself has no OpenAPI viewer — the committed JSON is
-# readable by tooling, not by people.
+# Renders the documentation with MkDocs and the OpenAPI spec with Redoc, then publishes both to GitHub Pages.
 #
 # BEFORE THIS CAN RUN: Settings → Pages → Source must be set to "GitHub
 # Actions". Until then this job fails; the deploy step is what needs it.
 #
 # ON VISIBILITY: a Pages site is only private on GitHub Enterprise Cloud with
-# private Pages enabled. Anywhere else the published site — the whole API
-# surface, including which permission each operation requires — is
-# world-readable.
+# private Pages enabled. Anywhere else the published site — including the API
+# surface and the permission each operation requires — is world-readable.
 
-name: Publish API docs
+name: Publish documentation
 
 on:
   push:
     branches: [main]
     paths:
-      - "docs/openapi/auto-ontology-api.json"
-      - ".github/workflows/publish-api-docs.yml"
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
+      - ".github/workflows/publish-docs.yml"
   workflow_dispatch:
 
 permissions:
@@ -37,7 +36,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Build and deploy Redoc
+    name: Build and deploy documentation
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -48,6 +47,17 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs Material
+        run: pip install "mkdocs-material~=9.6"
+
+      - name: Build documentation
+        run: mkdocs build --site-dir site
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -57,7 +67,7 @@ jobs:
         env:
           REDOCLY_TELEMETRY: off
         # Pinned to v1: `build-docs` was removed in v2.
-        run: npx --yes @redocly/cli@1 build-docs docs/openapi/auto-ontology-api.json -o site/index.html
+        run: npx --yes @redocly/cli@1 build-docs docs/openapi/auto-ontology-api.json -o site/api/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 # Configuration
 
 Lexis is configured with environment variables, read from `.env` by Docker
-Compose. [`.env.example`](../.env.example) documents every variable; this page explains
+Compose. [`.env.example`](https://github.com/julienawonga/lexis/blob/main/.env.example) documents every variable; this page explains
 the ones you set first: the models.
 
 ## Model providers
