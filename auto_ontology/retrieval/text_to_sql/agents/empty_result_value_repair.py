@@ -190,7 +190,7 @@ class EmptyResultValueRepairAgent(BaseAgent):
                 # Reached only when the query came back empty, so the extra
                 # high-cardinality literal check is warranted here (and only here).
                 mismatches = find_literal_mismatches(
-                    executor, dialect, sql_code, result_was_empty=empty
+                    executor, dialect, sql_code, result_was_empty=empty or zero_like
                 )
                 if empty:
                     mismatches += find_numeric_scale_mismatches(
