@@ -768,6 +768,31 @@ def _check_select_block_missing_agg(
     return ""
 
 
+def _intent_rejection_oscillates(history: list[dict], entry: dict) -> bool:
+    """True when ``entry`` repeats an earlier rejection after a different one.
+
+    A rejection is identified by the tables the SQL uses and the categories of
+    issue raised. ``A, B, A`` means reconstruction is flipping between two
+    shapes that each trip a different rule, so more attempts cannot converge.
+    """
+    key = (entry["tables"], entry["categories"])
+    keys = [(item["tables"], item["categories"]) for item in history]
+    return key in keys and any(other != key for other in keys)
+
+
+def _best_rejected_candidate(history: list[dict], current: dict) -> dict:
+    """Pick the rejected SQL to return when the loop is abandoned.
+
+    Every entry already passed the static checks. A candidate rejected only on
+    evidence grounds is preferred (latest first): the other validators found it
+    sound, so the evidence rule is the contested one. Otherwise the latest.
+    """
+    for item in reversed([*history, current]):
+        if item["categories"] == ("evidence_issues",):
+            return item
+    return current
+
+
 class SQLValidationAgent(BaseAgent):
     """Run catalog/static validation, then LLM intent validation."""
 
@@ -1065,7 +1090,12 @@ class SQLValidationAgent(BaseAgent):
         messages = [SystemMessage(content=system_prompt)]
         if evidence:
             messages.append(
-                SystemMessage(content=format_authoritative_evidence(evidence))
+                SystemMessage(
+                    content=format_authoritative_evidence(
+                        evidence,
+                        discovered_tables=path_state.get("discovered_tables"),
+                    )
+                )
             )
         messages.append(HumanMessage(content=validation_prompt))
 
@@ -1122,6 +1152,48 @@ class SQLValidationAgent(BaseAgent):
                 error_parts.append(
                     f"\n\n{title}:\n" + "\n".join(f"  - {issue}" for issue in issues)
                 )
+
+        entry = {
+            "tables": tuple(sorted(used_tables)),
+            "categories": tuple(
+                name
+                for name, issues in (
+                    ("join_issues", validation_result.join_issues),
+                    ("aggregation_issues", validation_result.aggregation_issues),
+                    ("projection_issues", validation_result.projection_issues),
+                    ("evidence_issues", validation_result.evidence_issues),
+                )
+                if issues
+            ),
+            "response": path_state.get("sql_generation_result"),
+            "sql_code": sql_code,
+            "sql_columns": path_state.get("sql_columns"),
+            "sql_tables": path_state.get("sql_tables"),
+            "issues": "".join(error_parts),
+        }
+        history = list(path_state.get("intent_rejections") or [])
+        if _intent_rejection_oscillates(history, entry):
+            best = _best_rejected_candidate(history, entry)
+            self.logger.warning(
+                "Intent validation is oscillating between rejections (%d so far, "
+                "latest categories %s); stopping reconstruction and returning the "
+                "best statically valid candidate",
+                len(history) + 1,
+                list(entry["categories"]),
+            )
+            if best["response"] is not None:
+                path_state["sql_generation_result"] = best["response"]
+            path_state["sql_code"] = best["sql_code"]
+            path_state["sql_columns"] = best["sql_columns"]
+            path_state["sql_tables"] = best["sql_tables"]
+            path_state["validation_caveat"] = (
+                "Automatic validation kept rejecting alternative versions of this "
+                "query for conflicting reasons, so this answer was not fully "
+                "validated. Check the SQL before relying on it."
+            )
+            return {"decision": "valid_sql", "path_state": path_state}
+        history.append(entry)
+        path_state["intent_rejections"] = history
 
         path_state["error"] = "".join(error_parts)
         path_state["last_intent_rejected_sql"] = sql_code

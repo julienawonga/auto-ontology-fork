@@ -78,6 +78,10 @@ class ResponseAgent(BaseAgent):
                 f"{truncated_at:,} rows, so the figures above may be incomplete."
             )
 
+        caveat = path_state.get("validation_caveat")
+        if caveat:
+            formatted_response += f"\n\n> **Note:** {caveat}"
+
         # --- final dict assembly ---
         sql_columns = path_state.get("sql_columns", [])
         sql_response_from_db = path_state.get("sql_response_from_db")

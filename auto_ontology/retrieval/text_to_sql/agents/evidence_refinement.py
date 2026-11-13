@@ -646,8 +646,9 @@ class EvidenceRefinementAgent(BaseAgent):
         grounding_prompt = (
             f"Question:\n{question}\n\n"
             f"Evidence:\n{evidence}\n\n"
-            "Relevant dialect-quoted columns (the only allowed mapping targets; "
-            "copy references verbatim):\n"
+            "Relevant dialect-quoted columns (the only allowed mapping targets for "
+            "evidence-described fields; this does not limit which schema columns "
+            "the query may use later; copy references verbatim):\n"
             f"{qualified_columns_block}"
         )
         grounding_result = safe_invoke_structured_nr(
