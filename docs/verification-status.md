@@ -25,6 +25,7 @@ rows rather than rounding up.
 | `FAKES` | Only unit tests with fakes, stubs, mocks or recorded data. A real parser or library is not a real engine: the code was never run against the system it talks to. |
 | `UNVERIFIED` | Written, not exercised. |
 
+
 Columns: **Evidence** must be checkable: a test path in backticks (the
 `dev_tools/integrity` test checks that it exists), a pull request number, or an
 eval report label. Manual runs that no one can repeat from the repository say so
@@ -36,6 +37,7 @@ the maintainer reviewed them that day, not because everything was re-run.
 
 | Capability | Claim | Verification level | Evidence | Last verified |
 |---|---|---|---|---|
+| SqlAttribute index database taken from its Term | Embedding scope is derived from the linked Term, with connector override and single-connector fallback. NOT verified: live re-test of the VIP attribute | FAKES | `auto_ontology/server/sql_attributes/tests/test_service.py`, `auto_ontology/dal/tests/test_terms.py` | 2026-11-13 |
 | Parse-time read-only SQL guard | Agent SQL that is not a single read-only SELECT is refused before it reaches a database (nested writes, SELECT INTO, row locks, several statements, unparseable SQL). The tests use the real sqlglot parser but never execute against a database, so what the guard accepts is not cross-checked against a real engine. | FAKES | `auto_ontology/retrieval/text_to_sql/tests/test_sql_guard.py`, PR #8 | 2026-11-10 |
 | Postgres read-only transaction | A write issued through agent SQL is refused by PostgreSQL itself, and the setting does not leak to the pooled connection. | REAL-ENGINE | `auto_ontology/connectors/tests/test_statement_timeouts.py` (live tests, run in CI against pgvector Postgres 17), PR #8 | 2026-11-10 |
 | SQLite and DuckDB read-only | The database refuses a write (SQLite `query_only`, DuckDB read-only transaction) and the mode does not outlive the statement. | REAL-ENGINE | `auto_ontology/connectors/tests/test_statement_timeouts.py` (real in-process engines), PR #14 | 2026-11-10 |
