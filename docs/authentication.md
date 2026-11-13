@@ -13,7 +13,7 @@ disabled: the first account is the bootstrap admin from
 `adminPassword`).
 
 Every `/api/...` route resolves the caller in one place,
-[`frontend/auth/resolve-user.ts`](../frontend/auth/resolve-user.ts), in this
+[`frontend/auth/resolve-user.ts`](https://github.com/julienawonga/lexis/blob/main/frontend/auth/resolve-user.ts), in this
 order:
 
 1. Browser session cookie
@@ -81,4 +81,4 @@ behalf, naming them in `x-auto-ontology-user-id`. To stop anyone who can reach p
 the ingestion service: they then refuse requests without a matching `x-internal-token`
 and ignore the identity header unless it arrives with one. What is protected, how to
 set and rotate the token, and what stays out of scope are in
-[SECURITY.md](../SECURITY.md#internal-api-token).
+[SECURITY.md](https://github.com/julienawonga/lexis/blob/main/SECURITY.md#internal-api-token).

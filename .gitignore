@@ -9,6 +9,7 @@
 # Build artefacts (e.g. auto-ontology-mcp wheels from `uv build`)
 dist/
 *.egg-info/
+site/
 
 
 # dependencies

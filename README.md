@@ -307,6 +307,8 @@ If Lexis is useful to you, **a ⭐ on the repository helps others find it.**
 
 ## 📚 Documentation
 
+Read the [published documentation](https://julienawonga.github.io/lexis/); preview it locally with `uvx --with "mkdocs-material~=9.6" mkdocs serve`.
+
 | Topic | Doc |
 |---|---|
 | Models, embeddings and environment variables | [docs/configuration.md](./docs/configuration.md) |
