@@ -545,7 +545,7 @@ The model is OpenMetadata's glossary approval: only reviewers act on a Task, and
 an approved term sends it back to review
 ([E](https://docs.open-metadata.org/latest/how-to-guides/data-governance/glossary/approval)).
 A human edit to a certified item creates a new version in `in_review`. The consolidation
-job never edits a certified item and never overwrites a human edit (README roadmap item 6).
+job never edits a certified item and never overwrites a human edit (README roadmap item 8).
 
 ## 8. Evaluation plan
 
@@ -679,7 +679,7 @@ it as order of magnitude.
 | **P2: Review, promotion, verified reuse** | Queue, diff, certify and reject, audit log; materialisation into `term` and `sql_attribute`; canary gate; `verified_query` and the Verified badge; the query-history suggester re-enabled as draft-only | 4-5 weeks | Certified coverage grows; shared accuracy gain; Verified answers with measured accuracy | Held-out accuracy up over the stream with a scripted reviewer; no canary regression; Verified-answer accuracy at or above a threshold fixed in advance |
 | **P3: Consolidation and routing** | Consolidation job (dedup, conflicts, revalidation, decay, weekly queue); fast/slow routing with multi-candidate agreement and the term coverage check; calibrated confidence and the ask rule; anomaly detection and quotas; shadow mode | 5-6 weeks | Fewer stale or conflicting items; fewer wrong-confident answers; cost savings on the fast path | Forgetting and drift tests pass; ECE reported; clarification utility up with accuracy not down |
 
-Order rationale: P0 comes before anything writes (README roadmap item 4 before 5). P1 comes
+Order rationale: P0 comes before anything writes (README roadmap item 5 before 7). P1 comes
 before P2 because personal scope gives value without a reviewer. The suggester returns
 only after P2, because its past failure was the absence of review. The term coverage check
 and multi-candidate agreement are cheap enough to start inside P1 if the maintainer wants
