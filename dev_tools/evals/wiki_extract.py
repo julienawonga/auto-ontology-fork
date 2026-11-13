@@ -91,12 +91,65 @@ def parse_reply(reply: str) -> list[dict[str, Any]]:
     return [t for t in terms if isinstance(t, dict)]
 
 
+_UNICODE_DASH_QUOTE_MAP = str.maketrans(
+    {
+        "–": "-",
+        "—": "-",
+        "−": "-",
+        "‘": "'",
+        "’": "'",
+        "“": '"',
+        "”": '"',
+        "\u00a0": " ",
+        "\u202f": " ",
+    }
+)
+
+
+def _normalize_for_match(text: str) -> str:
+    """Normalize text for matching formulas and quotes against wiki chunks.
+
+    Rules in order:
+    1. Removes $$ and single $ math delimiters.
+    2. Replaces \\text{...}, \\mathrm{...}, \\textbf{...}, \\operatorname{...} by their content (non-nested).
+    3. Removes sizing/spacing commands: \\bigl, \\bigr, \\Bigl, \\Bigr, \\left, \\right, \\,, \\;, \\:, \\!, \\quad, \\qquad.
+    4. Maps \\times and \\cdot to *, \\frac{a}{b} to (a)/(b) (non-nested), \\% to %, \\_ to _.
+    5. Maps unicode dashes –, —, − to -, curly quotes to straight quotes, and non-breaking spaces to spaces.
+    6. Drops every remaining whitespace character entirely and casefolds.
+    """
+    text = text.replace("$$", "").replace("$", "")
+    text = re.sub(
+        r"\\(?:text|mathrm|textbf|operatorname)\{([^}]*)\}",
+        r"\1",
+        text,
+    )
+    text = re.sub(
+        r"\\(?:qquad|quad|bigl|bigr|Bigl|Bigr|left|right)(?![a-zA-Z])|\\[,;:!]",
+        "",
+        text,
+    )
+    text = text.replace(r"\times", "*").replace(r"\cdot", "*")
+    text = re.sub(r"\\frac\{([^}]*)\}\{([^}]*)\}", r"(\1)/(\2)", text)
+    text = text.replace(r"\%", "%").replace(r"\_", "_")
+    text = text.translate(_UNICODE_DASH_QUOTE_MAP)
+    return re.sub(r"\s+", "", text).casefold()
+
+
 def _verbatim(value: str, chunk_text: str) -> str | None:
     """*value* when it occurs verbatim in the chunk, else a repaired copy that
-    does (LaTeX backslashes eaten by JSON), else None."""
-    for cand in (value, _unmangle(value), _unmangle(value).replace("\n", "\\n")):
+    does (LaTeX backslashes eaten by JSON), else a normalized match, else None."""
+    candidates = (value, _unmangle(value), _unmangle(value).replace("\n", "\\n"))
+    for cand in candidates:
         if cand and cand in chunk_text:
             return cand
+
+    norm_chunk = _normalize_for_match(chunk_text)
+    for cand in candidates:
+        if cand:
+            norm_cand = _normalize_for_match(cand)
+            if len(norm_cand) >= 8 and norm_cand in norm_chunk:
+                return value
+
     return None
 
 
