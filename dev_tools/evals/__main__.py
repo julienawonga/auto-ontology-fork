@@ -392,6 +392,7 @@ def _cmd_wiki_chunk(args: argparse.Namespace) -> int:
         if not _outside_repo(out, "--out"):
             return 2
         payload = {"wiki_sha256": sha, "chunks": [c.to_dict() for c in chunks]}
+        out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     for c in chunks:
         print(f"{c.id}\t{len(c.text)}\t{c.heading}")
@@ -424,6 +425,7 @@ def _cmd_wiki_rag(args: argparse.Namespace) -> int:
         max_chars=args.budget_chars,
         wiki_sha256=sha,
     )
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(new, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     print(f"wrote {out}; report k={args.k} budget={args.budget_chars} with the scores")
@@ -448,6 +450,7 @@ def _cmd_wiki_extract(args: argparse.Namespace) -> int:
     doc = wiki_extract.build_document(
         args.db, sha, terms, rejects, model=model, chunks=len(chunks)
     )
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, width=100),
         encoding="utf-8",
@@ -509,6 +512,7 @@ def _cmd_wiki_score(args: argparse.Namespace) -> int:
         return 2
     result = wiki_kb.score_extraction(doc, kb)
     if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     brief = {k: v for k, v in result.items() if k != "to_eyeball"}
     brief["to_eyeball_first"] = result["to_eyeball"][:10]

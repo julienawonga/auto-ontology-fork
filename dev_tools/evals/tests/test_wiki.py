@@ -152,7 +152,7 @@ def test_cli_rag_refuses_output_in_repo_and_input_overwrite(tmp_path: Path) -> N
         == 2
     )
     assert not inside.exists()
-    out = tmp_path / "o.json"
+    out = tmp_path / "missing-dir" / "o.json"  # parent created on demand
     assert (
         cli.main(
             ["wiki-rag", "--wiki", str(w), "--cases", str(cases), "--out", str(out)]
