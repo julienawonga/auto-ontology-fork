@@ -37,7 +37,7 @@ from auto_ontology.dal.sql_attributes import (
     list_sql_attributes,
 )
 from auto_ontology.dal.tags import PII_TAG_NAME, get_tag_by_name
-from auto_ontology.dal.terms import get_slim_term_by_id
+from auto_ontology.dal.terms import fetch_database_name_for_term, get_slim_term_by_id
 from auto_ontology.semantic.constants import LABEL_SQL_ATTRIBUTE
 from auto_ontology.server.sql_attributes.description_suggester import (
     suggest_sql_attribute_description,
@@ -246,6 +246,11 @@ def create_sql_attribute(
     term = get_slim_term_by_id(term_id)
     if not term:
         raise ValueError(f"Term with id {term_id!r} not found")
+    embedding_database_name = (
+        _resolve_database_name(connector)
+        if connector is not None
+        else fetch_database_name_for_term(term_id) or _resolve_database_name(None)
+    )
 
     expression_conflict = find_attr_by_expression(
         term_id=term_id,
@@ -282,14 +287,14 @@ def create_sql_attribute(
     link_to_term(row["id"], term_id)
     row["term_name"] = term["name"]
     row["term_id"] = term_id
-    row["database_name"] = database_name
+    row["database_name"] = embedding_database_name
 
     vdb = get_semantic_vdb()
     _embed_sql_attribute(
         embed_params=get_embed_params(),
         vdb=vdb,
         attr_id=row["id"],
-        database_name=database_name,
+        database_name=embedding_database_name,
     )
 
     return row
@@ -357,6 +362,11 @@ def update_sql_attribute(
         term = get_slim_term_by_id(term_id)
         if not term:
             raise ValueError(f"Term with id {term_id!r} not found")
+        embedding_database_name = (
+            _resolve_database_name(connector)
+            if connector is not None
+            else fetch_database_name_for_term(term_id) or _resolve_database_name(None)
+        )
 
         query_obj = validate_sql(
             expression,
@@ -398,7 +408,7 @@ def update_sql_attribute(
                 attr_id,
                 str(pii_tag["id"]) if pii_tag else None,
             )
-        _reembed_sql_attribute(attr_id, database_name)
+        _reembed_sql_attribute(attr_id, embedding_database_name)
 
         return {
             "id": attr_id,
@@ -406,7 +416,7 @@ def update_sql_attribute(
             "description": next_description,
             "expression": expression,
             "source": source,
-            "database_name": database_name,
+            "database_name": embedding_database_name,
             "term_name": term["name"],
             "term_id": term_id,
             "sql": expression,
@@ -454,7 +464,11 @@ def update_sql_attribute(
         touch=touch,
     )
     if name_changed or description_changed:
-        _reembed_sql_attribute(attr_id, existing.get("database_name"))
+        term_id = existing.get("term_id")
+        embedding_database_name = (
+            fetch_database_name_for_term(term_id) if term_id else None
+        ) or _resolve_database_name(None)
+        _reembed_sql_attribute(attr_id, embedding_database_name)
 
     return get_full_sql_attribute_by_id(attr_id)
 

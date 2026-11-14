@@ -328,6 +328,34 @@ def get_slim_term_by_id(term_id: str) -> dict[str, str] | None:
     return dict(rows[0]) if rows else None
 
 
+def fetch_database_name_for_term(term_id: str) -> str | None:
+    """Return the database name linked to a Term, if it belongs to exactly one."""
+    rows = store().query_read(
+        select(s.catalog_database.c.name)
+        .select_from(
+            s.table__term.join(
+                s.catalog_table, s.catalog_table.c.id == s.table__term.c.table_id
+            )
+            .join(
+                s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id
+            )
+            .join(
+                s.catalog_database,
+                s.catalog_database.c.id == s.catalog_schema.c.database_id,
+            )
+        )
+        .where(s.table__term.c.term_id == term_id)
+        .distinct()
+    )
+    if len(rows) > 1:
+        logger.warning(
+            "Term %s spans multiple databases; embedding without database scope",
+            term_id,
+        )
+        return None
+    return str(rows[0]["name"]) if rows else None
+
+
 def update_term(
     term_id: str,
     *,

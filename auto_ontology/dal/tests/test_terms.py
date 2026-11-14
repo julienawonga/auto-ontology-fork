@@ -187,6 +187,35 @@ def test_a_term_with_no_table_is_not_in_the_list(world) -> None:
     }
 
 
+def test_fetch_database_name_for_term_returns_only_database_and_none_for_unlinked(
+    world,
+) -> None:
+    world.table("orders")
+    linked = world.term("linked", represents=("orders",))
+    unlinked = world.term("unlinked")
+
+    assert t.fetch_database_name_for_term(linked) == world.prefix
+    assert t.fetch_database_name_for_term(unlinked) is None
+
+
+def test_fetch_database_name_for_term_returns_none_across_databases(world) -> None:
+    world.table("orders")
+    term_id = world.term("cross-db", represents=("orders",))
+    other_db = _add(s.catalog_database, name=f"{world.prefix}-other")
+    other_schema = _add(s.catalog_schema, database_id=other_db, name="public")
+    other_table = _add(s.catalog_table, schema_id=other_schema, name="invoices")
+    _link(s.table__term, table_id=other_table, term_id=term_id)
+
+    assert t.fetch_database_name_for_term(term_id) is None
+
+    store().query_write(
+        s.table__term.delete().where(s.table__term.c.table_id == other_table)
+    )
+    store().query_write(
+        s.catalog_database.delete().where(s.catalog_database.c.id == other_db)
+    )
+
+
 def test_a_non_semantic_term_is_not_in_the_list(world) -> None:
     world.table("orders")
     world.term("Order", represents=("orders",))
