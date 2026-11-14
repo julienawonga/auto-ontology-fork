@@ -63,7 +63,7 @@ The URL scheme selects the connector:
 | SQLite        | `sqlite://`                 | no            |
 
 The registry lives in
-[`auto_ontology/connectors/registry.py`](../auto_ontology/connectors/registry.py).
+[`auto_ontology/connectors/registry.py`](https://github.com/julienawonga/lexis/blob/main/auto_ontology/connectors/registry.py).
 
 ## Vault
 

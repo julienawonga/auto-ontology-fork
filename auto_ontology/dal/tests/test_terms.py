@@ -187,6 +187,35 @@ def test_a_term_with_no_table_is_not_in_the_list(world) -> None:
     }
 
 
+def test_fetch_database_name_for_term_returns_only_database_and_none_for_unlinked(
+    world,
+) -> None:
+    world.table("orders")
+    linked = world.term("linked", represents=("orders",))
+    unlinked = world.term("unlinked")
+
+    assert t.fetch_database_name_for_term(linked) == world.prefix
+    assert t.fetch_database_name_for_term(unlinked) is None
+
+
+def test_fetch_database_name_for_term_returns_none_across_databases(world) -> None:
+    world.table("orders")
+    term_id = world.term("cross-db", represents=("orders",))
+    other_db = _add(s.catalog_database, name=f"{world.prefix}-other")
+    other_schema = _add(s.catalog_schema, database_id=other_db, name="public")
+    other_table = _add(s.catalog_table, schema_id=other_schema, name="invoices")
+    _link(s.table__term, table_id=other_table, term_id=term_id)
+
+    assert t.fetch_database_name_for_term(term_id) is None
+
+    store().query_write(
+        s.table__term.delete().where(s.table__term.c.table_id == other_table)
+    )
+    store().query_write(
+        s.catalog_database.delete().where(s.catalog_database.c.id == other_db)
+    )
+
+
 def test_a_non_semantic_term_is_not_in_the_list(world) -> None:
     world.table("orders")
     world.term("Order", represents=("orders",))
@@ -491,6 +520,25 @@ def test_get_full_term_carries_its_tables_and_count(world) -> None:
 
 def test_get_full_term_of_a_missing_term_is_none() -> None:
     assert t.get_full_term_by_id("no-such-term") is None
+
+
+def test_null_synonyms_are_empty_in_term_reads(world) -> None:
+    world.table("orders")
+    term_id = _add(
+        s.term,
+        name=f"{world.prefix}-No aliases",
+        source=SEMANTIC_SOURCE,
+        synonyms=None,
+    )
+    _link(s.table__term, table_id=world.tables["orders"], term_id=term_id)
+
+    listed = next(row for row in t.fetch_all_terms() if row["id"] == term_id)
+    detailed = t.get_full_term_by_id(term_id)
+    related = t.fetch_terms_by_ids([term_id])
+
+    assert listed["synonyms"] == []
+    assert detailed["synonyms"] == []
+    assert related[0]["synonyms"] == []
 
 
 def test_term_record_for_table(world) -> None:

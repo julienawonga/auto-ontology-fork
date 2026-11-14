@@ -193,7 +193,8 @@ def test_quote_validation_rejects_paraphrase_and_bad_formula() -> None:
         [
             _term(),
             _term(name="Para", quote="The gizmo index is computed as"),  # paraphrase
-            _term(name="BadF", formula="GI = CogCount / Teeth"),
+            # A genuinely different formula (inverted ratio), not just a re-typing.
+            _term(name="BadF", formula="GI = Teeth / CogCount"),
             {"name": "NoQuote", "definition": "x"},
         ],
     )
@@ -201,6 +202,115 @@ def test_quote_validation_rejects_paraphrase_and_bad_formula() -> None:
     reasons = {r.name: r.reason for r in bad}
     assert "quote" in reasons["Para"] and "formula" in reasons["BadF"]
     assert "missing" in reasons["NoQuote"]
+
+
+def test_formula_without_text_wrappers_is_the_same_formula() -> None:
+    # Dropping \text{} is a re-typing of the chunk's formula, not a new one.
+    good, bad = wiki_extract.validate_terms(
+        CHUNK, [_term(name="Retyped", formula="GI = CogCount / Teeth")]
+    )
+    assert [t.name for t in good] == ["Retyped"] and not bad
+    assert good[0].formula == "GI = CogCount / Teeth"
+
+
+def test_normalize_for_match_rules() -> None:
+    # Rule 1: math delimiters
+    assert wiki_extract._normalize_for_match("$$ x = $y$ $$") == "x=y"
+    # Rule 2: \text, \mathrm, \textbf, \operatorname
+    assert (
+        wiki_extract._normalize_for_match(
+            r"\text{Alpha} \mathrm{Beta} \textbf{Gamma} \operatorname{Delta}"
+        )
+        == "alphabetagammadelta"
+    )
+    # Rule 3: sizing/spacing commands
+    assert (
+        wiki_extract._normalize_for_match(
+            r"\bigl( \bigr) \Bigl[ \Bigr] \left| \right| a\,b\;c\:d\!e \quad f \qquad g"
+        )
+        == "()[]||abcdefg"
+    )
+    # Rule 4: \times, \cdot, \frac, \%, \_
+    assert (
+        wiki_extract._normalize_for_match(r"a \times b \cdot c \frac{d}{e} 50\% a\_b")
+        == "a*b*c(d)/(e)50%a_b"
+    )
+    # Rule 5: unicode dashes, curly quotes, NBSP
+    assert (
+        wiki_extract._normalize_for_match("A–B—C−D ‘single’ “double” x\u00a0y\u202fz")
+        == "a-b-c-d'single'\"double\"xyz"
+    )
+    # Rule 6: whitespace and casefold
+    assert wiki_extract._normalize_for_match("  FoO \t\n BaR ") == "foobar"
+
+
+def test_normalized_verbatim_matching() -> None:
+    chunk = wiki.Chunk(
+        "k_latex",
+        ("Widget", "Formula"),
+        "The Alpha Score (AS) is given by\n$$\n\\text{AS} = \\text{Signal–Ratio} \\times 0.1 - 5\n$$\n",
+    )
+    # Formula re-typed with different spacing, * for \times, - for –, no \text{}
+    retyped = "AS = Signal-Ratio * 0.1 - 5"
+    good, bad = wiki_extract.validate_terms(
+        chunk,
+        [
+            {
+                "name": "Alpha Score",
+                "definition": "Widget score",
+                "quote": "The Alpha Score (AS) is given by",
+                "formula": retyped,
+            }
+        ],
+    )
+    assert not bad and len(good) == 1
+    assert good[0].formula == retyped  # original model string preserved
+
+    # Formula with changed number or operator is REJECTED
+    _, bad_num = wiki_extract.validate_terms(
+        chunk,
+        [
+            {
+                "name": "Alpha Score",
+                "definition": "Widget score",
+                "quote": "The Alpha Score (AS) is given by",
+                "formula": "AS = Signal-Ratio * 0.2 - 5",
+            }
+        ],
+    )
+    assert "formula" in bad_num[0].reason
+
+    _, bad_op = wiki_extract.validate_terms(
+        chunk,
+        [
+            {
+                "name": "Alpha Score",
+                "definition": "Widget score",
+                "quote": "The Alpha Score (AS) is given by",
+                "formula": "AS = Signal-Ratio * 0.1 + 5",
+            }
+        ],
+    )
+    assert "formula" in bad_op[0].reason
+
+    # Normalized value shorter than 8 chars does NOT match on normalization alone
+    short_chunk = wiki.Chunk(
+        "k_short",
+        ("Short",),
+        "Formula: $$\\text{X}=\\text{Y}–\\text{Z}$$",
+    )
+    _, bad_short = wiki_extract.validate_terms(
+        short_chunk,
+        [
+            {
+                "name": "X",
+                "definition": "Short term",
+                "quote": "Formula:",
+                "formula": "X = Y - Z",  # normalized: "x=y-z" (5 chars < 8)
+            }
+        ],
+    )
+    assert "formula" in bad_short[0].reason
 
 
 def test_latex_backslashes_eaten_by_json_are_recovered() -> None:

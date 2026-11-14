@@ -236,11 +236,20 @@ def _worker_loop(
                 question_language = resolve_question_language(
                     processing_question, follow_up_llm, ontology_language
                 )
-                if question_language is not None and question_language.translated:
-                    clarification_extra = {
-                        "retrieval_question": question_language.text,
-                        "answer_language": language_name(question_language.language),
-                    }
+            # Name the answer language whenever the question's language is known,
+            # translated or not: left implicit, the model sometimes answers in
+            # another language. Unknown (translation off, detection failed) stays
+            # implicit rather than guessing the ontology's language.
+            answer_language = None
+            if question_language is not None:
+                try:
+                    answer_language = language_name(question_language.language)
+                except Exception:  # noqa: BLE001 - language metadata must not fail chat
+                    answer_language = None
+            if answer_language:
+                clarification_extra["answer_language"] = answer_language
+            if question_language is not None and question_language.translated:
+                clarification_extra["retrieval_question"] = question_language.text
             if detect_clarification:
                 decision = detect_clarification_fn(
                     question=processing_question,

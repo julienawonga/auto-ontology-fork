@@ -328,6 +328,34 @@ def get_slim_term_by_id(term_id: str) -> dict[str, str] | None:
     return dict(rows[0]) if rows else None
 
 
+def fetch_database_name_for_term(term_id: str) -> str | None:
+    """Return the database name linked to a Term, if it belongs to exactly one."""
+    rows = store().query_read(
+        select(s.catalog_database.c.name)
+        .select_from(
+            s.table__term.join(
+                s.catalog_table, s.catalog_table.c.id == s.table__term.c.table_id
+            )
+            .join(
+                s.catalog_schema, s.catalog_schema.c.id == s.catalog_table.c.schema_id
+            )
+            .join(
+                s.catalog_database,
+                s.catalog_database.c.id == s.catalog_schema.c.database_id,
+            )
+        )
+        .where(s.table__term.c.term_id == term_id)
+        .distinct()
+    )
+    if len(rows) > 1:
+        logger.warning(
+            "Term %s spans multiple databases; embedding without database scope",
+            term_id,
+        )
+        return None
+    return str(rows[0]["name"]) if rows else None
+
+
 def update_term(
     term_id: str,
     *,
@@ -905,6 +933,7 @@ def fetch_all_terms(
     zones_by_term = fetch_term_zones_map(zone_ids, term_ids=term_ids)
     tags_by_term = fetch_tags_map(TARGET_TERM, term_ids)
     for row in terms:
+        row["synonyms"] = row["synonyms"] or []
         row["schema_names"] = row["schema_names"] or []
         row["zones"] = zones_by_term.get(row["id"], [])
         row["tags"] = tags_by_term.get(row["id"], [])
@@ -1015,6 +1044,7 @@ def get_full_term_by_id(
     if not rows:
         return None
     result = dict(rows[0])
+    result["synonyms"] = result["synonyms"] or []
 
     tables = store().query_read(
         select(
@@ -1985,14 +2015,17 @@ def fetch_terms_by_ids(
     if not term_ids:
         return []
     statement = (
-        select(s.term.c.id, s.term.c.name, s.term.c.description)
+        select(s.term.c.id, s.term.c.name, s.term.c.description, s.term.c.synonyms)
         .where(s.term.c.id.in_(list(term_ids)))
         .order_by(func.lower(s.term.c.name), s.term.c.id)
         .offset(skip)
     )
     if limit is not None:
         statement = statement.limit(limit)
-    return [dict(r) for r in store().query_read(statement)]
+    terms = [dict(r) for r in store().query_read(statement)]
+    for term in terms:
+        term["synonyms"] = term["synonyms"] or []
+    return terms
 
 
 def fetch_related_terms(

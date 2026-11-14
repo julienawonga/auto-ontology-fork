@@ -71,9 +71,9 @@ export const TermPreviewPanel = ({
 				<h2 className="text-[22px] leading-tight font-bold text-glass-text dark:text-zinc-50">
 					{term.name}
 				</h2>
-				{term.synonyms.length > 0 && (
+				{(term.synonyms ?? []).length > 0 && (
 					<p className="text-xs text-secondary dark:text-zinc-400">
-						Also: {term.synonyms.join(', ')}
+						Also: {(term.synonyms ?? []).join(', ')}
 					</p>
 				)}
 			</div>

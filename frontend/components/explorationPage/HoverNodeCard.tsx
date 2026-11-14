@@ -55,11 +55,12 @@ export const HoverNodeCard = ({ node, x, y }: HoverNodeCardProps) => {
 							{node.databaseName} • {node.schemaName}
 						</p>
 					)}
-					{node.layer === ExplorationLayer.Semantic && node.synonyms.length > 0 && (
-						<p className="mt-0.5 truncate text-xs text-secondary dark:text-zinc-500">
-							Synonyms: {node.synonyms.join(', ')}
-						</p>
-					)}
+					{node.layer === ExplorationLayer.Semantic &&
+						(node.synonyms ?? []).length > 0 && (
+							<p className="mt-0.5 truncate text-xs text-secondary dark:text-zinc-500">
+								Synonyms: {(node.synonyms ?? []).join(', ')}
+							</p>
+						)}
 					<p className="mt-1 line-clamp-2 text-xs leading-5 text-secondary dark:text-zinc-400">
 						{node.description || 'No Description'}
 					</p>

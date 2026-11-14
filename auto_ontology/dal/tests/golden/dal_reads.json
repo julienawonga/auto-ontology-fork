@@ -7449,12 +7449,21 @@
       {
         "description": "A motion picture available for rental.",
         "id": "<term:Film>",
-        "name": "Film"
+        "name": "Film",
+        "synonyms": [
+          "movie",
+          "picture",
+          "title"
+        ]
       },
       {
         "description": "A person who rents films from a store.",
         "id": "<term:Customer>",
-        "name": "Customer"
+        "name": "Customer",
+        "synonyms": [
+          "patron",
+          "renter"
+        ]
       }
     ],
     "terms.fetch_terms_with_sqls": [],

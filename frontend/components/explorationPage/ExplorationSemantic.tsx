@@ -25,7 +25,7 @@ export const buildSemanticGraph = (graph: SemanticExplorationGraph): Exploration
 		id: node.id,
 		name: node.name,
 		description: node.description,
-		synonyms: node.synonyms,
+		synonyms: node.synonyms ?? [],
 		zones: node.zones,
 		layer: ExplorationLayer.Semantic as const,
 		nodeType: 'term' as const,
@@ -83,9 +83,9 @@ export const ActiveTermCard = ({
 				/>
 				<div className="min-w-0 flex-1 space-y-1">
 					<Text as="h2" text={node.name} variant={TextVariant.Heading} />
-					{node.synonyms.length > 0 && (
+					{(node.synonyms ?? []).length > 0 && (
 						<Text as="p" variant={TextVariant.Caption}>
-							Synonyms: {node.synonyms.join(', ')}
+							Synonyms: {(node.synonyms ?? []).join(', ')}
 						</Text>
 					)}
 				</div>
