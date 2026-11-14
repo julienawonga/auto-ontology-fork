@@ -5,6 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Verification status
 
+| Exploration map: database overview level | The semantic layer shows one database bubble per database with linked Terms while no database is selected; selecting a bubble loads that database's existing Term graph, and choosing all databases returns to the overview. Backend counts are distinct per database and include databases with no Terms. NOT verified: tests were not run and the UI was not opened in a browser. | UNVERIFIED | `auto_ontology/dal/tests/test_exploration.py` | 2026-11-13 |
+
 What each capability of this fork has actually been checked against. A claim
 here is only as strong as its **Verification level**; a feature is not "done"
 because its unit tests pass, and a number is not a measurement because a script

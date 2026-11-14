@@ -16,6 +16,7 @@ import type {
 	ExplorationRelationshipsPageDto,
 	ExplorationTermNode,
 	ExplorationZonesMap,
+	SemanticDatabaseOverviewItem,
 	SemanticExplorationGraph,
 	SqlAttributeExplorationDetails,
 	SqlExplorationDetails,
@@ -140,4 +141,8 @@ export const explorationApi = {
 			'exploration/semantic-graph',
 			databaseId ? { database_id: databaseId } : { limit: EXPLORATION_GRAPH_NODE_LIMIT },
 		),
+
+	/** Database-level overview for the semantic map. */
+	getSemanticDatabaseOverview: () =>
+		requests.get<{ data: SemanticDatabaseOverviewItem[] }>('exploration/semantic-overview'),
 };

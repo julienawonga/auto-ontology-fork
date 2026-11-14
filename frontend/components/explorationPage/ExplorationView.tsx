@@ -35,6 +35,7 @@ import type {
 	ExplorationGraph,
 	ExplorationLinkPathHopDto,
 	ExplorationTermNode,
+	SemanticDatabaseOverviewItem,
 } from '@/types/exploration';
 import type {
 	ExpansionEdgeInput,
@@ -52,6 +53,7 @@ import { DatabaseFilter } from './DatabaseFilter';
 import { ActiveExpansionCard } from './ActiveExpansionCard';
 import { HoverNodeCard } from './HoverNodeCard';
 import { ActiveDataCard, buildDataGraph } from './ExplorationData';
+import { DatabaseOverview } from './DatabaseOverview';
 import { ExplorationLoader } from './ExplorationLoader';
 import { ActiveTermCard, buildSemanticGraph } from './ExplorationSemantic';
 
@@ -223,6 +225,8 @@ export const ExplorationView = () => {
 	const [semanticLoading, setSemanticLoading] = useState(true);
 	const [dataLoading, setDataLoading] = useState(false);
 	const [semanticError, setSemanticError] = useState<string | null>(null);
+	const [overview, setOverview] = useState<SemanticDatabaseOverviewItem[] | null>(null);
+	const [overviewError, setOverviewError] = useState<string | null>(null);
 	const [dataError, setDataError] = useState<string | null>(null);
 	const [search, setSearch] = useState('');
 	/** One database id, or null for the unfiltered (500-node) graphs. */
@@ -351,6 +355,12 @@ export const ExplorationView = () => {
 	const loadedSemanticDatabaseIdRef = useRef<string | null | undefined>(undefined);
 
 	useEffect(() => {
+		if (selectedDatabaseId === null) {
+			setSemanticGraph(EMPTY_GRAPH);
+			loadedSemanticDatabaseIdRef.current = null;
+			setSemanticLoading(false);
+			return undefined;
+		}
 		if (loadedSemanticDatabaseIdRef.current === selectedDatabaseId) {
 			// A cancelled in-flight load leaves semanticLoading true without
 			// updating the ref. If this database is already loaded, skip the
@@ -386,6 +396,31 @@ export const ExplorationView = () => {
 			cancelled = true;
 		};
 	}, [selectedDatabaseId]);
+
+	useEffect(() => {
+		if (
+			layer !== ExplorationLayer.Semantic ||
+			selectedDatabaseId !== null ||
+			overview !== null
+		) {
+			return undefined;
+		}
+		let cancelled = false;
+		const loadOverview = async () => {
+			setOverviewError(null);
+			const response = await explorationApi.getSemanticDatabaseOverview();
+			if (cancelled) return;
+			if (response.error) {
+				setOverviewError(response.message ?? 'Failed to load database overview');
+				return;
+			}
+			setOverview(response.data ?? []);
+		};
+		void loadOverview();
+		return () => {
+			cancelled = true;
+		};
+	}, [layer, selectedDatabaseId, overview]);
 
 	const loadedDatabaseIdRef = useRef<string | null | undefined>(undefined);
 
@@ -1989,6 +2024,7 @@ export const ExplorationView = () => {
 	}, []);
 
 	const graph = layer === ExplorationLayer.Semantic ? semanticGraph : dataGraph;
+	const showOverview = layer === ExplorationLayer.Semantic && selectedDatabaseId === null;
 	const loading = layer === ExplorationLayer.Semantic ? semanticLoading : dataLoading;
 	const error = layer === ExplorationLayer.Semantic ? semanticError : dataError;
 
@@ -2214,9 +2250,35 @@ export const ExplorationView = () => {
 				</div>
 			</div>
 
-			{loading && <ExplorationLoader overlay />}
+			{!showOverview && loading && <ExplorationLoader overlay />}
 
-			{!loading && error != null && (
+			{showOverview && (
+				<>
+					{overview === null && overviewError === null && <ExplorationLoader overlay />}
+					{overviewError !== null && (
+						<div className="flex h-full items-center justify-center px-6 text-center">
+							<div className="rounded-xl border border-red-200 px-8 py-6 text-sm text-red-700 dark:border-red-900/50 dark:text-red-300 glass-strong">
+								Couldn&apos;t load exploration: {overviewError}
+							</div>
+						</div>
+					)}
+					{overview !== null && overview.some((database) => database.term_count > 0) && (
+						<DatabaseOverview
+							databases={overview}
+							onSelect={(id) => handleDatabaseFilterChange(id)}
+						/>
+					)}
+					{overview !== null && !overview.some((database) => database.term_count > 0) && (
+						<EmptyState
+							variant={EmptyStateVariant.Borderless}
+							icon={IconName.Exploration}
+							title="No Terms Created Yet"
+						/>
+					)}
+				</>
+			)}
+
+			{!showOverview && !loading && error != null && (
 				<div className="flex h-full items-center justify-center px-6 text-center">
 					<div className="rounded-xl border border-red-200 px-8 py-6 text-sm text-red-700 dark:border-red-900/50 dark:text-red-300 glass-strong">
 						Couldn&apos;t load exploration: {error}
@@ -2224,7 +2286,7 @@ export const ExplorationView = () => {
 				</div>
 			)}
 
-			{!loading && error == null && graph.nodes.length === 0 && (
+			{!showOverview && !loading && error == null && graph.nodes.length === 0 && (
 				<EmptyState
 					variant={EmptyStateVariant.Borderless}
 					icon={IconName.Exploration}
@@ -2240,7 +2302,7 @@ export const ExplorationView = () => {
 				/>
 			)}
 
-			{!loading && error == null && graph.nodes.length > 0 && (
+			{!showOverview && !loading && error == null && graph.nodes.length > 0 && (
 				<GraphCanvas
 					graph={graph}
 					activeNodeId={activeNodeId}

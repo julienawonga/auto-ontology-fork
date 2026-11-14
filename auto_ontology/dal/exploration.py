@@ -1240,6 +1240,48 @@ def _table_ids_for_database(database_id: str) -> set[str]:
     return {row["id"] for row in rows}
 
 
+def fetch_semantic_database_overview() -> list[dict[str, Any]]:
+    """Return each catalog database and its distinct linked Term count."""
+    linked_terms = (
+        select(
+            s.catalog_schema.c.database_id.label("database_id"),
+            s.table__term.c.term_id.label("term_id"),
+        )
+        .select_from(
+            s.catalog_database.join(
+                s.catalog_schema,
+                s.catalog_schema.c.database_id == s.catalog_database.c.id,
+            )
+            .join(
+                s.catalog_table,
+                s.catalog_table.c.schema_id == s.catalog_schema.c.id,
+            )
+            .join(
+                s.table__term,
+                s.table__term.c.table_id == s.catalog_table.c.id,
+            )
+        )
+        .distinct()
+        .subquery()
+    )
+    statement = (
+        select(
+            s.catalog_database.c.id.label("database_id"),
+            s.catalog_database.c.name.label("database_name"),
+            func.count(linked_terms.c.term_id).label("term_count"),
+        )
+        .select_from(
+            s.catalog_database.outerjoin(
+                linked_terms,
+                linked_terms.c.database_id == s.catalog_database.c.id,
+            )
+        )
+        .group_by(s.catalog_database.c.id, s.catalog_database.c.name)
+        .order_by(s.catalog_database.c.name)
+    )
+    return [dict(row) for row in store().query_read(statement)]
+
+
 def fetch_semantic_exploration_graph(
     zone_ids: list[str] | None = None,
     limit: int = MAX_EXPLORATION_GRAPH_NODES,
@@ -1452,6 +1494,7 @@ __all__ = [
     "fetch_data_exploration_edges",
     "fetch_data_exploration_graph",
     "fetch_exploration_related_nodes",
+    "fetch_semantic_database_overview",
     "fetch_semantic_exploration_graph",
     "fetch_semantic_link_path",
     "fetch_sql_attribute_exploration_details",

@@ -19,6 +19,7 @@ from auto_ontology.server.responses import (
     ExplorationEdgeListResponse,
     ExplorationLinkPathResponse,
     ExplorationRelatedNodesResponse,
+    SemanticDatabaseOverviewResponse,
     SemanticExplorationGraphResponse,
     SqlAttributeExplorationDetailsResponse,
     SqlExplorationDetailsResponse,
@@ -28,6 +29,16 @@ from auto_ontology.server.responses import (
 )
 
 router = APIRouter()
+
+
+@router.get(
+    "/exploration/semantic-overview",
+    response_model=SemanticDatabaseOverviewResponse,
+)
+def get_semantic_database_overview() -> dict:
+    """Return database Term counts for the overview level of the semantic map."""
+    return {"data": service.fetch_semantic_database_overview()}
+
 
 _DATA_GRAPH_LIMIT_QUERY = Query(
     default=service.MAX_EXPLORATION_GRAPH_NODES,

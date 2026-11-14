@@ -1678,6 +1678,23 @@
         "title": "DataResponse[dict[str, list[ZoneChip]]]",
         "type": "object"
       },
+      "DataResponse_list_SemanticDatabaseOverviewItem__": {
+        "additionalProperties": true,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SemanticDatabaseOverviewItem"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DataResponse[list[SemanticDatabaseOverviewItem]]",
+        "type": "object"
+      },
       "DatabaseSummary": {
         "additionalProperties": true,
         "description": "One catalog database. ``schemas`` is always empty \u2014 the tree is lazy.",
@@ -3697,6 +3714,31 @@
           "schemas"
         ],
         "title": "SchemasPayload",
+        "type": "object"
+      },
+      "SemanticDatabaseOverviewItem": {
+        "additionalProperties": true,
+        "description": "One database bubble and the number of distinct Terms linked to it.",
+        "properties": {
+          "database_id": {
+            "title": "Database Id",
+            "type": "string"
+          },
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "term_count": {
+            "title": "Term Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_id",
+          "database_name",
+          "term_count"
+        ],
+        "title": "SemanticDatabaseOverviewItem",
         "type": "object"
       },
       "SemanticExplorationGraph": {
@@ -7900,6 +7942,28 @@
           }
         },
         "summary": "Get Semantic Exploration Graph",
+        "tags": [
+          "exploration"
+        ]
+      }
+    },
+    "/api/exploration/semantic-overview": {
+      "get": {
+        "description": "Return database Term counts for the overview level of the semantic map.",
+        "operationId": "get_semantic_database_overview_api_exploration_semantic_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_SemanticDatabaseOverviewItem__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Semantic Database Overview",
         "tags": [
           "exploration"
         ]

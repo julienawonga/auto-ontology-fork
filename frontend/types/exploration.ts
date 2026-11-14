@@ -118,6 +118,12 @@ export type SemanticExplorationGraph = {
 	links: Array<{ source: string; target: string; relationship_types: string[] }>;
 };
 
+export type SemanticDatabaseOverviewItem = {
+	database_id: string;
+	database_name: string;
+	term_count: number;
+};
+
 /** One Term/Table/Column/ColumnAttribute node along an `ExplorationLinkPathHop` chain. */
 export type ExplorationLinkPathNodeDto = {
 	id: string;

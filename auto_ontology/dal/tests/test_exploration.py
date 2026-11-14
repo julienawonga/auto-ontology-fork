@@ -564,6 +564,37 @@ def test_semantic_graph_filters_to_one_database(world) -> None:
     assert {node["id"] for node in other["nodes"]} == {world.terms["Secret"]}
 
 
+def test_semantic_database_overview_counts_distinct_linked_terms(world) -> None:
+    world.table("orders")
+    second_table = _add(
+        s.catalog_table,
+        schema_id=world.schema,
+        name=f"{world.prefix}_order_items",
+    )
+    shared = world.term("Order", represents=("orders",))
+    _link(s.table__term, table_id=second_table, term_id=shared)
+    world.term("Customer", represents=("orders",))
+
+    other_db, other_schema = world.add_database("other")
+    other_table = _add(
+        s.catalog_table,
+        schema_id=other_schema,
+        name=f"{world.prefix}_other_table",
+    )
+    other_term = _add(s.term, name=f"{world.prefix}-Other", source=SEMANTIC_SOURCE)
+    _link(s.table__term, table_id=other_table, term_id=other_term)
+    empty_db, _empty_schema = world.add_database("empty")
+
+    overview = e.fetch_semantic_database_overview()
+    by_id = {item["database_id"]: item for item in overview}
+    assert by_id[world.database]["term_count"] == 2
+    assert by_id[other_db]["term_count"] == 1
+    assert by_id[empty_db]["term_count"] == 0
+    assert [item["database_name"] for item in overview] == sorted(
+        item["database_name"] for item in overview
+    )
+
+
 def test_semantic_database_filter_ignores_limit(world) -> None:
     """Choosing one database returns every linked term, past the unfiltered cap."""
     world.table("orders")

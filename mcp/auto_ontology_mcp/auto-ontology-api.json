@@ -4125,6 +4125,42 @@
         "x-auto-ontology-proxied": true
       }
     },
+    "/api/exploration/semantic-overview": {
+      "get": {
+        "description": "ExplorationView's semantic-map database overview.",
+        "operationId": "get_api_exploration_semantic_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse_list_SemanticDatabaseOverviewItem__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "No authenticated caller could be resolved"
+          },
+          "403": {
+            "description": "The caller lacks the required permission"
+          }
+        },
+        "summary": "Get Semantic Database Overview",
+        "tags": ["exploration"],
+        "security": [
+          {
+            "ApiToken": []
+          }
+        ],
+        "x-auto-ontology-source": "frontend/app/api/exploration/semantic-overview/route.ts",
+        "x-auto-ontology-permissions": {
+          "catalog": ["read"]
+        },
+        "x-auto-ontology-proxied": true
+      }
+    },
     "/api/exploration/sql-attributes/{attr_id}/details": {
       "get": {
         "description": "explorationApi.getSqlAttributeExplorationDetails — a SqlAttribute's own Sql query and owning Term, for expanding it on the graph.",
@@ -10065,6 +10101,21 @@
         "title": "DataResponse[IdRef]",
         "type": "object"
       },
+      "DataResponse_list_SemanticDatabaseOverviewItem__": {
+        "additionalProperties": true,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SemanticDatabaseOverviewItem"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": ["data"],
+        "title": "DataResponse[list[SemanticDatabaseOverviewItem]]",
+        "type": "object"
+      },
       "DataResponse_PqlAnalysis_": {
         "additionalProperties": true,
         "properties": {
@@ -12059,6 +12110,27 @@
         },
         "required": ["id"],
         "title": "SchemaSummary",
+        "type": "object"
+      },
+      "SemanticDatabaseOverviewItem": {
+        "additionalProperties": true,
+        "description": "One database bubble and the number of distinct Terms linked to it.",
+        "properties": {
+          "database_id": {
+            "title": "Database Id",
+            "type": "string"
+          },
+          "database_name": {
+            "title": "Database Name",
+            "type": "string"
+          },
+          "term_count": {
+            "title": "Term Count",
+            "type": "integer"
+          }
+        },
+        "required": ["database_id", "database_name", "term_count"],
+        "title": "SemanticDatabaseOverviewItem",
         "type": "object"
       },
       "SemanticExplorationGraph": {
