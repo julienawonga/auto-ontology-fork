@@ -933,6 +933,7 @@ def fetch_all_terms(
     zones_by_term = fetch_term_zones_map(zone_ids, term_ids=term_ids)
     tags_by_term = fetch_tags_map(TARGET_TERM, term_ids)
     for row in terms:
+        row["synonyms"] = row["synonyms"] or []
         row["schema_names"] = row["schema_names"] or []
         row["zones"] = zones_by_term.get(row["id"], [])
         row["tags"] = tags_by_term.get(row["id"], [])
@@ -1043,6 +1044,7 @@ def get_full_term_by_id(
     if not rows:
         return None
     result = dict(rows[0])
+    result["synonyms"] = result["synonyms"] or []
 
     tables = store().query_read(
         select(
@@ -2013,14 +2015,17 @@ def fetch_terms_by_ids(
     if not term_ids:
         return []
     statement = (
-        select(s.term.c.id, s.term.c.name, s.term.c.description)
+        select(s.term.c.id, s.term.c.name, s.term.c.description, s.term.c.synonyms)
         .where(s.term.c.id.in_(list(term_ids)))
         .order_by(func.lower(s.term.c.name), s.term.c.id)
         .offset(skip)
     )
     if limit is not None:
         statement = statement.limit(limit)
-    return [dict(r) for r in store().query_read(statement)]
+    terms = [dict(r) for r in store().query_read(statement)]
+    for term in terms:
+        term["synonyms"] = term["synonyms"] or []
+    return terms
 
 
 def fetch_related_terms(

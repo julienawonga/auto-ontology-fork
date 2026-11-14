@@ -522,6 +522,25 @@ def test_get_full_term_of_a_missing_term_is_none() -> None:
     assert t.get_full_term_by_id("no-such-term") is None
 
 
+def test_null_synonyms_are_empty_in_term_reads(world) -> None:
+    world.table("orders")
+    term_id = _add(
+        s.term,
+        name=f"{world.prefix}-No aliases",
+        source=SEMANTIC_SOURCE,
+        synonyms=None,
+    )
+    _link(s.table__term, table_id=world.tables["orders"], term_id=term_id)
+
+    listed = next(row for row in t.fetch_all_terms() if row["id"] == term_id)
+    detailed = t.get_full_term_by_id(term_id)
+    related = t.fetch_terms_by_ids([term_id])
+
+    assert listed["synonyms"] == []
+    assert detailed["synonyms"] == []
+    assert related[0]["synonyms"] == []
+
+
 def test_term_record_for_table(world) -> None:
     world.table("orders")
     term = world.term("Order", represents=("orders",), description="a purchase")

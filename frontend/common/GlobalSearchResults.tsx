@@ -246,12 +246,12 @@ export const GlobalSearchResults = ({
 								{typeLabel}
 							</span>
 						</div>
-						{item.synonyms && item.synonyms.length > 0 ? (
+						{(item.synonyms ?? []).length > 0 ? (
 							<p className="min-w-0 truncate pl-6 text-xs text-secondary dark:text-zinc-400">
 								<span className="text-secondary dark:text-zinc-500">
 									Synonyms:{' '}
 								</span>
-								{item.synonyms.map((synonym, index) => (
+								{(item.synonyms ?? []).map((synonym, index) => (
 									<span key={`${item.id}-${synonym}`}>
 										{index > 0 ? ', ' : null}
 										<HighlightedWholeWords text={synonym} query={query} />
