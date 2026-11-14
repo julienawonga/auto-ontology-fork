@@ -11,6 +11,7 @@ Each module is the single source of truth for a domain:
   custom_analyses — CustomAnalysis and its SQL
   sql_attributes  — SqlAttribute and its SQL
   connections     — UI-managed database connection metadata
+  domains         — Business domains and Term assignments (grouping persistence)
   reset           — Deleting a database's catalog/semantic rows and embeddings
   candidates      — Vector-hit enrichment at retrieval time
   exploration     — The data- and semantic-layer Exploration graphs

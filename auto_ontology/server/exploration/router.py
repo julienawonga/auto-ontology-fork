@@ -6,10 +6,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query, Request
+from pydantic import BaseModel, Field
 
+from auto_ontology.dal.owners import CATALOG_EDIT
+from auto_ontology.server.owners import enforce_permission
 from auto_ontology.server.exploration import service
 from auto_ontology.server.pagination import LIMIT_QUERY, SKIP_QUERY
 from auto_ontology.server.responses import (
@@ -20,6 +24,7 @@ from auto_ontology.server.responses import (
     ExplorationLinkPathResponse,
     ExplorationRelatedNodesResponse,
     SemanticDatabaseOverviewResponse,
+    SemanticDomainsResponse,
     SemanticExplorationGraphResponse,
     SqlAttributeExplorationDetailsResponse,
     SqlExplorationDetailsResponse,
@@ -29,6 +34,91 @@ from auto_ontology.server.responses import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+class SemanticDomainRename(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+
+
+class SemanticDomainTerms(BaseModel):
+    term_ids: list[str]
+
+
+@router.get("/exploration/semantic-domains", response_model=SemanticDomainsResponse)
+def get_semantic_domains(database_id: str = Query(...)) -> dict:
+    """Return the generated business domains and cross-domain Term links."""
+    try:
+        return {"data": service.fetch_semantic_domains(database_id)}
+    except service.UnknownDatabase as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/exploration/semantic-domains/generate", response_model=SemanticDomainsResponse
+)
+def generate_semantic_domains(request: Request, database_id: str = Query(...)) -> dict:
+    """Generate and store business domains for a database's semantic Terms."""
+    enforce_permission(request, CATALOG_EDIT)
+    try:
+        result = service.generate_semantic_domains(database_id)
+    except service.UnknownDatabase as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    logger.info(
+        "audit: semantic_domain.generate database=%s by=%s domains=%d",
+        database_id,
+        request.headers.get("x-auto-ontology-user-id", "anonymous"),
+        len(result["domains"]),
+    )
+    return {"data": result}
+
+
+@router.patch(
+    "/exploration/semantic-domains/{domain_id}", response_model=SemanticDomainsResponse
+)
+def rename_semantic_domain(
+    request: Request, domain_id: str, body: SemanticDomainRename
+) -> dict:
+    """Rename a business domain and return its database's updated domain map."""
+    enforce_permission(request, CATALOG_EDIT)
+    try:
+        result = service.rename_semantic_domain(domain_id, body.name, body.description)
+    except service.UnknownDomain as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except service.DuplicateDomainName as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    logger.info(
+        "audit: semantic_domain.rename id=%s by=%s name=%r",
+        domain_id,
+        request.headers.get("x-auto-ontology-user-id", "anonymous"),
+        body.name.strip(),
+    )
+    return {"data": result}
+
+
+@router.post(
+    "/exploration/semantic-domains/{domain_id}/terms",
+    response_model=SemanticDomainsResponse,
+)
+def move_semantic_domain_terms(
+    request: Request, domain_id: str, body: SemanticDomainTerms
+) -> dict:
+    """Move Terms to a business domain and return the refreshed domain map."""
+    enforce_permission(request, CATALOG_EDIT)
+    try:
+        result = service.move_semantic_domain_terms(domain_id, body.term_ids)
+    except service.UnknownDomain as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    logger.info(
+        "audit: semantic_domain.move_terms id=%s by=%s terms=%d",
+        domain_id,
+        request.headers.get("x-auto-ontology-user-id", "anonymous"),
+        len(body.term_ids),
+    )
+    return {"data": result}
 
 
 @router.get(

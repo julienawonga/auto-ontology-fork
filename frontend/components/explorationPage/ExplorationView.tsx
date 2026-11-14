@@ -36,6 +36,7 @@ import type {
 	ExplorationLinkPathHopDto,
 	ExplorationTermNode,
 	SemanticDatabaseOverviewItem,
+	SemanticDomains,
 } from '@/types/exploration';
 import type {
 	ExpansionEdgeInput,
@@ -54,6 +55,11 @@ import { ActiveExpansionCard } from './ActiveExpansionCard';
 import { HoverNodeCard } from './HoverNodeCard';
 import { ActiveDataCard, buildDataGraph } from './ExplorationData';
 import { DatabaseOverview } from './DatabaseOverview';
+import { useSession } from '@/auth/auth-client';
+import { canEditEntity } from '@/lib/owners';
+import { DomainOverview } from './DomainOverview';
+import { DomainGenerationBanner } from './DomainGenerationBanner';
+import { ExplorationBreadcrumb } from './ExplorationBreadcrumb';
 import { ExplorationLoader } from './ExplorationLoader';
 import { ActiveTermCard, buildSemanticGraph } from './ExplorationSemantic';
 
@@ -210,6 +216,11 @@ const GraphCanvas = dynamic(
 
 export const ExplorationView = () => {
 	const router = useRouter();
+	const { data: session } = useSession();
+	const canEdit = canEditEntity({
+		user: session?.user ? { id: session.user.id, role: session.user.role ?? null } : null,
+		permission: { catalog: ['edit'] },
+	});
 	const searchParams = useSearchParams();
 	const semanticId = searchParams.get('semanticId');
 	const dataId = searchParams.get('dataId');
@@ -227,6 +238,11 @@ export const ExplorationView = () => {
 	const [semanticError, setSemanticError] = useState<string | null>(null);
 	const [overview, setOverview] = useState<SemanticDatabaseOverviewItem[] | null>(null);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
+	const [domains, setDomains] = useState<SemanticDomains | null>(null);
+	const [generatingDomains, setGeneratingDomains] = useState(false);
+	const [generateError, setGenerateError] = useState<string | null>(null);
+	const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);
+	const [showAllTerms, setShowAllTerms] = useState(false);
 	const [dataError, setDataError] = useState<string | null>(null);
 	const [search, setSearch] = useState('');
 	/** One database id, or null for the unfiltered (500-node) graphs. */
@@ -392,6 +408,28 @@ export const ExplorationView = () => {
 		};
 
 		void loadGraph();
+		return () => {
+			cancelled = true;
+		};
+	}, [selectedDatabaseId]);
+
+	useEffect(() => {
+		if (selectedDatabaseId === null) {
+			setDomains(null);
+			setSelectedDomainId(null);
+			setShowAllTerms(false);
+			return undefined;
+		}
+		let cancelled = false;
+		setDomains(null);
+		setSelectedDomainId(null);
+		setShowAllTerms(false);
+		const loadDomains = async () => {
+			const response = await explorationApi.getSemanticDomains(selectedDatabaseId);
+			if (cancelled || response.error) return;
+			setDomains(response.data ?? { generated: false, domains: [], links: [] });
+		};
+		void loadDomains();
 		return () => {
 			cancelled = true;
 		};
@@ -2003,9 +2041,58 @@ export const ExplorationView = () => {
 		);
 	}, [clearGraphInteraction, layer, router]);
 
+	const handleGenerateDomains = useCallback(async () => {
+		if (selectedDatabaseId == null) return;
+		setGeneratingDomains(true);
+		setGenerateError(null);
+		const response = await explorationApi.generateSemanticDomains(selectedDatabaseId);
+		setGeneratingDomains(false);
+		if (response.error) {
+			setGenerateError(response.message ?? 'Failed to generate business domains');
+			return;
+		}
+		setShowAllTerms(false);
+		setSelectedDomainId(null);
+		setDomains(response.data ?? { generated: true, domains: [], links: [] });
+	}, [selectedDatabaseId]);
+
+	const handleRenameDomain = useCallback(
+		async (domainId: string, name: string, description?: string | null) => {
+			const response = await explorationApi.renameSemanticDomain(domainId, {
+				name,
+				description,
+			});
+			if (response.error) {
+				throw new Error(response.message ?? 'Failed to rename domain');
+			}
+			setDomains((previous) => {
+				if (!previous) return previous;
+				return {
+					...previous,
+					domains: previous.domains.map((domain) =>
+						domain.id === domainId
+							? {
+									...domain,
+									name,
+									description:
+										description !== undefined
+											? description
+											: domain.description,
+									origin: 'human',
+								}
+							: domain,
+					),
+				};
+			});
+		},
+		[],
+	);
+
 	const handleDatabaseFilterChange = useCallback(
 		(next: string | null) => {
 			setSelectedDatabaseId(next);
+			setSelectedDomainId(null);
+			setShowAllTerms(false);
 			clearGraphInteraction();
 			router.replace(
 				layer === ExplorationLayer.Data ? '/exploration?view=data' : '/exploration',
@@ -2023,8 +2110,31 @@ export const ExplorationView = () => {
 		setHoveredNodePosition(hoveredNode);
 	}, []);
 
-	const graph = layer === ExplorationLayer.Semantic ? semanticGraph : dataGraph;
+	const baseGraph = layer === ExplorationLayer.Semantic ? semanticGraph : dataGraph;
+	const selectedDomain =
+		domains?.domains.find((domain) => domain.id === selectedDomainId) ?? null;
+	const graph =
+		layer === ExplorationLayer.Semantic && selectedDomain
+			? {
+					nodes: semanticGraph.nodes.filter((node) =>
+						selectedDomain.term_ids.includes(node.id),
+					),
+					links: semanticGraph.links.filter(
+						(link) =>
+							selectedDomain.term_ids.includes(link.source) &&
+							selectedDomain.term_ids.includes(link.target),
+					),
+				}
+			: baseGraph;
 	const showOverview = layer === ExplorationLayer.Semantic && selectedDatabaseId === null;
+	const showDomains =
+		layer === ExplorationLayer.Semantic &&
+		selectedDatabaseId !== null &&
+		domains !== null &&
+		domains.generated &&
+		domains.domains.length > 1 &&
+		selectedDomainId === null &&
+		!showAllTerms;
 	const loading = layer === ExplorationLayer.Semantic ? semanticLoading : dataLoading;
 	const error = layer === ExplorationLayer.Semantic ? semanticError : dataError;
 
@@ -2250,7 +2360,7 @@ export const ExplorationView = () => {
 				</div>
 			</div>
 
-			{!showOverview && loading && <ExplorationLoader overlay />}
+			{!showOverview && !showDomains && loading && <ExplorationLoader overlay />}
 
 			{showOverview && (
 				<>
@@ -2278,7 +2388,61 @@ export const ExplorationView = () => {
 				</>
 			)}
 
-			{!showOverview && !loading && error != null && (
+			{selectedDatabaseId !== null && layer === ExplorationLayer.Semantic && (
+				<div className="pointer-events-auto absolute left-5 top-5 z-20 rounded-lg px-3 py-2 glass-strong">
+					<ExplorationBreadcrumb
+						databaseName={
+							overview?.find(
+								(database) => database.database_id === selectedDatabaseId,
+							)?.database_name ?? selectedDatabaseId
+						}
+						domainName={selectedDomain?.name ?? undefined}
+						onAllDatabases={() => handleDatabaseFilterChange(null)}
+						onDatabase={() => {
+							setSelectedDomainId(null);
+							setShowAllTerms(false);
+						}}
+					/>
+				</div>
+			)}
+
+			{selectedDatabaseId !== null &&
+				layer === ExplorationLayer.Semantic &&
+				domains !== null &&
+				!domains.generated &&
+				!showOverview && (
+					<DomainGenerationBanner
+						onGenerate={() => void handleGenerateDomains()}
+						isGenerating={generatingDomains}
+						error={generateError}
+						canEdit={canEdit}
+					/>
+				)}
+
+			{showDomains && domains !== null && (
+				<DomainOverview
+					domains={domains.domains}
+					links={domains.links}
+					onSelect={(domainId) => {
+						clearGraphInteraction();
+						setSelectedDomainId(domainId);
+					}}
+					onRegenerate={() => void handleGenerateDomains()}
+					onRenameDomain={handleRenameDomain}
+					isRegenerating={generatingDomains}
+					canEdit={canEdit}
+				>
+					<button
+						type="button"
+						className="text-sm font-medium text-primary hover:underline"
+						onClick={() => setShowAllTerms(true)}
+					>
+						Show all Terms
+					</button>
+				</DomainOverview>
+			)}
+
+			{!showOverview && !showDomains && !loading && error != null && (
 				<div className="flex h-full items-center justify-center px-6 text-center">
 					<div className="rounded-xl border border-red-200 px-8 py-6 text-sm text-red-700 dark:border-red-900/50 dark:text-red-300 glass-strong">
 						Couldn&apos;t load exploration: {error}
@@ -2286,36 +2450,44 @@ export const ExplorationView = () => {
 				</div>
 			)}
 
-			{!showOverview && !loading && error == null && graph.nodes.length === 0 && (
-				<EmptyState
-					variant={EmptyStateVariant.Borderless}
-					icon={IconName.Exploration}
-					title={
-						layer === ExplorationLayer.Semantic
-							? selectedDatabaseId !== null
-								? 'No Terms Match This Filter'
-								: 'No Terms Created Yet'
-							: selectedDatabaseId !== null
-								? 'No Data Objects Match This Filter'
-								: 'No Data Objects Found'
-					}
-				/>
-			)}
+			{!showOverview &&
+				!showDomains &&
+				!loading &&
+				error == null &&
+				graph.nodes.length === 0 && (
+					<EmptyState
+						variant={EmptyStateVariant.Borderless}
+						icon={IconName.Exploration}
+						title={
+							layer === ExplorationLayer.Semantic
+								? selectedDatabaseId !== null
+									? 'No Terms Match This Filter'
+									: 'No Terms Created Yet'
+								: selectedDatabaseId !== null
+									? 'No Data Objects Match This Filter'
+									: 'No Data Objects Found'
+						}
+					/>
+				)}
 
-			{!showOverview && !loading && error == null && graph.nodes.length > 0 && (
-				<GraphCanvas
-					graph={graph}
-					activeNodeId={activeNodeId}
-					highlightedPath={highlightedPath}
-					onSelectNode={handleSelectNode}
-					onSelectEdge={handleSelectEdge}
-					onClickNode={handleSelectNode}
-					onDoubleClickNode={handleDoubleClickNode}
-					onHoverNode={handleHoverNode}
-					onControllerChange={handleControllerChange}
-					onNodeKindsChange={setNodeKindCounts}
-				/>
-			)}
+			{!showOverview &&
+				!showDomains &&
+				!loading &&
+				error == null &&
+				graph.nodes.length > 0 && (
+					<GraphCanvas
+						graph={graph}
+						activeNodeId={activeNodeId}
+						highlightedPath={highlightedPath}
+						onSelectNode={handleSelectNode}
+						onSelectEdge={handleSelectEdge}
+						onClickNode={handleSelectNode}
+						onDoubleClickNode={handleDoubleClickNode}
+						onHoverNode={handleHoverNode}
+						onControllerChange={handleControllerChange}
+						onNodeKindsChange={setNodeKindCounts}
+					/>
+				)}
 
 			{hoveredNode != null && hoveredNodePosition != null && (
 				<HoverNodeCard

@@ -17,6 +17,7 @@ import type {
 	ExplorationTermNode,
 	ExplorationZonesMap,
 	SemanticDatabaseOverviewItem,
+	SemanticDomains,
 	SemanticExplorationGraph,
 	SqlAttributeExplorationDetails,
 	SqlExplorationDetails,
@@ -145,4 +146,30 @@ export const explorationApi = {
 	/** Database-level overview for the semantic map. */
 	getSemanticDatabaseOverview: () =>
 		requests.get<{ data: SemanticDatabaseOverviewItem[] }>('exploration/semantic-overview'),
+
+	/** Business domains for one database in the semantic map. */
+	getSemanticDomains: (databaseId: string) =>
+		requests.get<{ data: SemanticDomains }>('exploration/semantic-domains', {
+			database_id: databaseId,
+		}),
+
+	/** Generate business domains for a database's terms. */
+	generateSemanticDomains: (databaseId: string) =>
+		requests.post<{ data: SemanticDomains }>(
+			`exploration/semantic-domains/generate?database_id=${encodeURIComponent(databaseId)}`,
+		),
+
+	/** Rename a business domain. */
+	renameSemanticDomain: (domainId: string, body: { name: string; description?: string | null }) =>
+		requests.patch<{ data: { id: string; name: string; description?: string | null } }>(
+			`exploration/semantic-domains/${encodeURIComponent(domainId)}`,
+			body,
+		),
+
+	/** Move terms to a business domain. */
+	moveTermsToDomain: (domainId: string, termIds: string[]) =>
+		requests.post<{ data: SemanticDomains }>(
+			`exploration/semantic-domains/${encodeURIComponent(domainId)}/terms`,
+			{ term_ids: termIds },
+		),
 };

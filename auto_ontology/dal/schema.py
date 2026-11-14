@@ -204,6 +204,67 @@ catalog_database = Table(
     Column("pulled", DateTime(timezone=True), nullable=True),
 )
 
+# Business domains group Terms inside a database; they are unrelated to zones,
+# which control access to catalog objects. `origin` says who owns the row: the
+# grouping model ('auto') or a person ('human'). Regeneration replaces only the
+# auto rows, so a rename or a hand-move survives the next generation -- the
+# write paths in dal/domains.py keep that rule, the schema only records it.
+domain = Table(
+    "domain",
+    METADATA,
+    _id(),
+    Column(
+        "database_id",
+        Text,
+        ForeignKey(catalog_database.c.id, ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("name", Text, nullable=False),
+    Column("description", Text, nullable=True),
+    Column("origin", Text, nullable=False, server_default="auto"),
+    Column(
+        "created",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+    CheckConstraint("origin IN ('auto', 'human')", name="domain_origin"),
+)
+Index("ix_domain_database_id", domain.c.database_id)
+
+# database_id is denormalized ON PURPOSE: UNIQUE(term_id, database_id) says a
+# Term has AT MOST ONE domain per database. A Term linked to tables in several
+# databases can therefore carry one domain per database -- one row per
+# (term_id, database_id), each naming a different domain -- while a Term inside
+# one database can never sit in two of them. The assignment carries its own
+# `origin` for the same reason the domain does: a hand-moved Term keeps its
+# domain across regenerations.
+term_domain = Table(
+    "term_domain",
+    METADATA,
+    Column(
+        "term_id",
+        Text,
+        ForeignKey("term.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "domain_id",
+        Text,
+        ForeignKey("domain.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "database_id",
+        Text,
+        ForeignKey(catalog_database.c.id, ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("origin", Text, nullable=False, server_default="auto"),
+    CheckConstraint("origin IN ('auto', 'human')", name="term_domain_origin"),
+    UniqueConstraint("term_id", "database_id", name="uq_term_domain_term_database"),
+)
+
 catalog_schema = Table(
     "catalog_schema",
     METADATA,

@@ -41,6 +41,7 @@ from auto_ontology.server.models import (
     Rule,
     SchemaSummary,
     SemanticDatabaseOverviewItem,
+    SemanticDomains,
     SemanticExplorationGraph,
     SqlAttribute,
     SqlAttributeExplorationDetails,
@@ -108,6 +109,7 @@ __all__ = [
     "RuleResponse",
     "SchemasPayload",
     "SemanticDatabaseOverviewResponse",
+    "SemanticDomainsResponse",
     "SemanticExplorationGraphResponse",
     "SemanticIndexStatus",
     "SemanticReindexResponse",
@@ -400,6 +402,7 @@ ExplorationEdgeListResponse = ListResponse[ExplorationEdge]
 DataExplorationGraphResponse = DataResponse[DataExplorationGraph]
 SemanticExplorationGraphResponse = DataResponse[SemanticExplorationGraph]
 SemanticDatabaseOverviewResponse = DataResponse[list[SemanticDatabaseOverviewItem]]
+SemanticDomainsResponse = DataResponse[SemanticDomains]
 TableExplorationDetailsResponse = DataResponse[TableExplorationDetails]
 TermExplorationDetailsResponse = DataResponse[TermExplorationDetails]
 ColumnExplorationDetailsResponse = DataResponse[ColumnExplorationDetails]

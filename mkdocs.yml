@@ -51,6 +51,7 @@ nav:
   - Using Lexis:
       - Conversation API: conversation-api.md
       - Business Terms API: terms-api.md
+      - Exploration map: business domains: exploration-map.md
       - Lexis MCP server: mcp.md
       - Matching question wording to stored values: value-linking.md
   - Engine & safety:

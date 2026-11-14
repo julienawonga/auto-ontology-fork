@@ -124,6 +124,40 @@ export type SemanticDatabaseOverviewItem = {
 	term_count: number;
 };
 
+export type SemanticDomainTopTerm = {
+	id: string;
+	name: string;
+};
+
+export type SemanticDomain = {
+	id: string;
+	name: string;
+	description?: string | null;
+	origin?: 'auto' | 'human';
+	term_ids: string[];
+	term_count: number;
+	table_count?: number;
+	certified_term_count?: number;
+	column_attribute_count?: number;
+	sql_attribute_count?: number;
+	internal_link_count?: number;
+	top_terms?: SemanticDomainTopTerm[];
+};
+
+export type SemanticDomainLink = {
+	source: string;
+	target: string;
+	weight: number;
+	shared_table_count?: number;
+	relationship_types?: string[];
+};
+
+export type SemanticDomains = {
+	generated?: boolean;
+	domains: SemanticDomain[];
+	links: SemanticDomainLink[];
+};
+
 /** One Term/Table/Column/ColumnAttribute node along an `ExplorationLinkPathHop` chain. */
 export type ExplorationLinkPathNodeDto = {
 	id: string;

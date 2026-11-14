@@ -83,6 +83,12 @@
     "store_column_sample_values": "(table_id: 'str', samples: 'dict[str, list]') -> 'None'",
     "store_column_uniqueness": "(table_id: 'str', uniqueness: 'dict[str, bool]') -> 'None'"
   },
+  "domains": {
+    "fetch_domains": "(database_id: 'str') -> 'list[dict[str, Any]]'",
+    "move_terms": "(domain_id: 'str', term_ids: 'list[str]') -> 'bool'",
+    "rename_domain": "(domain_id: 'str', name: 'str', description: 'str | None' = None) -> 'bool'",
+    "replace_auto_domains": "(database_id: 'str', groups: 'list[dict[str, Any]]') -> 'None'"
+  },
   "exploration": {
     "fetch_column_attribute_exploration_details": "(attr_id: 'str', zone_ids: 'list[str] | None' = None, *, skip: 'int' = 0, limit: 'int | None' = None) -> 'dict[str, Any]'",
     "fetch_column_exploration_details": "(column_id: 'str', zone_ids: 'list[str] | None' = None) -> 'dict[str, Any]'",
@@ -90,6 +96,7 @@
     "fetch_data_exploration_graph": "(zone_ids: 'list[str] | None' = None, limit: 'int' = 500, database_id: 'str | None' = None) -> 'dict[str, list[dict[str, Any]]]'",
     "fetch_exploration_related_nodes": "(node_id: 'str', layer: 'str', zone_ids: 'list[str] | None' = None, *, skip: 'int' = 0, limit: 'int | None' = None) -> 'dict[str, Any]'",
     "fetch_semantic_database_overview": "() -> 'list[dict[str, Any]]'",
+    "fetch_semantic_domains": "(database_id: 'str', zone_ids: 'list[str] | None' = None) -> 'dict[str, Any]'",
     "fetch_semantic_exploration_graph": "(zone_ids: 'list[str] | None' = None, limit: 'int' = 500, database_id: 'str | None' = None) -> 'dict[str, list[dict[str, Any]]]'",
     "fetch_semantic_link_path": "(source_term_id: 'str', target_term_id: 'str', zone_ids: 'list[str] | None' = None) -> 'dict[str, Any]'",
     "fetch_sql_attribute_exploration_details": "(attr_id: 'str', zone_ids: 'list[str] | None' = None) -> 'dict[str, Any]'",
@@ -237,6 +244,9 @@
     "list_tags": "(*, search: 'str | None' = None, skip: 'int' = 0, limit: 'int | None' = None) -> 'list[dict[str, Any]]'",
     "remove_labels_no_longer_matched": "(*, rule_id: 'str', targets: 'dict[str, Select]') -> 'int'",
     "update_tag": "(*, tag_id: 'str', name: 'str', modified_by: 'str | None' = None) -> 'dict[str, Any] | None'"
+  },
+  "term_domains": {
+    "cluster_terms": "(nodes: 'list[dict[str, Any]]', links: 'list[dict[str, Any]]', *, min_terms: 'int' = 30) -> 'dict[str, list[dict[str, Any]]]'"
   },
   "terms": {
     "TermHasSqlAttributes": "class(ValueError)",

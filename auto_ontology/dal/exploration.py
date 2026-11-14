@@ -51,6 +51,7 @@ from auto_ontology.dal.terms import (
     find_term_link_path,
     term_is_in_scope,
 )
+from auto_ontology.dal.domains import fetch_domains
 from auto_ontology.dal.users import resolve_accessible_catalog_ids
 from auto_ontology.utils.sample_values import stringify_sample_values
 from auto_ontology.semantic.constants import (
@@ -1312,6 +1313,7 @@ def fetch_semantic_exploration_graph(
             zone_ids=zone_ids, data_ids_by_zone=resolved
         )
     }
+
     sql_counts = {
         row["term_id"]: row["count"]
         for row in fetch_sql_attribute_counts(
@@ -1396,6 +1398,129 @@ def fetch_semantic_exploration_graph(
             for source, target in sorted(link_keys)
             if source in kept and target in kept
         ],
+    }
+
+
+def fetch_semantic_domains(
+    database_id: str, zone_ids: list[str] | None = None
+) -> dict[str, Any]:
+    """Return stored business domains with term and shared-table relationships."""
+    graph = fetch_semantic_exploration_graph(zone_ids=zone_ids, database_id=database_id)
+    stored_domains = fetch_domains(database_id)
+    nodes = {node["id"]: node for node in graph["nodes"]}
+    term_domain: dict[str, str] = {}
+    domain_rows: dict[str, dict[str, Any]] = {}
+    for domain in stored_domains:
+        domain_rows[domain["id"]] = {
+            "id": domain["id"],
+            "name": domain["name"],
+            "description": domain.get("description"),
+            "origin": domain["origin"],
+            "term_ids": [],
+        }
+        for term_id in domain.get("term_ids", []):
+            if term_id in nodes:
+                term_domain[term_id] = domain["id"]
+    for term_id in nodes:
+        if term_id not in term_domain:
+            term_domain[term_id] = "unassigned"
+    if any(domain_id == "unassigned" for domain_id in term_domain.values()):
+        domain_rows["unassigned"] = {
+            "id": "unassigned",
+            "name": "Unassigned",
+            "description": None,
+            "origin": "auto",
+            "term_ids": [],
+        }
+    for term_id, domain_id in term_domain.items():
+        domain_rows[domain_id]["term_ids"].append(term_id)
+
+    pairs = fetch_term_table_pairs(zone_ids=zone_ids, term_ids=list(nodes))
+    term_tables, _ = build_term_table_maps(pairs)
+    # One query for every Term's certification rather than one per Term.
+    certification = {
+        term["id"]: term.get("certification")
+        for term in fetch_all_terms(zone_ids=zone_ids)
+    }
+    edges: dict[tuple[str, str], dict[str, Any]] = {}
+    for link in graph["links"]:
+        left, right = term_domain.get(link["source"]), term_domain.get(link["target"])
+        if not left or not right or left == right:
+            continue
+        source, target = sorted((left, right))
+        edge = edges.setdefault(
+            (source, target),
+            {
+                "source": source,
+                "target": target,
+                "weight": 0,
+                "_shared_tables": set(),
+                "relationship_types": set(),
+            },
+        )
+        edge["weight"] += 1
+        edge["_shared_tables"].update(
+            term_tables.get(link["source"], set())
+            & term_tables.get(link["target"], set())
+        )
+        edge["relationship_types"].update(link.get("relationship_types", []))
+
+    for domain_id, domain in domain_rows.items():
+        ids = domain["term_ids"]
+        domain_nodes = [nodes[term_id] for term_id in ids]
+        table_ids = (
+            set().union(*(term_tables.get(term_id, set()) for term_id in ids))
+            if ids
+            else set()
+        )
+        internal = sum(
+            1
+            for link in graph["links"]
+            if link["source"] != link["target"]
+            and term_domain.get(link["source"]) == domain_id
+            and term_domain.get(link["target"]) == domain_id
+        )
+        domain.update(
+            {
+                "term_count": len(ids),
+                "table_count": len(table_ids),
+                "certified_term_count": sum(
+                    certification.get(term_id) == "certified" for term_id in ids
+                ),
+                "column_attribute_count": sum(
+                    node.get("column_attributes_count", 0) for node in domain_nodes
+                ),
+                "sql_attribute_count": sum(
+                    node.get("sql_attributes_count", 0) for node in domain_nodes
+                ),
+                "internal_link_count": internal,
+                "top_terms": [
+                    {"id": node["id"], "name": node["name"]}
+                    for node in sorted(
+                        domain_nodes,
+                        key=lambda node: (
+                            -node.get("relationship_count", 0),
+                            node["name"],
+                        ),
+                    )[:3]
+                ],
+            }
+        )
+    links = [
+        {
+            "source": edge["source"],
+            "target": edge["target"],
+            "weight": edge["weight"],
+            "shared_table_count": len(edge["_shared_tables"]),
+            "relationship_types": sorted(edge["relationship_types"]),
+        }
+        for edge in edges.values()
+        if edge["weight"] > 0
+    ]
+    return {
+        "generated": bool(stored_domains),
+        "domains": list(domain_rows.values()),
+        "links": links,
     }
 
 
@@ -1496,6 +1621,7 @@ __all__ = [
     "fetch_exploration_related_nodes",
     "fetch_semantic_database_overview",
     "fetch_semantic_exploration_graph",
+    "fetch_semantic_domains",
     "fetch_semantic_link_path",
     "fetch_sql_attribute_exploration_details",
     "fetch_sql_exploration_details",

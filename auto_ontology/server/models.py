@@ -57,6 +57,7 @@ __all__ = [
     "RuleFilters",
     "SchemaSummary",
     "SemanticDatabaseOverviewItem",
+    "SemanticDomains",
     "SemanticExplorationGraph",
     "SemanticGraphNode",
     "SqlAttribute",
@@ -836,6 +837,39 @@ class SemanticDatabaseOverviewItem(ApiModel):
     database_id: str
     database_name: str
     term_count: int
+
+
+class SemanticDomain(ApiModel):
+    """One business domain and its Terms on the semantic exploration map."""
+
+    id: str
+    name: str
+    description: str | None = None
+    origin: str
+    term_ids: list[str] = Field(default_factory=list)
+    term_count: int
+    table_count: int
+    certified_term_count: int
+    column_attribute_count: int
+    sql_attribute_count: int
+    internal_link_count: int
+    top_terms: list[dict[str, str]] = Field(default_factory=list)
+
+
+class SemanticDomainLink(ApiModel):
+    source: str
+    target: str
+    weight: int
+    shared_table_count: int
+    relationship_types: list[str] = Field(default_factory=list)
+
+
+class SemanticDomains(ApiModel):
+    """Stored business domains and the links between them."""
+
+    generated: bool
+    domains: list[SemanticDomain] = Field(default_factory=list)
+    links: list[SemanticDomainLink] = Field(default_factory=list)
 
 
 class TableSqlQuery(ApiModel):
