@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026, Julien Awonga.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Lexis
 
 Lexis reads your schemas, builds a **business ontology** on top of them, and lets people and AI agents query your data in plain language, with the SQL, the steps and the definitions behind every answer.
