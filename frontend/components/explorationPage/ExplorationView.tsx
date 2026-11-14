@@ -2113,19 +2113,18 @@ export const ExplorationView = () => {
 	const baseGraph = layer === ExplorationLayer.Semantic ? semanticGraph : dataGraph;
 	const selectedDomain =
 		domains?.domains.find((domain) => domain.id === selectedDomainId) ?? null;
-	const graph =
-		layer === ExplorationLayer.Semantic && selectedDomain
-			? {
-					nodes: semanticGraph.nodes.filter((node) =>
-						selectedDomain.term_ids.includes(node.id),
-					),
-					links: semanticGraph.links.filter(
-						(link) =>
-							selectedDomain.term_ids.includes(link.source) &&
-							selectedDomain.term_ids.includes(link.target),
-					),
-				}
-			: baseGraph;
+	// Memoised on purpose: GraphCanvas restarts its layout whenever `graph` changes
+	// identity, so a filtered copy rebuilt on every render leaves the canvas blank.
+	const graph = useMemo(() => {
+		if (layer !== ExplorationLayer.Semantic || !selectedDomain) return baseGraph;
+		const termIds = new Set(selectedDomain.term_ids);
+		return {
+			nodes: semanticGraph.nodes.filter((node) => termIds.has(node.id)),
+			links: semanticGraph.links.filter(
+				(link) => termIds.has(link.source) && termIds.has(link.target),
+			),
+		};
+	}, [layer, selectedDomain, semanticGraph, baseGraph]);
 	const showOverview = layer === ExplorationLayer.Semantic && selectedDatabaseId === null;
 	const showDomains =
 		layer === ExplorationLayer.Semantic &&
@@ -2389,7 +2388,7 @@ export const ExplorationView = () => {
 			)}
 
 			{selectedDatabaseId !== null && layer === ExplorationLayer.Semantic && (
-				<div className="pointer-events-auto absolute left-5 top-5 z-20 rounded-lg px-3 py-2 glass-strong">
+				<div className="pointer-events-auto absolute left-5 top-[84px] z-20 rounded-lg px-3 py-2 glass-strong">
 					<ExplorationBreadcrumb
 						databaseName={
 							overview?.find(

@@ -32,7 +32,9 @@ from auto_ontology.retrieval.text_to_sql.question_language import _content_text
 logger = logging.getLogger(__name__)
 
 MAX_BATCH = 200
-MAX_TOKENS = 4000
+# Generous on purpose: a reasoning model spends part of the budget thinking, and an
+# exhausted budget comes back as an empty reply (seen on a 95-Term database at 4000).
+MAX_TOKENS = 16000
 MAX_DOMAINS = 8
 
 
@@ -61,10 +63,20 @@ def build_prompt(terms: list[dict[str, Any]], language: str) -> str:
         f"Write domain names and descriptions in language code {language}. Return "
         f'strict JSON with shape {{"domains":[{{"name":str,"description":str,'
         f'"term_ids":[str]}}]}}. Use {count_rule} domains. Assign every given '
-        "Term id exactly once; do not invent ids. Business names a manager would "
-        "say, such as Finance or Marketing; never generic names like Group 1.\n"
+        "Term id exactly once; do not invent ids. Every domain needs at least 2 "
+        "Terms: put a Term that fits nowhere into the closest domain, never alone "
+        "and never in a catch-all. Business names a manager would say, such as "
+        "Finance or Marketing; never generic names like Group 1. Reply with the "
+        "JSON only, no code fence and no commentary.\n"
         + json.dumps({"terms": compact}, ensure_ascii=False)
     )
+
+
+def _json_text(raw: str) -> str:
+    """The JSON object inside a model reply, tolerating code fences and prose."""
+    text = str(raw).strip()
+    start, end = text.find("{"), text.rfind("}")
+    return text[start : end + 1] if 0 <= start < end else text
 
 
 def parse_grouping(raw: str, valid_term_ids: set[str]) -> list[dict[str, Any]]:
@@ -76,8 +88,11 @@ def parse_grouping(raw: str, valid_term_ids: set[str]) -> list[dict[str, Any]]:
     capped at 8 domains, and names are trimmed and de-duplicated.
     """
     try:
-        data = json.loads(raw)
+        data = json.loads(_json_text(raw))
     except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Grouping output is not JSON; it starts with: %r", str(raw)[:200]
+        )
         raise GroupingError("Grouping output is not JSON") from exc
     if not isinstance(data, dict) or not isinstance(data.get("domains"), list):
         raise GroupingError("Grouping output must contain a domains list")
@@ -164,8 +179,11 @@ def _parse_assignment(
     falls back to "Other".
     """
     try:
-        data = json.loads(raw)
+        data = json.loads(_json_text(raw))
     except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Grouping output is not JSON; it starts with: %r", str(raw)[:200]
+        )
         raise GroupingError("Assignment output is not JSON") from exc
     if not isinstance(data, dict) or not isinstance(data.get("domains"), list):
         raise GroupingError("Assignment output must contain a domains list")

@@ -127,3 +127,11 @@ def test_group_terms_retries_then_falls_back_to_cluster_terms(
 
 def test_group_terms_empty_input_returns_empty() -> None:
     assert group_terms([], "en", GarbageLLM()) == []
+
+
+def test_parse_accepts_json_inside_a_code_fence_and_prose() -> None:
+    body = json.dumps(
+        {"domains": [{"name": "Finance", "description": "", "term_ids": ["a", "b"]}]}
+    )
+    reply = f"Here is the grouping:\n```json\n{body}\n```\nHope this helps."
+    assert [d["name"] for d in parse_grouping(reply, {"a", "b"})] == ["Finance"]

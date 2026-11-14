@@ -5,11 +5,14 @@
 import { describe, expect, it } from 'vitest';
 import {
 	calculateCertifiedPercentage,
+	clampFraction,
 	domainBubbleSize,
+	domainLinkDistance,
 	domainLinkWidth,
 	formatCertifiedText,
 	formatLinkLabel,
 	getTopNeighbours,
+	initialDomainPositions,
 } from './DomainOverview';
 import type { SemanticDomain, SemanticDomainLink } from '@/types/exploration';
 
@@ -57,5 +60,34 @@ describe('domain overview pure helpers', () => {
 		expect(neighbours[0].weight).toBe(25);
 		expect(neighbours[1].domain.id).toBe('d2');
 		expect(neighbours[1].weight).toBe(10);
+	});
+});
+
+describe('domain layout helpers', () => {
+	it('puts two domains side by side and keeps every position inside the canvas', () => {
+		const two = initialDomainPositions(['a', 'b']);
+		expect(Math.abs(two.a.y - two.b.y)).toBeLessThan(1e-9);
+		expect(two.a.x).not.toBe(two.b.x);
+		const many = initialDomainPositions(['a', 'b', 'c', 'd', 'e', 'f']);
+		for (const point of Object.values(many)) {
+			expect(point.x).toBeGreaterThan(0);
+			expect(point.x).toBeLessThan(1);
+			expect(point.y).toBeGreaterThan(0);
+			expect(point.y).toBeLessThan(1);
+		}
+	});
+
+	it('keeps a dragged bubble inside the canvas', () => {
+		expect(clampFraction(-3)).toBe(0.08);
+		expect(clampFraction(5)).toBe(0.92);
+		expect(clampFraction(0.5)).toBe(0.5);
+	});
+});
+
+describe('domain link distance', () => {
+	it('pulls strongly linked domains closer together', () => {
+		expect(domainLinkDistance(100, 100)).toBeLessThan(domainLinkDistance(10, 100));
+		expect(domainLinkDistance(1, 1)).toBe(240);
+		expect(domainLinkDistance(5, 0)).toBe(440);
 	});
 });
